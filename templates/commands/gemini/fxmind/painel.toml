@@ -1,0 +1,18 @@
+description = "Open the FxMind web panel and stay as the host agent chat"
+
+prompt = """
+Open the FxMind web panel, then **stay in this chat** as the host. No API key. No `agent login`.
+
+From the project root:
+```bash
+fxmind painel
+```
+
+Reply with `http://127.0.0.1:3847/chat`, then loop:
+
+1. `fxmind_panel_wait` (~20s)
+2. empty jobs → wait again
+3. one job → do it here, then `fxmind_panel_reply`
+4. several jobs → parallel Tasks, reply each thread
+5. repeat until the user stops
+"""

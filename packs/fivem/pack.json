@@ -1,0 +1,58 @@
+{
+  "id": "fivem",
+  "label": "FiveM",
+  "description": "vRP, QBCore, Qbox, ESX, NUI — Lua resources, natives, and server patterns",
+  "skills": {
+    "repo": "https://github.com/proelias7/fivem-skill.git",
+    "cacheName": "fivem-skill",
+    "siblingPath": "../fivem-skill/skills"
+  },
+  "defaultSkills": [
+    "vrp-framework",
+    "fivem-development",
+    "fivem-react-nui"
+  ],
+  "detect": {
+    "files": ["fxmanifest.lua", "__resource.lua"]
+  },
+  "createHint": "Run /fxmind create <resource> to design (then build) a new resource with the FiveM principles.",
+  "correctionTargets": {
+    "default": "fivem-development/best-practices.md",
+    "architecture": "fivem-development/architecture.md",
+    "communication": "fivem-development/communication.md",
+    "security": "fivem-development/security.md",
+    "performance": "fivem-development/performance.md",
+    "style": "fivem-development/style.md",
+    "api": "fivem-development/api.md"
+  },
+  "review": {
+    "policy": ["policy/fivem-principles.md"],
+    "always": [
+      { "file": "skills/fivem-development/SKILL.md", "max": 2200 },
+      { "file": "skills/fivem-development/quality-gates.md", "max": 3200 },
+      "skills/fivem-development/style.md",
+      "skills/fivem-development/architecture.md",
+      "skills/fivem-development/security.md"
+    ],
+    "rules": [
+      {
+        "match": "(?:^|/)vrp(?:/|$)|modules/|tunnel|proxy",
+        "files": [
+          { "file": "skills/vrp-framework/SKILL.md", "max": 2000 },
+          { "file": "skills/vrp-framework/patterns.md", "max": 2000 }
+        ]
+      },
+      { "ui": true, "files": [{ "file": "skills/fivem-react-nui/SKILL.md", "max": 2200 }] }
+    ]
+  },
+  "templateFiles": [
+    { "src": "topic-catalog.md", "dest": "policy/topic-catalog.md" },
+    { "src": "reference.example.mdc", "dest": "templates/reference.example.mdc" },
+    { "src": "reference.template.mdc", "dest": "templates/reference.mdc" },
+    { "src": "minimum-evidence.md", "dest": "policy/minimum-evidence.md" },
+    { "src": "fivem-principles.md", "dest": "policy/fivem-principles.md" },
+    { "src": "resource-design.template.md", "dest": "templates/resource-design.md" },
+    { "src": "domain-routing.md", "dest": "policy/domain-routing.md" },
+    { "src": "audit-procedure.md", "dest": "audits/procedure.md" }
+  ]
+}

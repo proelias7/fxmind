@@ -1,0 +1,16 @@
+description = "Task workflow — classify, gates A/B/V/C, implement, verify, learn"
+
+prompt = """
+**Task (implementation / fix / refactor / config change).**
+
+**Task text:** {{args}}
+
+Read **`.fxmind/modes/task.md`** (source of truth). After Implement, read **`.fxmind/modes/task-verify.md`**.
+
+Classify first: question | analyze-only | plan-first | trivial | task.
+- trivial → `fxmind_start_task` with trivial=true (auto A+B)
+- else → start_task → A → B → implement → V → judge if required → C
+MCP rejects Gate C without V. Minimum evidence: `.fxmind/policy/minimum-evidence.md` when present.
+Never Write `.fxmind/state/fxmind-gates.json`.
+From Gate A, reply to the user short and direct — outcome first, no long text.
+"""

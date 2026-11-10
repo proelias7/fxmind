@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fxmind — shared memory for AI agents</title>
+<meta name="description" content="One shared memory for every AI agent on your project. Knowledge packs for Web and FiveM, verified work, built for parallel agents." />
+<meta property="og:title" content="fxmind — shared memory for AI agents" />
+<meta property="og:description" content="One shared memory for every AI agent on your project." />
+<meta property="og:image" content="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" />
+<link rel="icon" href="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0d0f14;
+    --bg-2: #12151c;
+    --card: #161a23;
+    --line: #262b37;
+    --text: #ecebe6;
+    --muted: #9aa1ad;
+    --accent: #7ee0b4;
+    --accent-ink: #0b2a1e;
+    --warm: #f2b45a;
+    --pink: #ff8fd6;
+    --radius: 16px;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f6f2; --bg-2: #efede6; --card: #ffffff; --line: #e2dfd6;
+      --text: #1d1b17; --muted: #5f5b53; --accent: #1f9e6e; --accent-ink: #ffffff; --warm: #b7741a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  /* top bar */
+  header.top { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
+    background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line); }
+  .top .wrap { display: flex; align-items: center; gap: 18px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.02em; text-decoration: none; font-size: 18px; }
+  .brand img { width: 28px; height: 28px; border-radius: 8px; }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  nav.links { margin-left: auto; display: flex; gap: 18px; align-items: center; font-size: 14px; color: var(--muted); }
+  nav.links a { text-decoration: none; }
+  nav.links a:hover { color: var(--text); }
+  .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .lang button { all: unset; cursor: pointer; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .lang button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+  .lang button:focus-visible, .btn:focus-visible, .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 720px) { nav.links a.hide-sm { display: none; } }
+
+  /* hero */
+  .hero { padding-top: 72px; padding-bottom: 40px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding-top: 48px; } .hero > * { min-width: 0; } }
+  .eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.02em; }
+  h1 { font-size: clamp(36px, 5.4vw, 60px); line-height: 1.03; letter-spacing: -0.035em; margin: 12px 0 18px; font-weight: 800; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .sub { font-size: 18px; color: var(--muted); max-width: 520px; margin: 0 0 28px; }
+  .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 12px; font-weight: 600; font-size: 15px;
+    text-decoration: none; border: 1px solid var(--line); background: var(--card); transition: transform .15s ease, border-color .15s ease; }
+  .btn:hover { transform: translateY(-1px); border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .btn .count { font-family: var(--mono); font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--bg-2); color: var(--muted); }
+
+  /* mock agent window */
+  .mock { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 30px 80px -40px rgba(0,0,0,.6); }
+  .mock .bar { display: flex; gap: 6px; margin-bottom: 14px; }
+  .mock .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .msg { font-size: 14px; padding: 10px 12px; border-radius: 12px; margin-bottom: 10px; }
+  .msg.user { background: var(--bg-2); margin-left: 40px; }
+  .msg.agent { border: 1px solid var(--line); }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--bg-2); opacity: 0; transform: translateY(6px); animation: pop .5s ease forwards; }
+  .pill b { font-weight: 600; }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .pill.warm .dot { background: var(--warm); }
+  .pill.pink .dot { background: var(--pink); }
+  .pill:nth-child(1) { animation-delay: .3s } .pill:nth-child(2) { animation-delay: .9s }
+  .pill:nth-child(3) { animation-delay: 1.5s } .pill:nth-child(4) { animation-delay: 2.1s }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .pill { animation: none; opacity: 1; transform: none; } .btn { transition: none; } }
+  .prompt { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 14px; }
+  .prompt .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--accent); }
+
+  /* sections */
+  section { padding: 64px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(28px, 3.6vw, 40px); letter-spacing: -0.03em; margin: 0 0 10px; line-height: 1.1; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 32px; max-width: 640px; }
+
+  /* install */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  .card h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.01em; }
+  .card p { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
+  .step { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 8px; display: block; }
+  .code { position: relative; display: flex; align-items: center; gap: 10px; background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 12px 12px 14px; font-family: var(--mono); font-size: 13.5px; }
+  .code code { flex: 1; overflow-x: auto; white-space: nowrap; }
+  .code code::before { content: "$ "; color: var(--muted); }
+  .code.noprompt code::before { content: ""; }
+  .code.wrap code { white-space: normal; }
+  .copy { all: unset; cursor: pointer; font-family: Inter, sans-serif; font-size: 12px; font-weight: 600; padding: 6px 10px;
+    border-radius: 8px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .copy:hover { color: var(--text); border-color: var(--muted); }
+  .copy.ok { color: var(--accent); border-color: var(--accent); }
+  .note { margin-top: 14px; font-size: 14px; color: var(--muted); }
+  .note code { font-family: var(--mono); font-size: 13px; }
+
+  /* features */
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .features { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+  .feat .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 14px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 18px; }
+  .feat h3 { font-size: 17px; }
+
+  /* packs */
+  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .packs { grid-template-columns: 1fr; } }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .detect { font-family: var(--mono); font-size: 12px; color: var(--warm); }
+
+  /* agents strip */
+  .agents { display: flex; flex-wrap: wrap; gap: 10px 22px; color: var(--muted); font-weight: 600; font-size: 15px; margin-top: 28px; }
+
+  /* how */
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; counter-reset: s; }
+  @media (max-width: 800px) { .flow { grid-template-columns: 1fr 1fr; } }
+  .flow .card { padding: 18px; }
+  .flow .card::before { counter-increment: s; content: counter(s); font-family: var(--mono); color: var(--accent); font-size: 13px; display: block; margin-bottom: 8px; }
+  .flow .card p { margin: 0; }
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 56px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; }
+  footer .links { display: flex; gap: 18px; flex-wrap: wrap; margin-left: auto; }
+  footer a { text-decoration: none; } footer a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="fxmind">
+      <img src="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" alt="" />
+      fxmind <span class="badge">v1.0</span>
+    </a>
+    <nav class="links" aria-label="Main">
+      <a class="hide-sm" href="#how" data-i18n="nav.how">How it works</a>
+      <a class="hide-sm" href="#packs" data-i18n="nav.packs">Packs</a>
+      <a href="#install" data-i18n="nav.install">Install</a>
+      <a class="hide-sm" href="https://github.com/proelias7/fxmind">GitHub</a>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="pt" aria-pressed="false">PT</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <div>
+      <div class="eyebrow" data-i18n="hero.eyebrow">// shared memory for AI agents</div>
+      <h1 data-i18n-html="hero.title">Your agents forget.<br/><em>fxmind</em> remembers.</h1>
+      <p class="sub" data-i18n="hero.sub">One memory in your repo, shared by every AI agent and teammate. Expert skills for your stack, and an independent review before any change counts as done.</p>
+      <div class="ctas">
+        <a class="btn primary" href="#install" data-i18n="hero.install">Install in one command</a>
+        <a class="btn" href="https://github.com/proelias7/fxmind">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
+          <span data-i18n="hero.star">Star on GitHub</span>
+          <span class="count" id="stars" hidden></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="mock" aria-hidden="true">
+      <div class="bar"><i></i><i></i><i></i></div>
+      <div class="msg user" data-i18n="mock.user">Add pagination to the orders API</div>
+      <div class="msg agent">
+        <span data-i18n="mock.agent">On it. Using what the team already knows about this endpoint.</span>
+        <div class="pills">
+          <span class="pill"><span class="dot"></span><b data-i18n="mock.p1a">Memory</b> <span data-i18n="mock.p1b">3 facts loaded</span></span>
+          <span class="pill pink"><span class="dot"></span><b data-i18n="mock.p2a">Claimed</b> <span>api/orders.ts</span></span>
+          <span class="pill warm"><span class="dot"></span><b>web pack</b> <span>D2 · S1 · T1</span></span>
+          <span class="pill"><span class="dot"></span><b>Gate V</b> <span>VERIFIED</span></span>
+        </div>
+      </div>
+      <div class="prompt"><span data-i18n="mock.prompt">Reply to your agent…</span><span class="tag">/fxmind</span></div>
+    </div>
+  </div>
+
+  <div class="wrap" style="padding-bottom:48px">
+    <div class="agents" aria-label="Supported agents">
+      <span>Cursor</span><span>Claude Code</span><span>Codex</span><span>Gemini CLI</span><span>OpenCode</span><span>VS Code Copilot</span>
+    </div>
+  </div>
+
+  <section id="install">
+    <div class="wrap">
+      <h2 data-i18n="install.title">Install</h2>
+      <p class="lead" data-i18n="install.lead">Needs Node.js 20.9+. Run it in your project folder, then restart your agent.</p>
+      <div class="grid2">
+        <div class="card">
+          <span class="step">01</span>
+          <h3 data-i18n="install.t1">Run one command.</h3>
+          <p data-i18n="install.d1">Installs memory, skills and the right pack for your project.</p>
+          <div class="code"><code id="cmd-install">npx --yes github:proelias7/fxmind -y</code><button class="copy" type="button" data-copy="cmd-install" data-i18n="copy">Copy</button></div>
+        </div>
+        <div class="card">
+          <span class="step">02</span>
+          <h3 data-i18n="install.t2">Or ask your agent.</h3>
+          <p data-i18n="install.d2">Paste this into Cursor, Claude Code or Codex and press Enter.</p>
+          <div class="code noprompt wrap"><code id="cmd-ask" data-i18n="install.ask">Install fxmind in this project: run `npx --yes github:proelias7/fxmind -y` in the project root, then tell me to restart.</code><button class="copy" type="button" data-copy="cmd-ask" data-i18n="copy">Copy</button></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3 data-i18n="update.title">Update anytime.</h3>
+        <p data-i18n="update.d">Your memories stay. Only fxmind's own files are refreshed.</p>
+        <div class="code"><code id="cmd-update">npx --yes github:proelias7/fxmind --update -y</code><button class="copy" type="button" data-copy="cmd-update" data-i18n="copy">Copy</button></div>
+      </div>
+      <p class="note" data-i18n-html="install.note">Pick an agent with <code>--claude</code>, <code>--cursor</code>, <code>--codex</code>… or a pack with <code>--pack web</code>. Everything else is in the <a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md">full reference</a>.</p>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <h2 data-i18n="feat.title">What changes.</h2>
+      <p class="lead" data-i18n="feat.lead">Agents stop starting from zero, stop guessing, and stop stepping on each other.</p>
+      <div class="features">
+        <div class="card feat"><div class="ico">◎</div><h3 data-i18n="f1.t">One memory for everyone.</h3><p data-i18n="f1.d">What any agent learns is saved in .fxmind/memory/ and committed with your code. The whole team reuses it.</p></div>
+        <div class="card feat"><div class="ico">⌁</div><h3 data-i18n="f2.t">Facts with receipts.</h3><p data-i18n="f2.d">Every memory points to the exact line of code that proves it, and drops out when that code changes.</p></div>
+        <div class="card feat"><div class="ico">✦</div><h3 data-i18n="f3.t">An expert for your stack.</h3><p data-i18n="f3.d">Packs bring binding best practices — security, data, performance, accessibility, clean code.</p></div>
+        <div class="card feat"><div class="ico">✓</div><h3 data-i18n="f4.t">Reviewed before it's done.</h3><p data-i18n="f4.d">Each change passes short gates and a fresh, independent reviewer. Tests and checks run for real.</p></div>
+        <div class="card feat"><div class="ico">⇄</div><h3 data-i18n="f5.t">Parallel agents, no collisions.</h3><p data-i18n="f5.d">Agents claim the files they edit. Two tabs, two CLIs, two teammates — nobody overwrites anybody.</p></div>
+        <div class="card feat"><div class="ico">⌘</div><h3 data-i18n="f6.t">Just talk to it.</h3><p data-i18n="f6.d">No new workflow to learn. Ask in plain language; /fxmind learn, create and audit are there when you want them.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="packs">
+    <div class="wrap">
+      <h2 data-i18n="packs.title">Knowledge packs.</h2>
+      <p class="lead" data-i18n="packs.lead">Picked automatically from your project. Install both if you need both.</p>
+      <div class="packs">
+        <div class="card">
+          <div class="detect" data-i18n="packs.webdetect">detected by package.json · composer.json · pyproject.toml</div>
+          <h3 style="margin-top:8px">Web</h3>
+          <p data-i18n="packs.web">Frontend, backend and data — with rules agents must follow and cite.</p>
+          <div class="chips"><span class="chip">React</span><span class="chip">Next.js</span><span class="chip">Vue / Nuxt</span><span class="chip">Svelte</span><span class="chip">Angular</span><span class="chip">Node / Express / NestJS</span><span class="chip">Python / PHP</span><span class="chip">SQL / Prisma</span><span class="chip" data-i18n="chip.sec">Security</span><span class="chip" data-i18n="chip.a11y">Accessibility</span><span class="chip" data-i18n="chip.tests">Tests</span></div>
+        </div>
+        <div class="card">
+          <div class="detect" data-i18n="packs.fivemdetect">detected by fxmanifest.lua</div>
+          <h3 style="margin-top:8px">FiveM</h3>
+          <p data-i18n="packs.fivem">Lua resources, natives and server patterns for every major framework.</p>
+          <div class="chips"><span class="chip">vRP</span><span class="chip">QBCore</span><span class="chip">Qbox</span><span class="chip">ESX</span><span class="chip">NUI / React</span><span class="chip" data-i18n="chip.perf">Network &amp; performance</span><span class="chip" data-i18n="chip.sec">Security</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 data-i18n="flow.title">How a change goes.</h2>
+      <p class="lead" data-i18n="flow.lead">Short steps the agent runs on its own. You just see the result.</p>
+      <div class="flow">
+        <div class="card"><h3 data-i18n="s1.t">Recall</h3><p data-i18n="s1.d">Loads the facts the team already verified.</p></div>
+        <div class="card"><h3 data-i18n="s2.t">Plan</h3><p data-i18n="s2.d">Reuses what exists, claims the files it will touch.</p></div>
+        <div class="card"><h3 data-i18n="s3.t">Verify</h3><p data-i18n="s3.d">Runs lint, types and tests; an independent reviewer checks the diff.</p></div>
+        <div class="card"><h3 data-i18n="s4.t">Learn</h3><p data-i18n="s4.d">Saves what it proved, for the next agent.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>fxmind · MIT · <a href="https://github.com/proelias7">proelias7</a></span>
+    <div class="links">
+      <a href="#install" data-i18n="nav.install">Install</a>
+      <a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md" data-i18n="foot.ref">Reference</a>
+      <a href="https://github.com/proelias7/fxmind/issues" data-i18n="foot.bug">Report a bug</a>
+      <a href="https://github.com/proelias7/fxmind">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const T = {
+    pt: {
+      "nav.how": "Como funciona", "nav.packs": "Packs", "nav.install": "Instalar",
+      "hero.eyebrow": "// memória compartilhada para agentes de IA",
+      "hero.title": "Seus agentes esquecem.<br/>O <em>fxmind</em> lembra.",
+      "hero.sub": "Uma memória no seu repositório, compartilhada por todos os agentes de IA e pelo time. Skills de especialista para a sua stack e revisão independente antes de qualquer mudança valer como pronta.",
+      "hero.install": "Instale com um comando", "hero.star": "Estrela no GitHub",
+      "mock.user": "Adiciona paginação na API de pedidos",
+      "mock.agent": "Já vou. Usando o que o time já sabe sobre esse endpoint.",
+      "mock.p1a": "Memória", "mock.p1b": "3 fatos carregados", "mock.p2a": "Reservado",
+      "mock.prompt": "Responda ao seu agente…",
+      "install.title": "Instalar",
+      "install.lead": "Precisa do Node.js 20.9+. Rode na pasta do projeto e reinicie o agente.",
+      "install.t1": "Rode um comando.", "install.d1": "Instala memória, skills e o pack certo para o seu projeto.",
+      "install.t2": "Ou peça ao seu agente.", "install.d2": "Cole isto no Cursor, Claude Code ou Codex e aperte Enter.",
+      "install.ask": "Instale o fxmind neste projeto: rode `npx --yes github:proelias7/fxmind -y` na raiz do projeto e depois me diga para reiniciar.",
+      "update.title": "Atualize quando quiser.", "update.d": "Suas memórias ficam. Só os arquivos do próprio fxmind são atualizados.",
+      "install.note": "Escolha o agente com <code>--claude</code>, <code>--cursor</code>, <code>--codex</code>… ou o pack com <code>--pack web</code>. O resto está na <a href=\"https://github.com/proelias7/fxmind/blob/main/docs/reference.md\">referência completa</a>.",
+      "copy": "Copiar", "copied": "Copiado",
+      "feat.title": "O que muda.", "feat.lead": "Os agentes param de começar do zero, param de chutar e param de atropelar uns aos outros.",
+      "f1.t": "Uma memória para todos.", "f1.d": "O que qualquer agente aprende fica em .fxmind/memory/ e vai para o git com o código. O time inteiro reaproveita.",
+      "f2.t": "Fatos com prova.", "f2.d": "Cada memória aponta a linha exata do código que a comprova, e sai de cena quando esse código muda.",
+      "f3.t": "Um especialista na sua stack.", "f3.d": "Os packs trazem boas práticas obrigatórias — segurança, dados, performance, acessibilidade, código limpo.",
+      "f4.t": "Revisado antes de ficar pronto.", "f4.d": "Cada mudança passa por etapas curtas e por um revisor novo e independente. Testes e checagens rodam de verdade.",
+      "f5.t": "Agentes em paralelo, sem colisão.", "f5.d": "Cada agente reserva os arquivos que edita. Duas abas, dois CLIs, duas pessoas — ninguém sobrescreve ninguém.",
+      "f6.t": "É só conversar.", "f6.d": "Nenhum fluxo novo para aprender. Peça em linguagem natural; /fxmind learn, create e audit estão lá quando quiser.",
+      "packs.title": "Packs de conhecimento.", "packs.lead": "Escolhidos automaticamente pelo projeto. Instale os dois se precisar dos dois.",
+      "packs.webdetect": "detectado por package.json · composer.json · pyproject.toml",
+      "packs.web": "Frontend, backend e dados — com regras que os agentes precisam seguir e citar.",
+      "packs.fivemdetect": "detectado por fxmanifest.lua",
+      "packs.fivem": "Resources Lua, natives e padrões de servidor para os principais frameworks.",
+      "chip.sec": "Segurança", "chip.a11y": "Acessibilidade", "chip.tests": "Testes", "chip.perf": "Rede e performance",
+      "flow.title": "Como uma mudança acontece.", "flow.lead": "Etapas curtas que o agente faz sozinho. Você só vê o resultado.",
+      "s1.t": "Lembrar", "s1.d": "Carrega os fatos que o time já verificou.",
+      "s2.t": "Planejar", "s2.d": "Reaproveita o que existe e reserva os arquivos que vai mexer.",
+      "s3.t": "Verificar", "s3.d": "Roda lint, tipos e testes; um revisor independente confere o diff.",
+      "s4.t": "Aprender", "s4.d": "Salva o que comprovou, para o próximo agente.",
+      "foot.ref": "Referência", "foot.bug": "Reportar bug",
+      "_title": "fxmind — memória compartilhada para agentes de IA"
+    }
+  };
+  const en = {};
+  document.querySelectorAll("[data-i18n]").forEach((el) => { en[el.dataset.i18n] = el.textContent; });
+  document.querySelectorAll("[data-i18n-html]").forEach((el) => { en[el.dataset.i18nHtml] = el.innerHTML; });
+  en.copy = "Copy"; en.copied = "Copied"; en._title = document.title;
+  T.en = en;
+
+  let lang = "en";
+  try { lang = localStorage.getItem("fxmind-lang") || ""; } catch {}
+  if (!T[lang]) lang = (navigator.language || "").toLowerCase().startsWith("pt") ? "pt" : "en";
+
+  function apply(next) {
+    lang = next;
+    const d = T[lang];
+    document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
+    document.title = d._title;
+    document.querySelectorAll("[data-i18n]").forEach((el) => { if (d[el.dataset.i18n]) el.textContent = d[el.dataset.i18n]; });
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => { if (d[el.dataset.i18nHtml]) el.innerHTML = d[el.dataset.i18nHtml]; });
+    document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    try { localStorage.setItem("fxmind-lang", lang); } catch {}
+  }
+  document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => apply(b.dataset.lang)));
+  apply(lang);
+
+  document.querySelectorAll(".copy").forEach((btn) => btn.addEventListener("click", async () => {
+    const text = document.getElementById(btn.dataset.copy).textContent.trim();
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const ta = Object.assign(document.createElement("textarea"), { value: text });
+      document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+    }
+    btn.textContent = T[lang].copied; btn.classList.add("ok");
+    setTimeout(() => { btn.textContent = T[lang].copy; btn.classList.remove("ok"); }, 1600);
+  }));
+
+  fetch("https://api.github.com/repos/proelias7/fxmind")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((repo) => {
+      if (!repo || typeof repo.stargazers_count !== "number") return;
+      const el = document.getElementById("stars");
+      el.textContent = repo.stargazers_count.toLocaleString();
+      el.hidden = false;
+    })
+    .catch(() => {});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1408 @@
+#!/usr/bin/env node
+/**
+ * fxmind MCP server (stdio, JSON-RPC 2.0).
+ *
+ * Tools:
+ *   fxmind_list_memories / fxmind_validate_memories / fxmind_query / fxmind_graph / fxmind_check_update
+ *   fxmind_drift_check / fxmind_start_task / fxmind_gate_status / fxmind_record_gate
+ *   fxmind_record_correction / fxmind_list_corrections
+ *   fxmind_fivem_install / fxmind_fivem_cmd / fxmind_fivem_console_tail / fxmind_fivem_status
+ *   fxmind_fivem_nui_wire / fxmind_fivem_nui_dump / fxmind_fivem_nui_unwire
+ *   fxmind_db_status / fxmind_db_query / fxmind_db_schema / fxmind_db_sample
+ *   fxmind_db_explore / fxmind_db_analyze
+ *   fxmind_storage_status / fxmind_storage_upload_image / fxmind_image_resize
+ *   fxmind_panel_wait / fxmind_panel_pending / fxmind_panel_reply / fxmind_panel_fail
+ *   fxmind_subagent_run
+ *
+ * Gates are session state — use fxmind_start_task + fxmind_record_gate only.
+ * Never Write .fxmind/state/fxmind-gates.json from the agent.
+ */
+
+const fs = require("fs");
+const path = require("path");
+const tools = require("./fxmind-tools");
+const fivemRcon = require("./fivem-rcon");
+const fivemNuiDump = require("./fivem-nui-dump");
+const fxmindMysql = require("./fxmind-mysql");
+const storage = require("./fxmind-storage");
+const { resizeImage } = require("./lib/image-tools");
+const { checkForUpdate } = require("./lib/update-check");
+const panelHost = require("./lib/panel-host");
+const { searchSource } = require("./lib/source-search");
+const { readSource } = require("./lib/read-source");
+const { routeTool } = require("./lib/tool-router");
+const { formatQueryResult } = require("./lib/memory-retrieval");
+const independentReview = require("./lib/independent-review");
+const reviewerRouting = require("./lib/reviewer-routing");
+const verification = require("./lib/verification");
+const luaScope = require("./lib/lua-scope-check");
+
+const PROTOCOL_VERSION = "2024-11-05";
+const SERVER_INFO = { name: "fxmind", version: require("../package.json").version };
+
+const SESSION_ID_PROP = {
+  sessionId: {
+    type: "string",
+    description: "Session id from fxmind_start_task (required with 2+ active sessions).",
+  },
+  conversationId: {
+    type: "string",
+    description: "Optional chat id binding the session to this tab.",
+  },
+};
+
+function sessionExtra(args = {}) {
+  return {
+    sessionId: args.sessionId || process.env.FXMIND_SESSION_ID || undefined,
+    conversationId: args.conversationId || undefined,
+  };
+}
+
+function targetRoot() {
+  return (
+    process.env.FXMIND_TARGET ||
+    process.env.CLAUDE_PROJECT_DIR ||
+    process.cwd()
+  );
+}
+
+function callerCliId() {
+  const agent = String(process.env.FXMIND_AGENT_ID || "").trim().toLowerCase();
+  return {
+    cursor: "cursor-agent",
+    "cursor-agent": "cursor-agent",
+    claude: "claude",
+    codex: "codex",
+    opencode: "opencode",
+  }[agent] || null;
+}
+
+async function runGateVReviewer(root, session, files, evidence) {
+  if (process.env.NODE_ENV === "test" && process.env.FXMIND_TEST_REVIEWER_RESULT) {
+    const verdict = String(process.env.FXMIND_TEST_REVIEWER_RESULT).toLowerCase();
+    const line =
+      verdict === "verified" ? "VERDICT: VERIFIED" :
+      verdict === "caveats" ? "VERDICT: VERIFIED WITH CAVEATS" :
+      "VERDICT: REFUTED";
+    return {
+      ok: true,
+      agent: "reviewer",
+      cliId: callerCliId() || "test-provider",
+      model: "test-reviewer",
+      effort: "high",
+      output: "Synthetic independent review for MCP contract test.\n" + line,
+    };
+  }
+
+  const panelCli = require("./lib/panel-cli");
+  return reviewerRouting.runReviewerWithFallback(root, {
+    agent: "reviewer",
+    prompt: independentReview.buildPrompt(root, session, files, evidence || {}),
+    paths: files,
+    preferredCliId: callerCliId() || undefined,
+  }, panelCli.runSubagentTask);
+}
+
+const DB_ENVIRONMENT = {
+  environment: {
+    type: "string", enum: ["dev", "production"], default: "dev",
+    description: "dev (default): existing cfg/FXMIND_MYSQL_URL. production: FXMIND_MYSQL_PRODUCTION_URL in the target project's .env; always read-only, no fallback to dev.",
+  },
+};
+
+const IMAGE_PROPERTIES = {
+  path: { type: "string", description: "Local source image; absolute or relative to the project. Max input 50 MiB / 40 megapixels; single-frame raster only." },
+  width: { type: "integer", minimum: 1, maximum: 8192, description: "Target width. Omit both dimensions for a 2048x2048 bounding box (storage defaults may override)." },
+  height: { type: "integer", minimum: 1, maximum: 8192, description: "Target height. With just one dimension, keep the aspect ratio." },
+  fit: { type: "string", enum: ["inside", "cover", "contain", "fill"], default: "inside", description: "inside: fit without enlargement, dimensions may differ. For exact width x height use cover (crop), contain (pad) or fill (stretch); both dimensions required." },
+  format: { type: "string", enum: ["png", "webp", "jpeg"], default: "png" },
+  quality: { type: "integer", minimum: 1, maximum: 100, default: 80, description: "Initial JPEG/WebP quality, reduced toward 40 if necessary to meet maxBytes. PNG is lossless." },
+  maxBytes: { type: "integer", minimum: 1, maximum: 52428800, description: "Maximum encoded bytes (default 5 MiB). Upload cannot exceed the configured storage limit. Fails before writing/uploading if compression cannot fit; dimensions are preserved." },
+};
+
+const TOOL_DEFS = [
+  {
+    name: "fxmind_route_tool",
+    description: "Recommend (never execute) the next read-only FxMind MCP discovery tool. Uses deterministic rules first, optional Jev for ambiguous choices only; respects exposed tools and read-only mode. Does NOT approve gates, mutate files, invoke a tool, or change permissions. Use once when unsure which FxMind tool is appropriate; avoid repetitive routing calls.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        request: { type: "string", minLength: 1, maxLength: 1500, description: "Task summary or question. The router sends only fixed, whitelisted intent signals to Jev; no raw text or project paths." },
+        context: {
+          type: "object",
+          properties: {
+            hasPlaybook: { type: "boolean", description: "A verified playbook is already loaded." },
+            memoriesPreloaded: { type: "boolean", description: "Relevant FxMind memories have already been preloaded." },
+            hasFileHit: { type: "boolean", description: "A path was obtained from a trusted prior file search." },
+            searchAttempted: { type: "boolean", description: "The current literal search has already been attempted." },
+            memoryQueryAttempted: { type: "boolean", description: "A memory query was already attempted." },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ["request"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: "fxmind_storage_status",
+    description: "Inspect S3-compatible storage configuration from the project .env, .fxmind/storage.json and FXMIND_S3_* process env. No network request; credentials are never returned or verified. Put AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in the target project's .env.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: "fxmind_image_resize",
+    description: "Resize/compress a local image into a NEW local file. Source is preserved; existing output is refused. Defaults: PNG, fit inside 2048x2048, 5 MiB maximum. Use cover/contain/fill with width+height for an exact resolution. Does not upload.",
+    inputSchema: {
+      type: "object", properties: {
+        ...IMAGE_PROPERTIES,
+        outputPath: { type: "string", description: "New local file path; extension must match format (.webp, .png, .jpg/.jpeg). Parent directories are created." },
+      }, required: ["path", "outputPath"], additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: "fxmind_storage_upload_image",
+    description: "Resize/compress a local image IN MEMORY and upload to the configured S3-compatible bucket. Default bounding box 2048x2048, PNG, at most 5 MiB (project config may override); originals are preserved. Exact resolutions use width+height and cover/contain/fill. Returns key, bytes, actual dimensions and publicUrl only if configured; never changes bucket permissions. Existing keys are refused unless overwrite=true.",
+    inputSchema: {
+      type: "object", properties: {
+        ...IMAGE_PROPERTIES,
+        key: { type: "string", description: "Optional object name relative to the configured prefix, e.g. banners/home.png. Extension must match format; appended if absent. Default: source name + UUID." },
+        overwrite: { type: "boolean", default: false, description: "Allow replacement of an existing object only when intended. Default uses If-None-Match:*; incompatible providers fail safely." },
+      }, required: ["path"], additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  },
+  {
+    name: "fxmind_list_memories",
+    description:
+      "List all fxmind topic memories under .fxmind/memory/ with frontmatter summary. Read-only.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fxmind_validate_memories",
+    description:
+      "Validate memory frontmatter schema (required fields, paths/triggers, missing files). Also reports duplicate triggers/paths.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        checkPaths: {
+          type: "boolean",
+          description: "Verify paths[] exist on disk (default true).",
+          default: true,
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_query",
+    description:
+      "Find source-grounded atomic facts, functions and events (PT/EN) within a small token budget; legacy Markdown and bounded source search remain fallbacks. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "Natural-language question." },
+        dfs: { type: "boolean", description: "Also load related memories with leftover budget.", default: false },
+        budget: { type: "number", description: "Token budget (default 1500).", default: 1500 },
+      },
+      required: ["question"],
+    },
+  },
+  {
+    name: "fxmind_graph",
+    description:
+      "Incrementally index source symbols and atomic memory fragments, then rebuild knowledge-graph.json and memory-index.json (HTML optional).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        updateHtml: {
+          type: "boolean",
+          description:
+            "Also sync knowledge-graph.html (default true). Set false for JSON + index only.",
+          default: true,
+        },
+        addFact: {
+          type: "object",
+          description: "Optional source-grounded atomic fact to learn before rebuilding; no full topic Markdown is written.",
+          properties: {
+            topic: { type: "string" },
+            text: { type: "string", description: "One concise factual behavior or rule (12-900 characters)." },
+            path: { type: "string", description: "Existing project-relative source file." },
+            evidence: { type: "string", description: "Exact substring present in the source file." },
+            kind: { type: "string", description: "rule, behavior, pitfall, decision or mapping." },
+            symbols: { type: "array", items: { type: "string" } },
+            events: { type: "array", items: { type: "string" } },
+          },
+          required: ["topic", "text", "path", "evidence"],
+          additionalProperties: false,
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_check_update",
+    description:
+      "Check whether a newer fxmind version or project layout is available on GitHub. Read-only — does not run update.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        force: {
+          type: "boolean",
+          description: "Bypass 24h throttle and re-fetch remote version (default false).",
+          default: false,
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_drift_check",
+    description:
+      "Check which topic and atomic memory records reference a changed source file (broken or stale-candidate).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file: { type: "string", description: "Changed file path (absolute or relative)." },
+      },
+      required: ["file"],
+    },
+  },
+  {
+    name: "fxmind_search",
+    description: "Read-only literal (case-insensitive) source search when memories lack coverage or for twin checks. In Git projects it covers every tracked and untracked file; returns total count, paths, line numbers and short excerpts. When the note says absence is confirmed, do not retry the same literal or trivial variants — change the term or read the likely file. Prefer a specific directory to narrow large result sets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        directory: { type: "string", description: "Directory inside the project, preferably the affected area. Default: project root." },
+        query: { type: "string", minLength: 1, maxLength: 200 },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
+        ext: { type: "string", description: "Only files with this extension, e.g. lua. Skips generated bundles and data files." },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "fxmind_read_file",
+    description: "Read-only excerpt of one project source/text file (numbered lines, at most 250 per call). Use after fxmind_search to read the code around a hit. Config/credential files (.cfg, .env, keys) are refused and inline secrets are masked.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "File path relative to the project root, as returned by fxmind_search." },
+        startLine: { type: "integer", minimum: 1 },
+        endLine: { type: "integer", minimum: 1 },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "fxmind_start_task",
+    description:
+      "Start a Task session (sets taskActive). Preferred over writing gates JSON. Call before Gate A. Pass trivial=true for one-file tiny edits to auto-complete Gates A and B. From this gate on, user-facing replies stay short and direct: outcome first, no long text.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        note: { type: "string", description: "Optional goal/scope note." },
+        ui: { type: "boolean", description: "Planning hint: true only for expected visual/interaction changes. At Gate V, assess the actual diff with evidence.ui.changed and reason; an unchanged interface does not need a browser." },
+        trivial: {
+          type: "boolean",
+          description:
+            "If true, marks Gates A and B complete immediately (tiny one-file edits). Still requires Gate V before Gate C.",
+        },
+        kind: {
+          type: "string",
+          enum: ["config", "fix", "mechanic", "create"],
+          description: "Task kind confirmed at Gate A (config entry, defect, behavior change, new resource).",
+        },
+        playbook: {
+          type: "string",
+          description: "Playbook id being followed. A verified, non-stale playbook auto-completes Gates A and B (V and C still apply).",
+        },
+        ...SESSION_ID_PROP,
+      },
+    },
+  },
+  {
+    name: "fxmind_playbook",
+    description:
+      "Playbooks are surgical instructions for repeated tasks (files, anchors, snippets, verify). action=list | match (query) | get (id, anchors resolved to current lines) | check (id, or all). Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["list", "match", "get", "check"] },
+        id: { type: "string", description: "Playbook id (get/check)." },
+        query: { type: "string", description: "User request (match)." },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "fxmind_gate_status",
+    description: "Read Task Gate A/B/V/C session status. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sessionId: SESSION_ID_PROP.sessionId,
+      },
+    },
+  },
+  {
+    name: "fxmind_record_gate",
+    description:
+      "Persist a gate in A→B→V→C order. Gate V prioritizes lint/typecheck, code quality and focused tests, then automatically launches a fresh read-only reviewer. Only actual visual/interaction changes require browser evidence; set evidence.ui.changed with a diff-based reason. Fix review findings and retry without asking the user. C rejects stale verification after code changes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        gate: {
+          type: "string",
+          enum: ["START", "A", "B", "V", "C"],
+          description:
+            "START begins a task; A/B unlock edits; V records verify-by-observation; C closes the task.",
+        },
+        note: { type: "string", description: "Optional note (e.g. memories loaded). Gate A also restates: user replies stay short and direct." },
+        evidence: {
+          type: "object",
+          description: "Required for V. Record actual observations after checks, never predictions. See task-verify.md. Browser unavailable: status=blocked, reason; do not mark passed.",
+          properties: {
+            files: { type: "array", minItems: 1, items: { type: "string" }, description: "All task files, repository-relative. Include deletions." },
+            review: { type: "string", description: "Diff review: unnecessary constants/helpers removed or justified, local conventions and invariants checked." },
+            checks: {
+              type: "array", minItems: 1,
+              items: {
+                type: "object",
+                properties: {
+                  kind: { type: "string", enum: ["lint", "typecheck", "test", "build", "runtime", "manual"] },
+                  target: { type: "string" }, expected: { type: "string" }, observed: { type: "string" },
+                  status: { type: "string", enum: ["passed", "failed", "blocked"] },
+                },
+                required: ["kind", "target", "expected", "observed", "status"],
+              },
+            },
+            ui: {
+              type: "object",
+              description: "Actual visual/interaction impact of the final diff, checked by the independent reviewer. Use changed=false with a specific reason for backend-only work, untouched UI context or non-visual refactors, even if the initial task had ui=true.",
+              properties: { changed: { type: "boolean" }, reason: { type: "string", minLength: 1 } },
+              required: ["changed", "reason"],
+            },
+            browser: {
+              type: "object",
+              properties: {
+                required: { type: "boolean" },
+                status: { type: "string", enum: ["passed", "failed", "blocked"] },
+                url: { type: "string" },
+                interactions: { type: "array", items: { type: "string" } },
+                visual: { type: "string" }, console: { type: "string" },
+                artifact: { type: "string", description: "Existing non-empty screenshot/trace file path from the browser tool; preferably OS temp." },
+                reason: { type: "string" },
+              },
+              required: ["status"],
+            },
+          },
+          required: ["files", "review", "checks"],
+        },
+        ...SESSION_ID_PROP,
+      },
+      required: ["gate"],
+    },
+  },
+  {
+    name: "fxmind_claim_paths",
+    description:
+      "Exclusive file lease for parallel Task sessions. Call after Gate B with every repo path you will edit. Required before code edits when 2+ sessions are active.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Repo-relative paths (or absolute under the project root).",
+        },
+        ...SESSION_ID_PROP,
+      },
+      required: ["paths"],
+    },
+  },
+  {
+    name: "fxmind_release_paths",
+    description: "Release previously claimed paths for this Task session (optional before Gate C).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        paths: {
+          type: "array",
+          items: { type: "string" },
+        },
+        ...SESSION_ID_PROP,
+      },
+      required: ["paths"],
+    },
+  },
+  {
+    name: "fxmind_session_status",
+    description:
+      "List active Task sessions, gates, and claimed paths (parallel IDE tabs / panel threads). Read-only.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fxmind_record_correction",
+    description:
+      "Save a human correction of an agent mistake into .fxmind/corrections/ (skill-improvement backlog — separate from topic memories).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Short title of the mistake." },
+        category: {
+          type: "string",
+          enum: ["architecture", "communication", "security", "performance", "style", "api"],
+          description: "Maps to best-practices skill area.",
+        },
+        bad: { type: "string", description: "What the agent did wrong (code/pattern)." },
+        good: { type: "string", description: "Correct approach after human fix." },
+        rule: { type: "string", description: "One-line rule to add to the skill." },
+        notes: { type: "string" },
+        commit: { type: "string", description: "Optional git commit SHA." },
+        severity: { type: "string", enum: ["critical", "high", "medium", "low"] },
+        paths: { type: "array", items: { type: "string" } },
+        resources: { type: "array", items: { type: "string" } },
+        skill_target: { type: "string" },
+      },
+      required: ["title", "category", "bad", "good"],
+    },
+  },
+  {
+    name: "fxmind_list_corrections",
+    description: "List skill-improvement corrections under .fxmind/corrections/. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["open", "promoted", "dismissed"] },
+        category: {
+          type: "string",
+          enum: ["architecture", "communication", "security", "performance", "style", "api"],
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_fivem_install",
+    description:
+      "Dev-only: configure local FiveM RCON + Cursor fivem-start task. Writes rcon_password only to dev/dev.cfg and .fxmind/state/rcon.json (never server.cfg). Run once per project before fxmind_fivem_cmd. After adding password, user must restart FXServer.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        force: {
+          type: "boolean",
+          description: "Overwrite .vscode/fivem-start.ps1 even if it already exists.",
+        },
+        password: {
+          type: "string",
+          description: "Optional local rcon_password (default fxmind-local-dev). Dev only.",
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_fivem_status",
+    description:
+      "Check local FiveM RCON install marker and probe FXServer (UDP status). available:true only when fxmind fivem install was run AND the console responds. Call BEFORE fxmind_fivem_cmd or fxmind_fivem_console_tail. installed:false → fxmind_fivem_install once. configured but serverReachable:false → ask user to start fivem-start; do not call cmd/tail.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fxmind_fivem_cmd",
+    description:
+      "Send allowlisted FXServer console command over local UDP RCON. Requires fxmind fivem install. Call fxmind_fivem_status first — only when available:true. Never auto-runs install. If install missing or console not running, returns an error (do not claim success).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        command: {
+          type: "string",
+          description: 'e.g. "ensure my_resource", "restart vrp", "refresh"',
+        },
+      },
+      required: ["command"],
+    },
+  },
+  {
+    name: "fxmind_fivem_console_tail",
+    description:
+      "Read .fxmind/state/fivem-console.log and optional server-debug.log. Requires fxmind fivem install (.fxmind/state/rcon.json). Call fxmind_fivem_status first when possible. Never auto-runs install.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        lines: { type: "number", description: "Lines to return (default 80, max 500)." },
+      },
+    },
+  },
+  {
+    name: "fxmind_fivem_nui_wire",
+    description:
+      "TEMP agent setup: patch a NUI resource (fxmanifest client-hook + DOM probe in ui_page) so fxmind_fivem_nui_dump works. You configure this yourself — do not ask the user to edit scripts. ALWAYS call fxmind_fivem_nui_unwire when finished (or before Gate C). Ensures fxmind-nui-bridge is present.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        resource: {
+          type: "string",
+          description: "Resource folder name that owns the ui_page (e.g. my_police).",
+        },
+      },
+      required: ["resource"],
+    },
+  },
+  {
+    name: "fxmind_fivem_nui_dump",
+    description:
+      "Read structured NUI state for agent vision (better than screenshots). Prefer after fxmind_fivem_nui_wire. Triggers RCON fxmind_nui_dump (unless trigger=false), then reads .fxmind/state/nui-dump.json. Call fxmind_fivem_status first when triggering. Player must be in-game with the NUI open. After debugging, call fxmind_fivem_nui_unwire.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        resource: {
+          type: "string",
+          description: "Optional resource name filter (only that NUI responds).",
+        },
+        trigger: {
+          type: "boolean",
+          description: "Request a fresh dump via RCON (default true). Set false to only read the last file.",
+          default: true,
+        },
+        timeoutMs: {
+          type: "number",
+          description: "How long to wait for the dump file after trigger (default 3000, max 15000).",
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_fivem_nui_unwire",
+    description:
+      "Remove temporary NUI dump wiring added by fxmind_fivem_nui_wire (markers, probe script, wire state, dump file). MANDATORY cleanup after using nui_dump / when the task ends. If resource omitted, uses .fxmind/state/nui-wire.json.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        resource: {
+          type: "string",
+          description: "Optional; defaults to the currently wired resource.",
+        },
+        clearDump: {
+          type: "boolean",
+          description: "Also delete .fxmind/state/nui-dump.json (default true).",
+          default: true,
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_db_status",
+    description:
+      "Check the selected MySQL environment (dev by default, production from project .env). No network request; never returns the password. Use environment=production to check production configuration.",
+    inputSchema: { type: "object", properties: { ...DB_ENVIRONMENT } },
+  },
+  {
+    name: "fxmind_db_query",
+    description:
+      "Execute one SQL statement against the selected MySQL environment. production is ALWAYS read-only, even with approvedByUser=true. dev is the default: SELECT/SHOW/DESCRIBE and INSERT/UPDATE are allowed; DELETE/DROP/TRUNCATE require approvedByUser=true AFTER explicit user approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...DB_ENVIRONMENT,
+        query: { type: "string", description: "Single SQL statement." },
+        approvedByUser: {
+          type: "boolean",
+          description:
+            "Required true for DELETE/DROP/TRUNCATE after the user approved. Do not set true without asking.",
+        },
+        limit: {
+          type: "number",
+          description: "Max rows returned for SELECT (default 200).",
+        },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "fxmind_db_schema",
+    description:
+      "Get column metadata for a table, or list all tables if table_name is omitted. Like get_schema_info.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...DB_ENVIRONMENT,
+        table_name: {
+          type: "string",
+          description: "Optional bare table or database.table.",
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_db_sample",
+    description:
+      "Fetch a small sample of rows from a table (default 5, max 20). Like get_table_sample.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...DB_ENVIRONMENT,
+        table_name: { type: "string" },
+        limit: { type: "number" },
+      },
+      required: ["table_name"],
+    },
+  },
+  {
+    name: "fxmind_db_explore",
+    description:
+      "List tables in the configured database with approx row counts / engines. Like explore_database.",
+    inputSchema: { type: "object", properties: { ...DB_ENVIRONMENT } },
+  },
+  {
+    name: "fxmind_db_analyze",
+    description:
+      "Analyze one table: status, exact COUNT(*), columns, indexes. Like analyze_table.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ...DB_ENVIRONMENT,
+        table_name: { type: "string" },
+      },
+      required: ["table_name"],
+    },
+  },
+  {
+    name: "fxmind_panel_wait",
+    description:
+      "Host-chat dispatcher for /fxmind painel. Long-poll the local panel (localhost:3847) until demandas are clicked, then claim them. Returns { jobs: [{ id, title, prompt, projectRoot }] }. Empty jobs = keep waiting. Do not use an API key.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        timeoutMs: {
+          type: "number",
+          description: "Wait up to this many ms (default 20000, max 25000).",
+          default: 20000,
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_panel_pending",
+    description:
+      "List queued panel chat jobs without claiming them. Also heartbeats so the panel shows this chat as connected.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "fxmind_panel_reply",
+    description:
+      "Post the host agent result into a panel thread after finishing a demanda (or follow-up).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        threadId: { type: "string", description: "Panel thread id (job.id)." },
+        content: { type: "string", description: "Assistant reply shown in the panel chat." },
+      },
+      required: ["threadId", "content"],
+    },
+  },
+  {
+    name: "fxmind_panel_fail",
+    description: "Mark a panel thread as failed with an error message.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        threadId: { type: "string" },
+        error: { type: "string" },
+      },
+      required: ["threadId", "error"],
+    },
+  },
+  {
+    name: "fxmind_independent_review",
+    description:
+      "Manual/debug entry point for the same fresh read-only reviewer that Gate V now runs automatically. Persists a server-created review artifact bound to the exact file fingerprint. Normal task flow should call Gate V directly.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sessionId: SESSION_ID_PROP.sessionId,
+        executorCliId: {
+          type: "string",
+          description: "Optional executor CLI id so FxMind can prefer the same provider for the reviewer while selecting a stronger review model.",
+        },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional task files when Git discovery/claims are unavailable. Gate V still checks the reviewed set against its actual files.",
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_subagent_run",
+    description:
+      "Run a scoped sub-task on a fxmind subagent (provider set per role in the panel) and wait for its final text. explore: discovery; reader: known paths; general: bounded implementation; scout: external docs; reviewer: independent read-only verification.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent: {
+          type: "string",
+          description: "Subagent id: explore | reader | general | scout | reviewer.",
+        },
+        prompt: { type: "string", description: "The scoped task/question for the subagent." },
+        paths: {
+          type: "array",
+          items: { type: "string" },
+          description: "Known file paths to hand over (mainly for 'reader').",
+        },
+      },
+      required: ["agent", "prompt"],
+    },
+  },
+];
+
+let activeHostThreadId = null;
+
+function hostToolDetail(args = {}) {
+  const value =
+    args.question ||
+    args.query ||
+    args.file ||
+    args.table_name ||
+    args.gate ||
+    args.resource ||
+    args.note ||
+    args.command ||
+    "";
+  if (typeof value === "string") return value.slice(0, 240);
+  try {
+    return JSON.stringify(value).slice(0, 240);
+  } catch {
+    return "";
+  }
+}
+
+function reportHostMcp(threadId, toolName, args, status) {
+  const name = String(toolName || "");
+  if (!threadId || !name || name.startsWith("fxmind_panel_")) {
+    return Promise.resolve();
+  }
+  return panelHost
+    .activity(threadId, {
+      kind: "mcp",
+      name,
+      server: SERVER_INFO.name,
+      label: name,
+      detail: hostToolDetail(args),
+      status,
+    })
+    .catch(() => {});
+}
+
+async function playbookTool(root, args = {}) {
+  const playbooks = require("./lib/playbooks");
+  const action = args.action || "list";
+  if (action === "list") return { ok: true, playbooks: playbooks.loadPlaybooks(root).map(playbooks.summarize) };
+  if (action === "match") {
+    const plan = await playbooks.planTaskAsync(root, args.query || "");
+    return {
+      ok: true,
+      kind: plan.kind,
+      confidence: plan.confidence,
+      playbook: plan.playbook,
+      stale: plan.stale,
+      text: plan.playbookText || undefined,
+    };
+  }
+  const targets = args.id ? [playbooks.getPlaybook(root, args.id)] : action === "check" ? playbooks.loadPlaybooks(root) : [];
+  if (!targets.length || targets.includes(null)) return { ok: false, error: `Playbook not found: ${args.id || "(id required)"}` };
+  if (action === "get") {
+    return { ok: true, text: playbooks.renderPlaybook(root, targets[0], playbooks.resolveSteps(root, targets[0])) };
+  }
+  if (action === "check") {
+    const results = targets.map((pb) => ({ id: pb.id, ...playbooks.checkPlaybook(root, pb) }));
+    return { ok: results.every((r) => r.ok), results };
+  }
+  return { ok: false, error: `Unknown action: ${action}` };
+}
+
+async function dispatchTool(name, args) {
+  const root = targetRoot();
+  const dbOptions = { root, environment: args.environment, readOnly: isReadonly() };
+  switch (name) {
+    case "fxmind_route_tool":
+      return routeTool(args.request || "", {
+        availableTools: listTools(root).map((tool) => tool.name),
+        context: args.context || {},
+      });
+
+    case "fxmind_storage_status":
+      return storage.status(root);
+
+    case "fxmind_image_resize":
+      return resizeImage(root, args);
+
+    case "fxmind_storage_upload_image":
+      return storage.uploadImage(root, args);
+
+    case "fxmind_list_memories":
+      return { ok: true, memories: tools.listMemories(root) };
+
+    case "fxmind_validate_memories": {
+      const validation = tools.validateMemories(root, {
+        checkPaths: args.checkPaths !== false,
+      });
+      return {
+        ...validation,
+        duplicates: tools.findMemoryDuplicates(root),
+      };
+    }
+
+    case "fxmind_query":
+      return tools.queryGraphAsync(root, args.question || "", {
+        dfs: Boolean(args.dfs),
+        budget: Number(args.budget) || 1500,
+      });
+
+    case "fxmind_graph": {
+      const fact = args.addFact
+        ? require("./lib/atomic-memory").addFact(root, args.addFact)
+        : null;
+      const graph = tools.buildGraph(root, {
+        updateHtml: args.updateHtml !== false,
+      });
+      return fact ? { ...graph, fact } : graph;
+    }
+
+    case "fxmind_check_update":
+      return checkForUpdate({
+        projectRoot: root,
+        force: Boolean(args.force),
+      });
+
+    case "fxmind_drift_check":
+      return tools.driftCheck(root, args.file || "");
+
+    case "fxmind_start_task":
+      return {
+        ok: true,
+        ...tools.startTask(root, {
+          note: args.note || "",
+          trivial: Boolean(args.trivial),
+          ui: Boolean(args.ui),
+          kind: args.kind,
+          playbook: args.playbook,
+          ...sessionExtra(args),
+        }),
+      };
+
+    case "fxmind_playbook":
+      return playbookTool(root, args);
+
+    case "fxmind_search":
+      return searchSource(root, args);
+
+    case "fxmind_read_file":
+      return readSource(root, args);
+
+    case "fxmind_gate_status":
+      return tools.gateStatus(root, sessionExtra(args));
+
+    case "fxmind_record_gate": {
+      const gate = String(args.gate).toUpperCase();
+      if (gate === "V") {
+        const session = tools.gateStatus(root, sessionExtra(args));
+        if (session?.error === "multiple_active_sessions") return session;
+        if (!session?.taskActive || !session.sessionId) {
+          return { ok: false, error: "no_active_session", message: "Gate V requires an active FxMind task." };
+        }
+
+        let files;
+        try {
+          files = verification.verificationFiles(root, args.evidence, session);
+        } catch (error) {
+          return { ok: false, error: "gate_v_evidence_invalid", message: String(error.message || error) };
+        }
+
+        const deterministic = luaScope.checkFiles(root, files);
+        if (!deterministic.ok) {
+          return {
+            ok: false,
+            error: "gate_v_deterministic_failed",
+            gate: "V",
+            complete: false,
+            findings: deterministic.issues,
+            action: "fix_findings_and_retry_gate_v",
+            userReply: "Do not ask the user. Fix these deterministic findings, rerun affected checks, then call Gate V again.",
+          };
+        }
+
+        const reviewRun = await runGateVReviewer(root, session, files, args.evidence || {});
+        if (!reviewRun?.ok) {
+          return {
+            ok: false,
+            error: "gate_v_reviewer_unavailable",
+            gate: "V",
+            complete: false,
+            message: reviewRun?.error || "Independent reviewer failed to run.",
+            action: "retry_gate_v_reviewer",
+            userReply: "Do not mark the task complete. Resolve reviewer availability and retry Gate V.",
+          };
+        }
+
+        const record = independentReview.recordReview(root, {
+          sessionId: session.sessionId,
+          session,
+          files,
+          evidence: args.evidence || {},
+          reviewer: {
+            agent: "reviewer",
+            cliId: reviewRun.cliId || null,
+            model: reviewRun.model || null,
+            effort: reviewRun.effort || null,
+          },
+          output: reviewRun.output || "",
+        });
+        if (record.verdict !== "verified") {
+          return {
+            ok: false,
+            error: "gate_v_review_failed",
+            gate: "V",
+            complete: false,
+            verdict: record.verdict,
+            reviewId: record.reviewId,
+            reviewer: record.reviewer,
+            findings: reviewRun.output || "",
+            action: "fix_findings_and_retry_gate_v",
+            userReply: "Do not ask the user. Apply the independent review findings surgically, rerun affected checks, then call Gate V again. Maximum 3 repair/review cycles before reporting blocked.",
+          };
+        }
+      }
+
+      const data = tools.recordGate(root, gate, true, {
+        note: args.note || "",
+        evidence: args.evidence,
+        ...sessionExtra(args),
+      });
+      if (data?.error === "multiple_active_sessions") {
+        return data;
+      }
+      // Learn only after a real, verified Gate C; never turn reviewer failure
+      // or unverifiable observations into persistent project knowledge.
+      if (gate === "C" && data?.gates?.C?.complete) {
+        try {
+          const autoMemory = require("./lib/auto-memory");
+          const memory = await autoMemory.learnAfterGate(root, data);
+          if (memory.status === "learned") {
+            tools.buildGraph(root, { updateHtml: false });
+          }
+          tools.appendMetric(root, { event: "auto_memory", status: memory.status, reason: memory.reason || null, topic: memory.topic || null });
+          return { ok: true, ...data, autoMemory: memory };
+        } catch (error) {
+          // Learning must not retroactively fail a successfully recorded Gate C.
+          return { ok: true, ...data, autoMemory: { status: "error", reason: "learning_failed" } };
+        }
+      }
+      return { ok: true, ...data };
+    }
+
+    case "fxmind_claim_paths":
+      return tools.claimPaths(root, args.paths || [], sessionExtra(args));
+
+    case "fxmind_release_paths":
+      return tools.releasePaths(root, args.paths || [], sessionExtra(args));
+
+    case "fxmind_session_status":
+      return tools.sessionStatus(root);
+
+    case "fxmind_record_correction":
+      return tools.recordCorrection(root, {
+        title: args.title,
+        category: args.category,
+        bad: args.bad,
+        good: args.good,
+        rule: args.rule,
+        notes: args.notes,
+        commit: args.commit,
+        severity: args.severity,
+        paths: args.paths,
+        resources: args.resources,
+        skill_target: args.skill_target,
+      });
+
+    case "fxmind_list_corrections":
+      return {
+        ok: true,
+        corrections: tools.listCorrections(root, {
+          status: args.status || undefined,
+          category: args.category || undefined,
+        }),
+      };
+
+    case "fxmind_fivem_install":
+      return fivemRcon.installFivemDev({
+        force: Boolean(args.force),
+        password: args.password || undefined,
+      });
+
+    case "fxmind_fivem_status":
+      return fivemRcon.statusProbe();
+
+    case "fxmind_fivem_cmd":
+      return tools.withFileLockAsync(root, "fivem-rcon", () =>
+        fivemRcon.execRcon(args.command || ""),
+      );
+
+    case "fxmind_fivem_console_tail":
+      return fivemRcon.consoleTail({ lines: args.lines });
+
+    case "fxmind_fivem_nui_wire":
+      return fivemNuiDump.wireNuiDump({
+        resource: args.resource || "",
+      });
+
+    case "fxmind_fivem_nui_dump":
+      return fivemNuiDump.nuiDump({
+        resource: args.resource || undefined,
+        trigger: args.trigger !== false,
+        timeoutMs: args.timeoutMs,
+      });
+
+    case "fxmind_fivem_nui_unwire":
+      return fivemNuiDump.unwireNuiDump({
+        resource: args.resource || undefined,
+        clearDump: args.clearDump !== false,
+      });
+
+    case "fxmind_db_status":
+      return fxmindMysql.status(dbOptions);
+
+    case "fxmind_db_query":
+      return fxmindMysql.executeSql(args.query || "", {
+        ...dbOptions,
+        approvedByUser: isReadonly() ? false : Boolean(args.approvedByUser),
+        limit: args.limit,
+        readOnly: isReadonly(),
+      });
+
+    case "fxmind_db_schema":
+      return fxmindMysql.getSchemaInfo({ ...dbOptions, table_name: args.table_name });
+
+    case "fxmind_db_sample":
+      return fxmindMysql.getTableSample({
+        ...dbOptions,
+        table_name: args.table_name,
+        limit: args.limit,
+      });
+
+    case "fxmind_db_explore":
+      return fxmindMysql.exploreDatabase(dbOptions);
+
+    case "fxmind_db_analyze":
+      return fxmindMysql.analyzeTable({ ...dbOptions, table_name: args.table_name });
+
+    case "fxmind_panel_wait":
+      return panelHost.wait(args.timeoutMs);
+
+    case "fxmind_panel_pending":
+      return panelHost.pending();
+
+    case "fxmind_panel_reply":
+      return panelHost.reply(args.threadId, args.content);
+
+    case "fxmind_panel_fail":
+      return panelHost.fail(args.threadId, args.error);
+
+    case "fxmind_independent_review": {
+      const session = tools.gateStatus(root, sessionExtra(args));
+      if (!session?.taskActive || !session.sessionId) {
+        return { ok: false, error: "no_active_session", message: "Start the Task before independent review." };
+      }
+      const files = Array.isArray(args.files) && args.files.length
+        ? [...new Set(args.files)]
+        : session.claimedPaths?.length
+          ? [...session.claimedPaths]
+          : independentReview.changedFiles(root);
+      if (!files.length) {
+        return { ok: false, error: "no_changed_files", message: "No task files are available for independent review." };
+      }
+      const panelCli = require("./lib/panel-cli");
+      return Promise.resolve(panelCli.runSubagentTask(root, {
+        agent: "reviewer",
+        prompt: independentReview.buildPrompt(root, session, files, {}),
+        paths: files,
+        preferredCliId: args.executorCliId || callerCliId() || undefined,
+      })).then((result) => {
+        if (!result?.ok) return result;
+        const record = independentReview.recordReview(root, {
+          sessionId: session.sessionId,
+          session,
+          files,
+          reviewer: {
+            agent: "reviewer",
+            cliId: result.cliId || null,
+            model: result.model || null,
+            effort: result.effort || null,
+          },
+          output: result.output || "",
+        });
+        return {
+          ok: record.verdict === "verified",
+          reviewId: record.reviewId,
+          verdict: record.verdict,
+          reviewer: record.reviewer,
+          fingerprint: record.fingerprint,
+          output: result.output || "",
+        };
+      });
+    }
+
+    case "fxmind_subagent_run": {
+      // Lazy require: panel-cli.js pulls in the panel's thread store on
+      // load, which every agent session spinning up this stdio server
+      // shouldn't pay for unless a subagent is actually invoked.
+      const panelCli = require("./lib/panel-cli");
+      return panelCli.runSubagentTask(root, {
+        agent: args.agent,
+        prompt: args.prompt || "",
+        paths: Array.isArray(args.paths) ? args.paths : [],
+      });
+    }
+
+    default:
+      return { ok: false, error: `Unknown tool: ${name}` };
+  }
+}
+
+/** Compact text for the agent: Markdown for memory queries, unindented JSON otherwise. */
+function formatToolResult(toolName, result) {
+  if (toolName === "fxmind_query" && result && result.ok !== false) {
+    return formatQueryResult(result);
+  }
+  if (toolName === "fxmind_playbook" && result?.ok && result.text && !result.playbook) {
+    return result.text;
+  }
+  return JSON.stringify(result);
+}
+
+/**
+ * Optional tool groups. Core tools are always listed; groups that cannot work
+ * in this project are hidden so their schemas do not cost context every turn.
+ * FXMIND_MCP_TOOLS=all|fivem,db,panel,storage overrides the detection.
+ */
+const TOOL_GROUPS = {
+  storage: (name) => name === "fxmind_storage_upload_image",
+  fivem: (name) => name.startsWith("fxmind_fivem_"),
+  db: (name) => name.startsWith("fxmind_db_") && name !== "fxmind_db_status",
+  panel: (name) => name.startsWith("fxmind_panel_") || name === "fxmind_subagent_run",
+};
+
+function toolGroupOf(name) {
+  return Object.keys(TOOL_GROUPS).find((group) => TOOL_GROUPS[group](name)) || null;
+}
+
+function hasFivemPack(root) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, ".fxmind", "packs.json"), "utf8"));
+    const packs = Array.isArray(manifest.packs) ? manifest.packs : [];
+    return packs.some((pack) => (typeof pack === "string" ? pack : pack?.id) === "fivem");
+  } catch {
+    // No manifest (older install / global store): keep the tools available.
+    return true;
+  }
+}
+
+function enabledToolGroups(root, env = process.env) {
+  const explicit = String(env.FXMIND_MCP_TOOLS || "").trim().toLowerCase();
+  if (explicit) {
+    const wanted = new Set(explicit.split(/[\s,]+/).filter(Boolean));
+    if (wanted.has("all")) return new Set(Object.keys(TOOL_GROUPS));
+    return new Set(Object.keys(TOOL_GROUPS).filter((group) => wanted.has(group)));
+  }
+  const groups = new Set(["panel"]);
+  if (storage.status(root, env).configured) groups.add("storage");
+  if (hasFivemPack(root)) groups.add("fivem");
+  try {
+    if (fxmindMysql.status({ root }).configured || fxmindMysql.status({ root, environment: "production" }).configured) groups.add("db");
+  } catch {
+    // Unparseable connection string: fxmind_db_status still reports it.
+  }
+  return groups;
+}
+
+/**
+ * FXMIND_MCP_READONLY=1: query-only mode for hosts that put the MCP in front
+ * of people who must not change anything (e.g. the PortSpace FiveHub staff
+ * chat, which reaches this server through the Portspace Agent). Only tools
+ * that never write are listed or callable, and fxmind_db_query accepts a
+ * single read statement run inside a READ ONLY transaction.
+ */
+const READONLY_TOOLS = new Set([
+  "fxmind_route_tool",
+  "fxmind_storage_status",
+  "fxmind_list_memories",
+  "fxmind_query",
+  "fxmind_search",
+  "fxmind_read_file",
+  "fxmind_check_update",
+  "fxmind_fivem_status",
+  "fxmind_db_status",
+  "fxmind_db_query",
+  "fxmind_db_schema",
+  "fxmind_db_sample",
+  "fxmind_db_explore",
+  "fxmind_db_analyze",
+]);
+
+function isReadonly(env = process.env) {
+  return /^(1|true|yes|on)$/i.test(String(env.FXMIND_MCP_READONLY || "").trim());
+}
+
+// Codex requires explicit MCP annotations to auto-approve read-only calls in
+// a non-interactive review. Never annotate gate/task/write tools as read-only.
+const SAFE_MEMORY_TOOLS = new Set([
+  "fxmind_route_tool", "fxmind_list_memories", "fxmind_query",
+  "fxmind_search", "fxmind_read_file",
+]);
+function listTools(root = targetRoot(), env = process.env) {
+  const groups = enabledToolGroups(root, env);
+  const readonly = isReadonly(env);
+  return TOOL_DEFS.filter((tool) => {
+    if (readonly && !READONLY_TOOLS.has(tool.name)) return false;
+    const group = toolGroupOf(tool.name);
+    return !group || groups.has(group);
+  }).map((tool) => SAFE_MEMORY_TOOLS.has(tool.name)
+    ? { ...tool, annotations: {
+      readOnlyHint: true, destructiveHint: false,
+      idempotentHint: true, openWorldHint: false,
+    } }
+    : tool);
+}
+
+function send(message) {
+  process.stdout.write(`${JSON.stringify(message)}\n`);
+}
+
+function handleMessage(msg) {
+  if (!msg || msg.jsonrpc !== "2.0") {
+    return;
+  }
+  const id = msg.id;
+  const method = msg.method;
+
+  if (method === "initialize") {
+    send({
+      jsonrpc: "2.0",
+      id,
+      result: {
+        protocolVersion: PROTOCOL_VERSION,
+        capabilities: { tools: {} },
+        serverInfo: SERVER_INFO,
+      },
+    });
+    return;
+  }
+
+  if (method === "notifications/initialized") {
+    return;
+  }
+
+  if (method === "tools/list") {
+    send({
+      jsonrpc: "2.0",
+      id,
+      result: { tools: listTools() },
+    });
+    return;
+  }
+
+  if (method === "tools/call") {
+    const toolName = msg.params?.name;
+    const args = msg.params?.arguments || {};
+    if (isReadonly() && !READONLY_TOOLS.has(String(toolName || ""))) {
+      send({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          content: [{ type: "text", text: `${toolName} is disabled in read-only mode (FXMIND_MCP_READONLY).` }],
+          isError: true,
+        },
+      });
+      return;
+    }
+    const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
+    const trackedThreadId = isPanelTool ? null : activeHostThreadId;
+    Promise.resolve()
+      .then(() => reportHostMcp(trackedThreadId, toolName, args, "running"))
+      .then(() => dispatchTool(toolName, args))
+      .then((result) => {
+        if (toolName === "fxmind_panel_wait" && result?.jobs?.length) {
+          activeHostThreadId = String(result.jobs[0].id || "");
+        }
+        if (
+          toolName === "fxmind_panel_reply" ||
+          toolName === "fxmind_panel_fail"
+        ) {
+          activeHostThreadId = null;
+        }
+        const status = result && result.ok === false ? "error" : "done";
+        return reportHostMcp(trackedThreadId, toolName, args, status).then(() => {
+          send({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: formatToolResult(toolName, result) }],
+              isError: result && result.ok === false,
+            },
+          });
+        });
+      })
+      .catch((error) => {
+        return reportHostMcp(trackedThreadId, toolName, args, "error").then(() => {
+          send({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [{ type: "text", text: `Error: ${error.message}` }],
+              isError: true,
+            },
+          });
+        });
+      });
+    return;
+  }
+
+  if (id !== undefined) {
+    send({
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32601, message: `Method not found: ${method}` },
+    });
+  }
+}
+
+function startServer() {
+  let buffer = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (chunk) => {
+    buffer += chunk;
+    let idx;
+    while ((idx = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, idx).trim();
+      buffer = buffer.slice(idx + 1);
+      if (!line) continue;
+      try {
+        handleMessage(JSON.parse(line));
+      } catch {
+        // ignore malformed lines
+      }
+    }
+  });
+
+  process.stdin.on("end", () => process.exit(0));
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  SERVER_INFO,
+  TOOL_DEFS,
+  listTools,
+  enabledToolGroups,
+  formatToolResult,
+};

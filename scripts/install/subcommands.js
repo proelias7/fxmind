@@ -1,0 +1,543 @@
+/**
+ * install/subcommands — terminal sub-CLIs: corrections, fivem (RCON), db (MySQL), migrate.
+ */
+const fs = require("fs");
+const path = require("path");
+
+const fivemRcon = require("../fivem-rcon");
+const fivemNuiDump = require("../fivem-nui-dump");
+const fxmindMysql = require("../fxmind-mysql");
+const { SHARED_DIR } = require("./config");
+const { installAuditsDir, migrateAuditReports } = require("./legacy");
+
+function runPlaybooksCli(argv = []) {
+  const playbooks = require("../lib/playbooks");
+  const args = [...argv];
+  const targetAt = args.indexOf("--target");
+  const root = targetAt >= 0 ? path.resolve(args.splice(targetAt, 2)[1] || "") : process.cwd();
+  const sub = args.shift() || "list";
+
+  if (sub === "-h" || sub === "--help") {
+    console.log(`
+fxmind playbooks — surgical instructions for repeated tasks (.fxmind/playbooks/).
+
+Usage:
+  fxmind playbooks list                 id, kind, status, uses
+  fxmind playbooks show <id>            playbook with anchors resolved to current lines
+  fxmind playbooks check [id]           validate format, files and anchors (exit 1 on errors)
+  fxmind playbooks match "<request>"    kind + playbook the hook would select for a request
+
+Create one in the agent chat with /fxmind teach <name> after a task that worked.
+`);
+    return 0;
+  }
+
+  if (sub === "list") {
+    const uses = {};
+    try {
+      const metrics = fs.readFileSync(path.join(root, ".fxmind", "state", "metrics.jsonl"), "utf8");
+      for (const line of metrics.split(/\r?\n/)) {
+        if (!line.includes("playbook_done")) continue;
+        const event = JSON.parse(line);
+        if (event.event === "playbook_done") uses[event.playbook] = (uses[event.playbook] || 0) + 1;
+      }
+    } catch {
+      // no metrics yet
+    }
+    const list = playbooks.loadPlaybooks(root);
+    if (!list.length) {
+      console.log("No playbooks. Do a task once, then run /fxmind teach <name> in the agent chat.");
+      return 0;
+    }
+    for (const pb of list) {
+      console.log(`${pb.id.padEnd(28)} ${String(pb.kind).padEnd(9)} ${pb.status.padEnd(9)} ${String(uses[pb.id] || 0).padStart(3)} uses  ${pb.title}`);
+    }
+    return 0;
+  }
+
+  if (sub === "show" || sub === "check") {
+    const id = args[0];
+    const targets = id ? [playbooks.getPlaybook(root, id)] : sub === "check" ? playbooks.loadPlaybooks(root) : [];
+    if (!targets.length || targets.includes(null)) {
+      console.error(id ? `Playbook not found: ${id}` : "Usage: fxmind playbooks show <id>");
+      return 1;
+    }
+    if (sub === "show") {
+      console.log(playbooks.renderPlaybook(root, targets[0], playbooks.resolveSteps(root, targets[0])));
+      return 0;
+    }
+    let failed = false;
+    for (const pb of targets) {
+      const result = playbooks.checkPlaybook(root, pb);
+      failed = failed || !result.ok;
+      console.log(`${result.ok ? "ok  " : "FAIL"} ${pb.id}`);
+      for (const message of result.errors) console.log(`  error: ${message}`);
+      for (const message of result.warnings) console.log(`  warn:  ${message}`);
+    }
+    return failed ? 1 : 0;
+  }
+
+  if (sub === "match") {
+    const request = args.join(" ").trim();
+    if (!request) {
+      console.error('Usage: fxmind playbooks match "<request>"');
+      return 1;
+    }
+    const plan = playbooks.planTask(root, request);
+    console.log(`kind: ${plan.kind || "unknown"} (${plan.confidence}, ${plan.source})`);
+    if (plan.playbook) console.log(`playbook: ${plan.playbook.id} (trigger "${plan.playbook.trigger}")`);
+    else if (plan.stale) console.log(`playbook: ${plan.stale.id} is stale — ${plan.stale.problems.join("; ")}`);
+    else console.log("playbook: none");
+    return 0;
+  }
+
+  console.error(`Unknown playbooks subcommand: ${sub}`);
+  return 1;
+}
+
+function runCorrectionsCli(argv = []) {
+  const tools = require("../fxmind-tools");
+  const sub = argv[0] || "list";
+  const options = {
+    target: process.cwd(),
+    status: null,
+    category: null,
+    format: "md",
+    title: null,
+    bad: null,
+    good: null,
+    rule: null,
+    notes: null,
+    commit: null,
+    severity: "high",
+    help: false,
+  };
+
+  for (let i = 1; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "-h" || arg === "--help") options.help = true;
+    else if (arg === "--target") options.target = path.resolve(argv[++i] || "");
+    else if (arg === "--status") options.status = argv[++i] || null;
+    else if (arg === "--category") options.category = argv[++i] || null;
+    else if (arg === "--format") options.format = argv[++i] || "md";
+    else if (arg === "--title") options.title = argv[++i] || "";
+    else if (arg === "--bad") options.bad = argv[++i] || "";
+    else if (arg === "--good") options.good = argv[++i] || "";
+    else if (arg === "--rule") options.rule = argv[++i] || "";
+    else if (arg === "--notes") options.notes = argv[++i] || "";
+    else if (arg === "--commit") options.commit = argv[++i] || "";
+    else if (arg === "--severity") options.severity = argv[++i] || "high";
+    else if (!arg.startsWith("-") && (sub === "promote" || sub === "show")) {
+      options.id = options.id || arg;
+    }
+  }
+
+  if (options.help || sub === "-h" || sub === "--help") {
+    console.log(`
+fxmind corrections — skill-improvement backlog (separate from topic memories).
+
+Usage:
+  fxmind corrections list [--status open|promoted] [--category architecture|…]
+  fxmind corrections add --title "…" --category style --bad "…" --good "…" [--rule "…"] [--commit sha]
+  fxmind corrections export [--status open] [--format md|json]
+  fxmind corrections promote <id>
+  fxmind corrections show <id>
+
+Categories: ${tools.CORRECTION_CATEGORIES.join(", ")}
+`);
+    return 0;
+  }
+
+  try {
+    if (sub === "list") {
+      const items = tools.listCorrections(options.target, {
+        status: options.status || undefined,
+        category: options.category || undefined,
+      });
+      console.log(`corrections → ${options.target} (${items.length})`);
+      for (const item of items) {
+        console.log(
+          `  [${item.status}] ${item.id}  (${item.category})  ${item.title}`,
+        );
+      }
+      return 0;
+    }
+
+    if (sub === "add") {
+      if (!options.title || !options.bad || !options.good || !options.category) {
+        console.error(
+          "Error: add requires --title --category --bad --good",
+        );
+        return 1;
+      }
+      const result = tools.recordCorrection(options.target, options);
+      console.log(`recorded → ${result.file}`);
+      return 0;
+    }
+
+    if (sub === "export") {
+      const result = tools.exportCorrections(options.target, {
+        status: options.status || "open",
+        category: options.category || null,
+        format: options.format,
+      });
+      if (result.format === "json") {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(result.markdown);
+      }
+      return 0;
+    }
+
+    if (sub === "promote") {
+      if (!options.id) {
+        console.error("Error: promote requires <id>");
+        return 1;
+      }
+      const result = tools.promoteCorrection(options.target, options.id);
+      console.log(`promoted → ${result.id} (${result.promoted_at})`);
+      return 0;
+    }
+
+    if (sub === "show") {
+      if (!options.id) {
+        console.error("Error: show requires <id>");
+        return 1;
+      }
+      const item = tools.listCorrections(options.target).find((c) => c.id === options.id);
+      if (!item) {
+        console.error(`Error: not found: ${options.id}`);
+        return 1;
+      }
+      console.log(item.content);
+      return 0;
+    }
+
+    console.error(`Unknown corrections subcommand: ${sub}`);
+    return 1;
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    return 1;
+  }
+}
+
+function fivemAnsi(code, text) {
+  if (!process.stdout.isTTY || process.env.NO_COLOR) return text;
+  return `\x1b[${code}m${text}\x1b[0m`;
+}
+
+function printFivemCmdResult(result, { json = false } = {}) {
+  if (json || !result.ok) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  const cmd = result.command || "ok";
+  console.log(`${fivemAnsi("32", "✓")} ${fivemAnsi("1", cmd)}`);
+  const body = String(result.response || result.note || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  for (const line of body) {
+    console.log(`  ${fivemAnsi("2", line)}`);
+  }
+}
+
+async function runFivemCli(argv = []) {
+  const options = { help: false, json: false };
+  const rest = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "-h" || arg === "--help") {
+      options.help = true;
+    } else if (arg === "--json") {
+      options.json = true;
+    } else {
+      rest.push(arg);
+    }
+  }
+
+  if (options.help || rest.length === 0) {
+    console.log(`
+fxmind fivem — local FXServer RCON (dev; no txAdmin).
+
+  fxmind fivem install [--force] [--password <secret>]
+  fxmind fivem status
+  fxmind fivem ensure <resource>
+  fxmind fivem stop <resource>
+  fxmind fivem restart <resource>
+  fxmind fivem start <resource>
+  fxmind fivem refresh
+  fxmind fivem cmd "ensure my_resource"
+  fxmind fivem tail [--lines 80]
+  fxmind fivem nui-wire <resource>
+  fxmind fivem nui-dump [--resource <name>] [--no-trigger] [--timeout 3000]
+  fxmind fivem nui-unwire [resource]
+
+  --json   raw JSON output (default on errors)
+
+  install     writes rcon_password to cfg + .vscode/fivem-start.ps1 + tasks.json (no nui-bridge; nui-wire adds it)
+  ensure      UDP RCON reload
+  tail        last lines of .fxmind/state/fivem-console.log (terminal mirror)
+  nui-wire    TEMP patch resource for agent NUI vision (MCP: fxmind_fivem_nui_wire)
+  nui-dump    read structured NUI state (MCP: fxmind_fivem_nui_dump)
+  nui-unwire  remove TEMP wire (mandatory cleanup; MCP: fxmind_fivem_nui_unwire)
+
+Env: FXMIND_RCON_HOST (127.0.0.1) FXMIND_RCON_PORT (30120)
+     FXMIND_RCON_PASSWORD (optional if set in cfg by install)
+`);
+    return rest.length === 0 && !options.help ? 1 : 0;
+  }
+
+  const sub = rest[0];
+  try {
+    if (sub === "install") {
+      let password;
+      let force = false;
+      for (let i = 1; i < rest.length; i += 1) {
+        if (rest[i] === "--force" || rest[i] === "-f") {
+          force = true;
+        } else if (rest[i] === "--password" || rest[i] === "-p") {
+          password = rest[i + 1];
+          i += 1;
+        }
+      }
+      const result = fivemRcon.installFivemDev({ force, password });
+      if (options.json) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`${fivemAnsi("32", "✓")} ${fivemAnsi("1", "fivem install")}`);
+        for (const step of result.steps || []) {
+          const detail = [step.path, step.action].filter(Boolean).join(" · ");
+          console.log(`  ${fivemAnsi("2", `${step.step}: ${detail}`)}`);
+        }
+        for (const w of result.warnings || []) {
+          console.log(`  ${fivemAnsi("33", `⚠ ${w}`)}`);
+        }
+        if (result.note) {
+          console.log(`  ${fivemAnsi("33", result.note)}`);
+        }
+      }
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "status") {
+      console.log(JSON.stringify(fivemRcon.status(), null, 2));
+      return 0;
+    }
+    if (sub === "tail") {
+      let lines = 80;
+      for (let i = 1; i < rest.length; i += 1) {
+        if (rest[i] === "--lines" || rest[i] === "-n") {
+          lines = Number(rest[i + 1] || 80);
+          i += 1;
+        }
+      }
+      const result = fivemRcon.consoleTail({ lines });
+      if (!result.ok) {
+        console.log(fivemAnsi("33", result.error || "sem entradas RCON"));
+        return 0;
+      }
+      console.log(result.content);
+      return 0;
+    }
+    if (sub === "cmd") {
+      const command = rest.slice(1).join(" ");
+      const result = await fivemRcon.execRcon(command);
+      printFivemCmdResult(result, { json: options.json });
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "nui-wire" || sub === "nuiwire") {
+      const resource = rest[1];
+      const result = fivemNuiDump.wireNuiDump({ resource });
+      console.log(JSON.stringify(result, null, 2));
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "nui-dump" || sub === "nuidump") {
+      let resource;
+      let trigger = true;
+      let timeoutMs;
+      for (let i = 1; i < rest.length; i += 1) {
+        if (rest[i] === "--resource" || rest[i] === "-r") {
+          resource = rest[i + 1];
+          i += 1;
+        } else if (rest[i] === "--no-trigger") {
+          trigger = false;
+        } else if (rest[i] === "--timeout" || rest[i] === "-t") {
+          timeoutMs = Number(rest[i + 1]);
+          i += 1;
+        } else if (!rest[i].startsWith("-") && !resource) {
+          resource = rest[i];
+        }
+      }
+      const result = await fivemNuiDump.nuiDump({ resource, trigger, timeoutMs });
+      console.log(JSON.stringify(result, null, 2));
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "nui-unwire" || sub === "nuiunwire") {
+      let resource = rest[1];
+      let clearDump = true;
+      for (let i = 1; i < rest.length; i += 1) {
+        if (rest[i] === "--keep-dump") clearDump = false;
+        else if (!rest[i].startsWith("-") && !resource) resource = rest[i];
+      }
+      const result = fivemNuiDump.unwireNuiDump({ resource, clearDump });
+      console.log(JSON.stringify(result, null, 2));
+      return result.ok ? 0 : 1;
+    }
+    if (["ensure", "start", "stop", "restart", "refresh", "resmon"].includes(sub)) {
+      const command = rest.join(" ");
+      const result = await fivemRcon.execRcon(command);
+      printFivemCmdResult(result, { json: options.json });
+      return result.ok ? 0 : 1;
+    }
+    console.error(`Unknown fivem subcommand: ${sub}`);
+    return 1;
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    return 1;
+  }
+}
+
+async function runDbCli(argv = []) {
+  const options = { help: false, json: false, yes: false, environment: "dev" };
+  const rest = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "-h" || arg === "--help") options.help = true;
+    else if (arg === "--json") options.json = true;
+    else if (arg === "--yes" || arg === "-y") options.yes = true;
+    else if (arg === "--environment") {
+      if (!argv[i + 1] || !["dev", "production"].includes(argv[i + 1])) {
+        console.error("--environment requires dev or production");
+        return 1;
+      }
+      options.environment = argv[++i];
+    }
+    else rest.push(arg);
+  }
+
+  if (options.help || rest.length === 0) {
+    console.log(`
+fxmind db — MySQL via mysql_connection_string (dev/dev.cfg / oxmysql).
+
+  fxmind db status
+  fxmind db explore
+  fxmind db schema [table]
+  fxmind db sample <table> [--limit 5]
+  fxmind db analyze <table>
+  fxmind db query "SELECT ..." 
+  fxmind db query "DELETE ..." --yes   # destructive needs --yes
+
+  --json   raw JSON
+  --environment dev|production  Default: dev. Production uses FXMIND_MYSQL_PRODUCTION_URL in .env; always read-only.
+`);
+    return rest.length === 0 && !options.help ? 1 : 0;
+  }
+
+  const sub = rest[0];
+  try {
+    const connection = { environment: options.environment };
+    let result;
+    if (sub === "status") result = fxmindMysql.status(connection);
+    else if (sub === "explore") result = await fxmindMysql.exploreDatabase(connection);
+    else if (sub === "schema") {
+      result = await fxmindMysql.getSchemaInfo({ ...connection, table_name: rest[1] });
+    } else if (sub === "sample") {
+      let limit = 5;
+      for (let i = 2; i < rest.length; i += 1) {
+        if (rest[i] === "--limit" || rest[i] === "-n") {
+          limit = Number(rest[i + 1] || 5);
+          i += 1;
+        }
+      }
+      result = await fxmindMysql.getTableSample({ ...connection, table_name: rest[1], limit });
+    } else if (sub === "analyze") {
+      result = await fxmindMysql.analyzeTable({ ...connection, table_name: rest[1] });
+    } else if (sub === "query") {
+      const query = rest.slice(1).join(" ").replace(/^["']|["']$/g, "");
+      result = await fxmindMysql.executeSql(query, { ...connection, approvedByUser: options.yes });
+    } else {
+      console.error(`Unknown db subcommand: ${sub}`);
+      return 1;
+    }
+
+    if (options.json || !result.ok) {
+      console.log(JSON.stringify(result, null, 2));
+      return result.ok ? 0 : 1;
+    }
+    if (sub === "status") {
+      console.log(
+        `${fivemAnsi("32", "✓")} db ${result.config?.environment || "dev"} ${result.configured ? "configured" : "missing"} · ${result.config?.source || "—"} · ${result.config?.database || "?"}@${result.config?.host || "?"}`,
+      );
+      return 0;
+    }
+    console.log(JSON.stringify(result, null, 2));
+    return 0;
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    return 1;
+  }
+}
+
+function runMigrateCli(argv) {
+  const options = { target: process.cwd(), help: false };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "-h" || arg === "--help") {
+      options.help = true;
+    } else if (arg === "--target") {
+      options.target = path.resolve(argv[i + 1] || "");
+      i += 1;
+    }
+  }
+
+  if (options.help) {
+    console.log(`
+Migrate legacy .fxmind layout (e.g. audit-*.md at root → audits/).
+
+Usage:
+  fxmind migrate [--target <dir>]
+
+Moves:
+  .fxmind/audit-<resource>.md  →  .fxmind/audits/<resource>.md
+
+Also ensures .fxmind/audits/ exists with README.
+`);
+    return 0;
+  }
+
+  if (!fs.existsSync(options.target)) {
+    console.error(`Error: target directory does not exist: ${options.target}`);
+    return 1;
+  }
+
+  const fxmindDir = path.join(options.target, SHARED_DIR);
+  if (!fs.existsSync(fxmindDir)) {
+    console.error(`Error: missing ${SHARED_DIR}/ — run fxmind -y first.`);
+    return 1;
+  }
+
+  installAuditsDir(options.target);
+  const migrated = migrateAuditReports(options.target);
+
+  console.log(`\nMigrated: ${options.target}`);
+  if (migrated.length === 0) {
+    console.log("  (nothing to move — audits/ already clean)");
+  } else {
+    for (const dest of migrated) {
+      console.log(`  ✓ → ${dest}`);
+    }
+  }
+  console.log(`  ✓ audits/ ready\n`);
+  return 0;
+}
+
+module.exports = {
+  runCorrectionsCli,
+  runPlaybooksCli,
+  fivemAnsi,
+  printFivemCmdResult,
+  runFivemCli,
+  runDbCli,
+  runMigrateCli,
+};

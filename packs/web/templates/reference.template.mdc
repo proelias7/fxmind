@@ -1,0 +1,83 @@
+---
+description: <NomeDoProjeto> — referência rápida (<stack>)
+alwaysApply: true
+---
+
+# <NomeDoProjeto> — referência rápida
+
+Use estes caminhos e padrões ao trabalhar neste repositório (<framework> / <linguagem>).
+
+## Manutenção desta rule
+
+- Sempre que surgir um padrão novo (caminho de arquivo, convenção, anti-bug, integração), **atualize este arquivo** para as próximas demandas.
+- Fluxos detalhados → **`/fxmind learn <topic>`** → fatos atômicos em `.fxmind/memory/atoms.json` (compartilhados via git; não duplique aqui).
+- Após refactors ou deletes → **`/fxmind memory health`** (ou `fix`) para validar paths e sincronizar índice.
+- Após aprender tópicos → **`/fxmind graph`**; use **`/fxmind query`** para recuperar contexto entre tópicos.
+
+## Stack
+
+- **Gerenciador de pacotes:** pnpm | npm | yarn | bun (pelo lockfile)
+- **Framework / versão:** ... (ex.: Next.js 15 App Router, Vite + React 19, Nuxt 3, Laravel 11)
+- **Linguagem / tipos:** TypeScript strict? `tsconfig.json` paths/aliases
+- **Scripts:** `dev` · `lint` · `typecheck` · `test` · `build` · `e2e` (comandos reais do `package.json`)
+
+## Estrutura
+
+- **Rotas / páginas:** `app/...` ou `src/pages/...`
+- **API / server:** `app/api/...`, `server/...`, `src/routes/...`
+- **Domínio / serviços:** ...
+- **Componentes compartilhados / design system:** ...
+- **Convenção de pastas:** por feature? onde ficam testes?
+
+## Auth e autorização
+
+- **Provedor / sessão:** ... (cookie de sessão, JWT, OAuth)
+- **Onde a autorização é aplicada:** middleware / guard / helper (`requireUser`, `assertCanEdit...`)
+- **Multi-tenant / roles:** ...
+
+## Dados
+
+- **ORM / driver:** Prisma | Drizzle | TypeORM | Eloquent | SQLAlchemy ...
+- **Schema:** `prisma/schema.prisma` · **migrations:** `...` · **comando:** `...`
+- **Banco local / seed:** ... (nunca aponte para produção)
+- **Convenções:** soft delete? timestamps? ids (uuid/cuid)?
+
+## API
+
+- **Estilo:** REST | GraphQL | tRPC | server actions
+- **Validação:** zod | yup | class-validator | pydantic ... (onde fica o schema)
+- **Formato de erro:** ...
+- **Paginação:** cursor | offset (limite máximo)
+
+## Frontend
+
+- **Estado servidor:** React Query | SWR | loaders | Pinia ...
+- **Estado global:** ...
+- **Estilo:** Tailwind | CSS Modules | ... · **componentes base:** ...
+- **Formulários:** ...
+
+## Integrações
+
+- Pagamentos, e-mail, storage, filas, analytics — arquivo de cada cliente e variáveis de ambiente usadas (**só nomes**, nunca valores).
+
+## Testes e CI
+
+- **Unit / integração:** vitest | jest | pytest ... (`...`)
+- **E2E:** playwright | cypress (`...`)
+- **CI:** `.github/workflows/...` — o que roda em PR
+
+## Memórias por tópico
+
+| Tópico | Onde |
+|--------|------|
+| ... | `/fxmind learn <topic>` |
+
+## Anti-bugs deste projeto
+
+- (problemas recorrentes e como evitar)
+
+## Skills do projeto
+
+- `.fxmind/skills/web-development/SKILL.md`
+- `.fxmind/skills/web-frontend/SKILL.md`
+- `.fxmind/skills/web-backend/SKILL.md`

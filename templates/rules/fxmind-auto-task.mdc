@@ -1,0 +1,18 @@
+---
+description: Run FxMind task gates and evidence-based verification for requested code/config changes
+alwaysApply: true
+---
+
+# fxmind — auto Task
+
+For implementation requests read `.fxmind/modes/task.md`; new resource → `.fxmind/modes/create.md`; large rewrite of an existing resource → `.fxmind/modes/refactor.md`. Questions/reviews remain read-only unless changes are requested. "Analyze and fix" authorizes implementation; respect decisions already made and user stop.
+
+For repository questions AND implementation, start discovery with the FxMind MCP: call `fxmind_query` once for relevant indexed memory and confirm claims in current source. If memory has no coverage or you need symbols/locations, use `fxmind_search` in the affected directory. Native Grep/ripgrep, file reads, edits, terminal operations and other tools are blocked until an actual successful FxMind MCP lookup. Always call `fxmind_query` before using any other tool on each user turn. If the FxMind MCP is unavailable, disclose the blocker and stop: do NOT use native search as fallback and do NOT claim any work has been completed. Use MCP for gates and available domain operations.
+
+Quick/full controls effort, not quality. Trivial means a known tiny one-file change with no new behavior; UI and risky tasks use A/B. Gates: start → A → B → implement + checks → V with actual evidence → C. Gate V automatically dispatches a fresh independent reviewer for every task, using relevant skills and a strong model from the same provider when available. If V returns findings, fix them without asking the user, rerun affected checks and retry V; only strict VERIFIED passes. Keep sessionId; claim task files for parallel edits. Never write gate/session JSON.
+
+Read `.fxmind/modes/task-verify.md` before UI edits and before V. UI requires browser interactions, visual inspection and an existing screenshot/trace. Build alone cannot verify UI. Failed/blocked checks leave V incomplete, and edits after V require re-verification.
+
+The installed pack principles under `.fxmind/policy/` (see `domain-routing.md`) are binding. Keep constants/helpers/files only when they add concrete value. Match local conventions; preserve security checks. Record gate notes once instead of duplicating ceremony in chat. User-facing replies are short and direct — outcome first, no long text.
+
+Lean at Gate B (not a new gate): understand the existing call/event flow, reuse an existing helper/component first, then native platform features or installed dependencies, then write the minimum complete implementation. The lightweight FXMIND codebase map only suggests candidate symbols; read current code and callers before editing. Do not invent wrappers/options or dependencies for hypothetical future use. Gate V independently checks duplication, unnecessary scope and focused regression tests without trading off security, error handling or requested behavior. Delegate these same criteria to subagents. Do not turn general questions into coding tasks.

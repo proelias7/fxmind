@@ -1,0 +1,73 @@
+{
+  "id": "web",
+  "label": "Web",
+  "description": "Web apps — frontend (React/Vue/Next), backend APIs (Node/Python/PHP), databases, security, tests and accessibility",
+  "skills": {
+    "localPath": "skills"
+  },
+  "defaultSkills": [
+    "web-development",
+    "web-frontend",
+    "web-backend"
+  ],
+  "detect": {
+    "files": [
+      "package.json",
+      "composer.json",
+      "requirements.txt",
+      "pyproject.toml",
+      "go.mod",
+      "Gemfile",
+      "index.html"
+    ]
+  },
+  "createHint": "Run /fxmind create <feature> to design (then build) a new feature/module with the web principles.",
+  "correctionTargets": {
+    "default": "web-development/best-practices.md",
+    "architecture": "web-development/architecture.md",
+    "communication": "web-development/communication.md",
+    "security": "web-development/security.md",
+    "performance": "web-development/performance.md",
+    "style": "web-development/style.md",
+    "api": "web-development/api.md"
+  },
+  "review": {
+    "policy": ["policy/web-principles.md"],
+    "always": [
+      { "file": "skills/web-development/SKILL.md", "max": 1600 },
+      "skills/web-development/security.md",
+      { "file": "skills/web-development/quality-gates.md", "max": 2400 },
+      "skills/web-development/style.md"
+    ],
+    "rules": [
+      {
+        "ui": true,
+        "files": [
+          { "file": "skills/web-frontend/SKILL.md", "max": 2200 },
+          "skills/web-frontend/accessibility.md"
+        ]
+      },
+      {
+        "match": "(?:^|/)(?:api|server|routes?|controllers?|handlers?|services?|middlewares?|db|models?|repositories|prisma|migrations?|jobs|workers)(?:/|$)|\\.(?:sql|py|php|go|rb)$",
+        "files": [
+          { "file": "skills/web-backend/SKILL.md", "max": 2200 },
+          "skills/web-development/api.md",
+          "skills/web-backend/database.md"
+        ]
+      },
+      {
+        "match": "\\.(?:test|spec)\\.[cm]?[jt]sx?$|(?:^|/)(?:tests?|__tests__|e2e)/",
+        "files": ["skills/web-development/testing.md"]
+      }
+    ]
+  },
+  "templateFiles": [
+    { "src": "web-principles.md", "dest": "policy/web-principles.md" },
+    { "src": "domain-routing.md", "dest": "policy/domain-routing.md" },
+    { "src": "minimum-evidence.md", "dest": "policy/minimum-evidence.md" },
+    { "src": "topic-catalog.md", "dest": "policy/topic-catalog.md" },
+    { "src": "feature-design.template.md", "dest": "templates/resource-design.md" },
+    { "src": "reference.template.mdc", "dest": "templates/reference.mdc" },
+    { "src": "audit-procedure.md", "dest": "audits/procedure.md" }
+  ]
+}

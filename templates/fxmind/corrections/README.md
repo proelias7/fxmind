@@ -1,0 +1,45 @@
+# fxmind corrections
+
+Feed of **agent mistakes corrected by humans** — separate from topic memories.
+
+| Path | Role |
+|------|------|
+| `.fxmind/memory/` | Project knowledge (how this server works) |
+| `.fxmind/corrections/` | Skill-improvement backlog (how agents should code) |
+
+Use this folder to improve pack skills (the `skill_target` each installed pack maps per category — e.g. `fivem-development/<category>.md`, `web-development/<category>.md`) via `/fxmind-judge` or manual PR.
+
+## Commands
+
+```bash
+fxmind corrections list
+fxmind corrections list --status open --category architecture
+fxmind corrections add --title "..." --category style --bad "..." --good "..."
+fxmind corrections export                 # markdown digest for skill editing
+fxmind corrections export --format json
+fxmind corrections promote <id>           # mark applied to skill
+```
+
+MCP: `fxmind_record_correction`, `fxmind_list_corrections`.
+
+## Categories (map to skill sections)
+
+| Category | Skill focus | Target file |
+|----------|-------------|-------------|
+| `architecture` | Monolith, file layout, globals, modules | `architecture.md` |
+| `communication` | Tunnel / events / callbacks | `communication.md` |
+| `security` | Auth, validation, SafeEvent | `security.md` |
+| `performance` | Cache, broadcast, ticks | `performance.md` (audit-process mistakes → `audit-passes.md`) |
+| `style` | Comments, naming, cleanliness | `style.md` |
+| `api` | Wrong framework API / inventing calls | `api.md` |
+
+## Split best-practices?
+
+**Done in pack:** one development skill per pack (`fivem-development`, `web-development`) with thin `SKILL.md` + the files above. Do **not** register six separate agent skills.
+
+## Workflow
+
+1. User corrects agent → save memory Pitfall **and/or** `fxmind_record_correction`
+2. Periodically: `fxmind corrections export` → fold each rule into the section it refines in the `skill_target` file as one `**Rule (ID):**` line (principle ID from the pack principles under `.fxmind/policy/`) plus a short case — never append a new "Learned rule" section; keep examples to a few lines
+3. `fxmind corrections promote <id>` when the rule is in that file
+4. `fxmind --update` on projects to ship the skill

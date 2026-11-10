@@ -1,0 +1,17 @@
+description = "Build 3D knowledge graph from .fxmind/memory/ and open in browser (prefer: fxmind graph CLI)"
+
+prompt = """
+Build the knowledge graph and open it in the browser.
+
+**Preferred:** run from project root:
+```bash
+fxmind graph
+```
+(or `npx --yes github:proelias7/fxmind graph`)
+
+**Agent fallback** if CLI unavailable: read `.fxmind/memory/_index.md`, `.fxmind/memory/*.md`, `.fxmind/policy/topic-catalog.md`, build JSON, write `.fxmind/graph/knowledge-graph.json`, sync `.fxmind/graph/knowledge-graph.html`, open browser.
+
+Do not improve graph code, learn memories, or edit project source.
+
+Report learned / catalog orphans / link counts. Remind: `fxmind graph` after learn; `/fxmind:query` for retrieval.
+"""

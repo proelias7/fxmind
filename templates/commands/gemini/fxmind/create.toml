@@ -1,0 +1,11 @@
+description = "Create a new resource/feature — design with the pack principles, approval, then build via Task"
+
+prompt = """
+**Create a new resource.**
+
+**Request:** {{args}}
+
+Read **`.fxmind/modes/create.md`** (source of truth) and follow it: discover → design in `.fxmind/designs/<resource>.md` from `.fxmind/templates/resource-design.md` → approval → build per slice with Task mode → verify against the design.
+The installed pack principles under `.fxmind/policy/` (see `domain-routing.md`) are binding.
+Reply short and direct — outcome first.
+"""

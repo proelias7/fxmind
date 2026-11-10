@@ -1,0 +1,90 @@
+const { describe, it, beforeEach, afterEach } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+
+const panelContext = require("./panel-context");
+const tools = require("../fxmind-tools");
+
+describe("panel-context", () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "fxctx-"));
+    const fxmind = path.join(tmpDir, ".fxmind");
+    fs.mkdirSync(path.join(fxmind, "memory"), { recursive: true });
+    fs.writeFileSync(
+      path.join(fxmind, "memory", "_index.md"),
+      "# index\n- radio\n",
+      "utf8",
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("inject PANEL_MODE quick block", () => {
+    const body = panelContext.buildContextFile(tmpDir, "fix radio", { taskMode: "quick" });
+    assert.match(body, /PANEL_MODE: quick/);
+    assert.match(body, /trivial: true/);
+  });
+
+  it("inject PANEL_MODE full block", () => {
+    const body = panelContext.buildContextFile(tmpDir, "fix radio", { taskMode: "full" });
+    assert.match(body, /PANEL_MODE: full/);
+    assert.match(body, /Ferramentas FxMind/);
+    assert.match(body, /fxmind_query/);
+    assert.match(body, /fxmind_search/);
+    assert.match(body, /short and direct/);
+  });
+
+  it("normalizeTaskMode defaults unknown to full", () => {
+    assert.equal(panelContext.normalizeTaskMode("quick"), "quick");
+    assert.equal(panelContext.normalizeTaskMode("full"), "full");
+    assert.equal(panelContext.normalizeTaskMode(undefined), "full");
+  });
+
+  it("queryGraph rebuild:false does not create graph file when missing", () => {
+    const result = tools.queryGraph(tmpDir, "radio safezone", { rebuild: false });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /Missing knowledge-graph/);
+  });
+
+  it("writeContextTemp writes temp file with panel mode", () => {
+    const file = panelContext.writeContextTemp(tmpDir, "hello", "thread-1", {
+      taskMode: "quick",
+    });
+    assert.ok(fs.existsSync(file));
+    const body = fs.readFileSync(file, "utf8");
+    assert.match(body, /PANEL_MODE: quick/);
+    fs.unlinkSync(file);
+  });
+
+  it("judge context excludes the executor completion report", () => {
+    const file = panelContext.buildJudgeContextFile(tmpDir, "judge-1", {
+      userPrompt: "fix the disconnect save",
+      primaryOutput: "I implemented everything and it is definitely correct",
+      diff: "M resources/vrp/modules/base.lua",
+    });
+    const body = fs.readFileSync(file, "utf8");
+    assert.match(body, /Original user request/);
+    assert.match(body, /fix the disconnect save/);
+    assert.match(body, /inspect git status\/diff/i);
+    assert.doesNotMatch(body, /definitely correct/);
+    assert.doesNotMatch(body, /Executing agent's final report/);
+    fs.unlinkSync(file);
+  });
+
+  it("uses bounded hits without duplicating the memory index, and marks excerpts", () => {
+    fs.writeFileSync(path.join(tmpDir, ".fxmind", "memory", "radio.md"),
+      "---\ntopic: radio\nupdated: 2026-09-10\nlang: en-compact\npaths: [src/radio.js]\ntriggers: [radio]\n---\n" + "radio rules ".repeat(2000));
+    tools.queryGraph(tmpDir, "radio");
+    const body = panelContext.buildContextFile(tmpDir, "radio", { budget: 40 });
+    assert.ok(!body.includes("## memory/_index.md"));
+    assert.match(body, /Source: .*radio.md/);
+    assert.match(body, /Excerpt truncated/);
+    assert.ok(body.length < 4000);
+  });
+});

@@ -1,0 +1,71 @@
+{
+  "name": "fxmind",
+  "version": "1.0.0",
+  "description": "Shared project memory and knowledge packs for teams of AI agents — domain skills (FiveM, Web), shared .fxmind/ memory, task gates and /fxmind commands",
+  "bin": {
+    "fxmind": "./scripts/install.js",
+    "fxmind-mcp": "./scripts/mcp-server.js"
+  },
+  "files": [
+    ".env.example",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    ".claude-plugin",
+    ".cursor-plugin",
+    "skills",
+    "docs/plugin.md",
+    "scripts",
+    "templates",
+    "packs",
+    "web/dist"
+  ],
+  "dependencies": {
+    "@inquirer/prompts": "^7.5.1",
+    "dotenv": "18.0.7"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "3.1151.0",
+    "mysql2": "^3.23.0",
+    "sharp": "0.35.5"
+  },
+  "keywords": [
+    "fivem",
+    "fxmind",
+    "cursor",
+    "gemini",
+    "opencode",
+    "skills",
+    "vrp",
+    "qbcore",
+    "qbox",
+    "esx",
+    "nui",
+    "web",
+    "react",
+    "nextjs",
+    "vue",
+    "nodejs",
+    "multi-agent",
+    "claude-code",
+    "codex"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/proelias7/fxmind.git"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "test": "node --test scripts/*.test.js scripts/lib/*.test.js scripts/install/*.test.js",
+    "dev": "node scripts/dev-panel.js",
+    "build:web": "node scripts/lib/panel-build.js",
+    "prepublishOnly": "npm run build:web"
+  },
+  "homepage": "https://proelias7.github.io/fxmind/",
+  "bugs": {
+    "url": "https://github.com/proelias7/fxmind/issues"
+  }
+}
