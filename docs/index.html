@@ -4,164 +4,248 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>fxmind — shared memory for AI agents</title>
-<meta name="description" content="One shared memory for every AI agent on your project. Knowledge packs for Web and FiveM, verified work, built for parallel agents." />
+<meta name="description" content="One shared memory for every AI agent on your project. Knowledge packs for Web and FiveM, independent review, built for parallel agents." />
 <meta property="og:title" content="fxmind — shared memory for AI agents" />
 <meta property="og:description" content="One shared memory for every AI agent on your project." />
-<meta property="og:image" content="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" />
-<link rel="icon" href="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" />
+<meta property="og:image" content="https://proelias7.github.io/fxmind/assets/logo.png" />
+<meta name="theme-color" content="#0d0f14" />
+<link rel="icon" type="image/png" href="assets/favicon.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --bg: #0d0f14;
-    --bg-2: #12151c;
-    --card: #161a23;
-    --line: #262b37;
-    --text: #ecebe6;
-    --muted: #9aa1ad;
-    --accent: #7ee0b4;
-    --accent-ink: #0b2a1e;
-    --warm: #f2b45a;
-    --pink: #ff8fd6;
-    --radius: 16px;
-    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #f7f6f2; --bg-2: #efede6; --card: #ffffff; --line: #e2dfd6;
-      --text: #1d1b17; --muted: #5f5b53; --accent: #1f9e6e; --accent-ink: #ffffff; --warm: #b7741a;
-    }
+    --ink: #0d0f14;
+    --ink-2: #12151c;
+    --glass: rgba(255, 255, 255, 0.035);
+    --glass-2: rgba(255, 255, 255, 0.06);
+    --line: rgba(255, 255, 255, 0.085);
+    --line-2: rgba(255, 255, 255, 0.16);
+    --text: #f3f1f8;
+    --muted: #a19db2;
+    --faint: #6d6980;
+    --violet: #7ee0b4;
+    --violet-deep: #3fbf8c;
+    --mint: #7ee0b4;
+    --amber: #f2b45a;
+    --font: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    line-height: 1.55; -webkit-font-smoothing: antialiased;
+    margin: 0; background: var(--ink); color: var(--text); font-family: var(--font);
+    font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden;
   }
   a { color: inherit; }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; border-radius: 8px; }
+  .wrap { width: 100%; max-width: 1200px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
 
-  /* top bar */
-  header.top { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(10px);
-    background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line); }
-  .top .wrap { display: flex; align-items: center; gap: 18px; height: 60px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.02em; text-decoration: none; font-size: 18px; }
-  .brand img { width: 28px; height: 28px; border-radius: 8px; }
-  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-  nav.links { margin-left: auto; display: flex; gap: 18px; align-items: center; font-size: 14px; color: var(--muted); }
-  nav.links a { text-decoration: none; }
-  nav.links a:hover { color: var(--text); }
-  .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
-  .lang button { all: unset; cursor: pointer; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
-  .lang button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
-  .lang button:focus-visible, .btn:focus-visible, .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  @media (max-width: 720px) { nav.links a.hide-sm { display: none; } }
+  /* ---------- launch strip ---------- */
+  .strip { border-bottom: 1px solid var(--line); background: var(--ink-2); font-size: 13px; color: var(--muted); }
+  .strip .wrap { display: flex; justify-content: center; align-items: center; gap: 10px; height: 38px; }
+  .strip b { font-family: var(--mono); font-weight: 500; font-size: 11px; color: var(--ink); background: var(--violet); padding: 2px 7px; border-radius: 5px; }
+  .strip a { color: var(--text); text-decoration: none; }
+  .strip a:hover { text-decoration: underline; }
 
-  /* hero */
-  .hero { padding-top: 72px; padding-bottom: 40px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
-  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding-top: 48px; } .hero > * { min-width: 0; } }
-  .eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.02em; }
-  h1 { font-size: clamp(36px, 5.4vw, 60px); line-height: 1.03; letter-spacing: -0.035em; margin: 12px 0 18px; font-weight: 800; }
-  h1 em { font-style: normal; color: var(--accent); }
-  .sub { font-size: 18px; color: var(--muted); max-width: 520px; margin: 0 0 28px; }
-  .ctas { display: flex; gap: 12px; flex-wrap: wrap; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 12px; font-weight: 600; font-size: 15px;
-    text-decoration: none; border: 1px solid var(--line); background: var(--card); transition: transform .15s ease, border-color .15s ease; }
-  .btn:hover { transform: translateY(-1px); border-color: var(--muted); }
-  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
-  .btn .count { font-family: var(--mono); font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--bg-2); color: var(--muted); }
+  /* ---------- nav ---------- */
+  .nav .wrap { display: flex; align-items: center; height: 64px; gap: 28px; }
+  .nav .mini { display: flex; align-items: center; gap: 9px; text-decoration: none; font-weight: 700; letter-spacing: -0.02em; }
+  .nav .mini img { width: 26px; height: 26px; }
+  .nav .links { margin-left: auto; display: flex; align-items: center; gap: 26px; font-size: 14px; color: var(--muted); }
+  .nav .links a { text-decoration: none; }
+  .nav .links a:hover { color: var(--text); }
+  .lang { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass); }
+  .lang button { all: unset; cursor: pointer; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .lang button[aria-pressed="true"] { background: var(--text); color: var(--ink); }
+  .lang button:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+  @media (max-width: 760px) { .nav .links a.opt { display: none; } }
 
-  /* mock agent window */
-  .mock { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 30px 80px -40px rgba(0,0,0,.6); }
-  .mock .bar { display: flex; gap: 6px; margin-bottom: 14px; }
-  .mock .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
-  .msg { font-size: 14px; padding: 10px 12px; border-radius: 12px; margin-bottom: 10px; }
-  .msg.user { background: var(--bg-2); margin-left: 40px; }
-  .msg.agent { border: 1px solid var(--line); }
-  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
-  .pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 6px 10px; border-radius: 999px;
-    border: 1px solid var(--line); background: var(--bg-2); opacity: 0; transform: translateY(6px); animation: pop .5s ease forwards; }
-  .pill b { font-weight: 600; }
-  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-  .pill.warm .dot { background: var(--warm); }
-  .pill.pink .dot { background: var(--pink); }
-  .pill:nth-child(1) { animation-delay: .3s } .pill:nth-child(2) { animation-delay: .9s }
-  .pill:nth-child(3) { animation-delay: 1.5s } .pill:nth-child(4) { animation-delay: 2.1s }
-  @keyframes pop { to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { .pill { animation: none; opacity: 1; transform: none; } .btn { transition: none; } }
-  .prompt { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 14px; }
-  .prompt .tag { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  /* ---------- hero ---------- */
+  .hero { position: relative; isolation: isolate; padding: 48px 0 96px; }
+  .hero::before { /* dot field, fading out at the bottom */
+    content: ""; position: absolute; inset: 0; z-index: -2;
+    background-image: radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1.3px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 75% at 30% 40%, #000 30%, transparent 80%);
+            mask-image: radial-gradient(ellipse 80% 75% at 30% 40%, #000 30%, transparent 80%);
+  }
+  .hero::after { /* violet bloom behind the cards */
+    content: ""; position: absolute; z-index: -1; right: -10%; top: 10%; width: 70%; height: 90%;
+    background: radial-gradient(closest-side, rgba(126,224,180,0.14), transparent 70%); filter: blur(20px);
+  }
+  .hero .wrap { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); gap: 56px; align-items: center; }
 
-  /* sections */
-  section { padding: 64px 0; border-top: 1px solid var(--line); }
-  h2 { font-size: clamp(28px, 3.6vw, 40px); letter-spacing: -0.03em; margin: 0 0 10px; line-height: 1.1; }
-  .lead { color: var(--muted); font-size: 17px; margin: 0 0 32px; max-width: 640px; }
+  .word { display: flex; align-items: center; gap: 22px; margin: 0; }
+  .word img { width: 96px; height: 96px; flex: none; filter: drop-shadow(0 10px 34px rgba(126,224,180,0.3)); }
+  .word span {
+    position: relative; font-size: clamp(64px, 9.2vw, 124px); font-weight: 800; letter-spacing: -0.06em; line-height: 0.9;
+    background: linear-gradient(90deg, #fff 0%, #fff 52%, #d9dde6 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; padding-bottom: 0.06em;
+  }
+  .word span::after { /* grain that eats the right edge of the wordmark */
+    content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 2.4 -1.1'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    -webkit-mask-image: linear-gradient(90deg, transparent 48%, #000 100%); mask-image: linear-gradient(90deg, transparent 48%, #000 100%);
+  }
+  .tag { display: flex; align-items: center; gap: 10px; margin: 30px 0 14px; font-size: 24px; font-weight: 500; letter-spacing: -0.02em; color: #dcd8ea; }
+  .tag svg { width: 22px; height: 22px; color: var(--violet); flex: none; }
+  .sub { margin: 0 0 30px; color: var(--muted); font-size: 18px; max-width: 30em; }
 
-  /* install */
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
-  .card h3 { margin: 0 0 6px; font-size: 18px; letter-spacing: -0.01em; }
-  .card p { margin: 0 0 16px; color: var(--muted); font-size: 15px; }
-  .step { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 8px; display: block; }
-  .code { position: relative; display: flex; align-items: center; gap: 10px; background: var(--bg-2); border: 1px solid var(--line);
-    border-radius: 12px; padding: 12px 12px 12px 14px; font-family: var(--mono); font-size: 13.5px; }
-  .code code { flex: 1; overflow-x: auto; white-space: nowrap; }
-  .code code::before { content: "$ "; color: var(--muted); }
-  .code.noprompt code::before { content: ""; }
-  .code.wrap code { white-space: normal; }
-  .copy { all: unset; cursor: pointer; font-family: Inter, sans-serif; font-size: 12px; font-weight: 600; padding: 6px 10px;
-    border-radius: 8px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
-  .copy:hover { color: var(--text); border-color: var(--muted); }
-  .copy.ok { color: var(--accent); border-color: var(--accent); }
-  .note { margin-top: 14px; font-size: 14px; color: var(--muted); }
-  .note code { font-family: var(--mono); font-size: 13px; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; position: relative; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; height: 50px; padding: 0 18px; border-radius: 12px; font-weight: 600; font-size: 15.5px; text-decoration: none; cursor: pointer; border: 1px solid var(--line-2); background: var(--glass); transition: background .15s ease, border-color .15s ease; }
+  .btn:hover { background: var(--glass-2); border-color: rgba(255,255,255,.28); }
+  .btn.light { background: #fff; color: #121019; border-color: #fff; }
+  .btn.light:hover { background: #ecebf3; }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .btn .count { font-family: var(--mono); font-size: 12.5px; font-weight: 500; padding: 3px 9px; border-radius: 7px; background: #ecebf3; color: #3b3850; }
+  .btn .chev { width: 14px; height: 14px; transition: transform .18s ease; }
+  .btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
-  /* features */
-  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-  @media (max-width: 900px) { .features { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
-  .feat .ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 14px;
-    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-size: 18px; }
-  .feat h3 { font-size: 17px; }
+  /* install popover */
+  .pop { position: absolute; z-index: 20; top: 60px; left: 0; width: min(460px, calc(100vw - 48px)); padding: 10px; border-radius: 16px;
+    background: rgba(20, 24, 31, 0.96); border: 1px solid var(--line-2); box-shadow: 0 30px 80px -20px rgba(0,0,0,.7); backdrop-filter: blur(16px); }
+  .pop[hidden] { display: none; }
+  .pop .row { padding: 10px 10px 12px; border-radius: 10px; }
+  .pop .row + .row { border-top: 1px solid var(--line); }
+  .pop .row p { margin: 0 0 8px; font-size: 13.5px; color: var(--muted); }
+  .pop .row p strong { color: var(--text); font-weight: 600; }
 
-  /* packs */
-  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 800px) { .packs { grid-template-columns: 1fr; } }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-  .chip { font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-  .detect { font-family: var(--mono); font-size: 12px; color: var(--warm); }
+  .cmd { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 10px; background: rgba(0,0,0,0.35); border: 1px solid var(--line); font-family: var(--mono); font-size: 13.5px; }
+  .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .cmd code::-webkit-scrollbar { display: none; }
+  .cmd.prose code { white-space: normal; font-family: var(--font); font-size: 14px; color: #dcd8ea; }
+  .copy { all: unset; cursor: pointer; flex: none; font-family: var(--font); font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 8px; color: var(--text); background: var(--glass-2); border: 1px solid var(--line); }
+  .copy:hover { background: rgba(255,255,255,.1); }
+  .copy.ok { color: var(--mint); border-color: rgba(126,224,180,.4); }
+  .copy:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
 
-  /* agents strip */
-  .agents { display: flex; flex-wrap: wrap; gap: 10px 22px; color: var(--muted); font-weight: 600; font-size: 15px; margin-top: 28px; }
+  /* agent bar under the CTA */
+  .agent { margin-top: 42px; max-width: 520px; }
+  .agent .meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 9px 12px; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; background: var(--glass); font-size: 13.5px; color: var(--muted); }
+  .agent .meta b { color: var(--text); font-weight: 600; }
+  .agent .meta .ok { display: inline-flex; align-items: center; gap: 6px; color: var(--mint); font-weight: 600; }
+  .agent .meta .ok svg { width: 14px; height: 14px; }
+  .agent .meta .sep { width: 1px; height: 14px; background: var(--line-2); }
+  .agent .box { display: flex; align-items: flex-end; justify-content: space-between; min-height: 84px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 0 0 14px 14px; background: rgba(255,255,255,0.025); color: var(--faint); font-size: 15px; }
+  .agent .box kbd { font-family: var(--mono); font-size: 12px; color: var(--violet); }
+  .agent .foot { display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .agent .foot b { color: #d8d4e6; font-weight: 500; }
 
-  /* how */
-  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; counter-reset: s; }
-  @media (max-width: 800px) { .flow { grid-template-columns: 1fr 1fr; } }
-  .flow .card { padding: 18px; }
-  .flow .card::before { counter-increment: s; content: counter(s); font-family: var(--mono); color: var(--accent); font-size: 13px; display: block; margin-bottom: 8px; }
-  .flow .card p { margin: 0; }
+  /* staircase of memory events */
+  .stair { position: relative; display: grid; gap: 18px; margin-right: calc((100vw - min(100vw, 1200px)) / -2 - 24px);
+    -webkit-mask-image: linear-gradient(90deg, #000 72%, transparent 100%); mask-image: linear-gradient(90deg, #000 72%, transparent 100%); }
+  .ev { position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; min-height: 92px; padding: 18px 26px; border-radius: 18px;
+    border: 1px solid var(--line-2); background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)); backdrop-filter: blur(6px);
+    opacity: 0; transform: translateX(28px); animation: slide .7s cubic-bezier(.2,.7,.2,1) forwards; }
+  .ev:nth-child(1) { margin-left: 0;    animation-delay: .15s; }
+  .ev:nth-child(2) { margin-left: 56px; animation-delay: .35s; }
+  .ev:nth-child(3) { margin-left: 112px; animation-delay: .55s; }
+  .ev:nth-child(4) { margin-left: 168px; animation-delay: .75s; }
+  .ev:nth-child(5) { margin-left: 224px; animation-delay: .95s; }
+  @keyframes slide { to { opacity: 1; transform: none; } }
+  .ev .who { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 11px; background: rgba(255,255,255,0.06); border: 1px solid var(--line); font-weight: 700; font-size: 14px; }
+  .ev .t { font-size: 19px; font-weight: 600; letter-spacing: -0.015em; white-space: nowrap; }
+  .ev .t em { font-style: normal; color: var(--muted); font-weight: 500; }
+  .ev .d { display: block; margin-top: 2px; font-size: 14.5px; color: var(--muted); font-weight: 400; white-space: nowrap; }
+  .ev .act { margin-left: auto; padding-left: 20px; display: flex; gap: 8px; }
+  .chipbtn { white-space: nowrap; padding: 8px 14px; border-radius: 10px; font-size: 14.5px; font-weight: 600; background: rgba(255,255,255,0.08); border: 1px solid var(--line); color: #d9d5e8; }
+  .chipbtn.on { background: #fff; color: #121019; }
+  .ring { width: 18px; height: 18px; flex: none; }
+  .deco { position: absolute; inset: 0; pointer-events: none; }
 
-  footer { border-top: 1px solid var(--line); padding: 40px 0 56px; color: var(--muted); font-size: 14px; }
-  footer .wrap { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; }
-  footer .links { display: flex; gap: 18px; flex-wrap: wrap; margin-left: auto; }
+  /* the top event is the live agent bar */
+  .ev.top .pillset { display: flex; align-items: center; gap: 22px; font-size: 19px; }
+  .toggle { display: inline-flex; width: 46px; height: 26px; border-radius: 999px; background: var(--violet-deep); padding: 3px; }
+  .toggle i { width: 20px; height: 20px; margin-left: auto; border-radius: 50%; background: #fff; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ev { animation: none; opacity: 1; transform: none; }
+    .drift { animation: none !important; }
+  }
+  .drift { animation: drift 9s ease-in-out infinite alternate; }
+  @keyframes drift { to { transform: translate(-14px, 6px); } }
+
+  @media (max-width: 980px) {
+    .hero .wrap { grid-template-columns: 1fr; }
+    .stair { margin-right: 0; -webkit-mask-image: none; mask-image: none; }
+    .ev:nth-child(n) { margin-left: 0; }
+    .ev .t, .ev .d { white-space: normal; }
+    .ev .act { display: none; }
+    .ev.top .pillset { flex-wrap: wrap; gap: 10px 16px; font-size: 16px; }
+  }
+  @media (max-width: 520px) {
+    .word { gap: 14px; } .word img { width: 60px; height: 60px; }
+    .tag { font-size: 20px; }
+    .ev { padding: 16px; min-height: 0; }
+    .ev .t { font-size: 16.5px; }
+  }
+
+  /* ---------- sections ---------- */
+  .lg { width: 18px; height: 18px; fill: currentColor; color: #eceaf2; flex: none; }
+  .ev .who .lg { width: 20px; height: 20px; }
+  .agent .meta .ag { display: inline-flex; align-items: center; gap: 7px; }
+  .agent .foot .ags { display: inline-flex; gap: 12px; }
+  .agent .foot .ags .lg { width: 15px; height: 15px; opacity: .85; }
+
+  .logos { padding-top: 0; padding-bottom: 80px; }
+  .logos ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 18px 46px; }
+  .logos li { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; font-size: 15px; }
+  .logos .lg { width: 22px; height: 22px; }
+
+  .sec { padding-top: 96px; padding-bottom: 96px; border-top: 1px solid var(--line); }
+  .sec h2 { margin: 0 0 36px; font-size: clamp(32px, 4.4vw, 52px); line-height: 1.04; letter-spacing: -0.045em; font-weight: 700; }
+
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+  .trio svg { width: 26px; height: 26px; color: var(--violet); }
+  .trio h3 { margin: 18px 0 6px; font-size: 22px; letter-spacing: -0.025em; font-weight: 600; }
+  .trio p { margin: 0; color: var(--muted); }
+  @media (max-width: 760px) { .trio { grid-template-columns: 1fr; gap: 32px; } }
+
+  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .pack { position: relative; overflow: hidden; padding: 30px; border-radius: 22px; border: 1px solid var(--line); background: var(--glass); }
+  .pack h3 { margin: 0 0 8px; font-size: 34px; letter-spacing: -0.04em; font-weight: 700; }
+  .pack p { margin: 0; color: var(--muted); }
+  .pack::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(closest-side, rgba(126,224,180,.2), transparent); }
+  .pack.fivem::after { background: radial-gradient(closest-side, rgba(242,180,90,.18), transparent); }
+  @media (max-width: 760px) { .packs { grid-template-columns: 1fr; } }
+  .fine { margin: 20px 0 0; color: var(--faint); font-size: 14.5px; }
+  .fine a { color: var(--violet); text-decoration: none; margin-left: 10px; }
+
+  .end { text-align: center; }
+  .end .cmds { display: grid; gap: 10px; max-width: 540px; margin: 0 auto; text-align: left; }
+
+  footer { border-top: 1px solid var(--line); padding-top: 34px; padding-bottom: 46px; color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; }
+  footer nav { margin-left: auto; display: flex; flex-wrap: wrap; gap: 22px; }
   footer a { text-decoration: none; } footer a:hover { color: var(--text); }
 </style>
 </head>
 <body>
-<header class="top">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gem" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
+    <symbol id="lg-claude" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol>
+    <symbol id="lg-cursor" viewBox="0 0 24 24"><path d="M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23"/></symbol>
+    <symbol id="lg-openai" viewBox="0 0 24 24"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+    <symbol id="lg-gemini" viewBox="0 0 24 24"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></symbol>
+    <symbol id="lg-copilot" viewBox="0 0 24 24"><path d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></symbol>
+    <symbol id="lg-opencode" viewBox="0 0 24 24"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></symbol>
+  </defs>
+</svg>
+
+<div class="strip"><div class="wrap"><b>v1.0</b><span data-i18n="strip">Now with a Web pack.</span><a href="#packs" data-i18n="strip.link">See packs</a></div></div>
+
+<header class="nav">
   <div class="wrap">
-    <a class="brand" href="#top" aria-label="fxmind">
-      <img src="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" alt="" />
-      fxmind <span class="badge">v1.0</span>
-    </a>
+    <a class="mini" href="#top"><img src="assets/logo.png" alt="" width="26" height="26" />fxmind</a>
     <nav class="links" aria-label="Main">
-      <a class="hide-sm" href="#how" data-i18n="nav.how">How it works</a>
-      <a class="hide-sm" href="#packs" data-i18n="nav.packs">Packs</a>
+      <a class="opt" href="#how" data-i18n="nav.how">How it works</a>
+      <a class="opt" href="#packs" data-i18n="nav.packs">Packs</a>
       <a href="#install" data-i18n="nav.install">Install</a>
-      <a class="hide-sm" href="https://github.com/proelias7/fxmind">GitHub</a>
+      <a class="opt" href="https://github.com/proelias7/fxmind">GitHub</a>
       <div class="lang" role="group" aria-label="Language">
         <button type="button" data-lang="en" aria-pressed="true">EN</button>
         <button type="button" data-lang="pt" aria-pressed="false">PT</button>
@@ -171,116 +255,120 @@
 </header>
 
 <main id="top">
-  <div class="wrap hero">
-    <div>
-      <div class="eyebrow" data-i18n="hero.eyebrow">// shared memory for AI agents</div>
-      <h1 data-i18n-html="hero.title">Your agents forget.<br/><em>fxmind</em> remembers.</h1>
-      <p class="sub" data-i18n="hero.sub">One memory in your repo, shared by every AI agent and teammate. Expert skills for your stack, and an independent review before any change counts as done.</p>
-      <div class="ctas">
-        <a class="btn primary" href="#install" data-i18n="hero.install">Install in one command</a>
-        <a class="btn" href="https://github.com/proelias7/fxmind">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.75.75 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/></svg>
-          <span data-i18n="hero.star">Star on GitHub</span>
-          <span class="count" id="stars" hidden></span>
-        </a>
-      </div>
-    </div>
-
-    <div class="mock" aria-hidden="true">
-      <div class="bar"><i></i><i></i><i></i></div>
-      <div class="msg user" data-i18n="mock.user">Add pagination to the orders API</div>
-      <div class="msg agent">
-        <span data-i18n="mock.agent">On it. Using what the team already knows about this endpoint.</span>
-        <div class="pills">
-          <span class="pill"><span class="dot"></span><b data-i18n="mock.p1a">Memory</b> <span data-i18n="mock.p1b">3 facts loaded</span></span>
-          <span class="pill pink"><span class="dot"></span><b data-i18n="mock.p2a">Claimed</b> <span>api/orders.ts</span></span>
-          <span class="pill warm"><span class="dot"></span><b>web pack</b> <span>D2 · S1 · T1</span></span>
-          <span class="pill"><span class="dot"></span><b>Gate V</b> <span>VERIFIED</span></span>
-        </div>
-      </div>
-      <div class="prompt"><span data-i18n="mock.prompt">Reply to your agent…</span><span class="tag">/fxmind</span></div>
-    </div>
-  </div>
-
-  <div class="wrap" style="padding-bottom:48px">
-    <div class="agents" aria-label="Supported agents">
-      <span>Cursor</span><span>Claude Code</span><span>Codex</span><span>Gemini CLI</span><span>OpenCode</span><span>VS Code Copilot</span>
-    </div>
-  </div>
-
-  <section id="install">
+  <section class="hero">
     <div class="wrap">
-      <h2 data-i18n="install.title">Install</h2>
-      <p class="lead" data-i18n="install.lead">Needs Node.js 20.9+. Run it in your project folder, then restart your agent.</p>
-      <div class="grid2">
-        <div class="card">
-          <span class="step">01</span>
-          <h3 data-i18n="install.t1">Run one command.</h3>
-          <p data-i18n="install.d1">Installs memory, skills and the right pack for your project.</p>
-          <div class="code"><code id="cmd-install">npx --yes github:proelias7/fxmind -y</code><button class="copy" type="button" data-copy="cmd-install" data-i18n="copy">Copy</button></div>
+      <div>
+        <h1 class="word"><img src="assets/logo.png" alt="" width="96" height="96" /><span>fxmind</span></h1>
+        <p class="tag">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M11 7 6 16M13 7l5 9M7.2 18h9.6"/></svg>
+          <span data-i18n="tag">Memory for AI agents</span>
+        </p>
+        <p class="sub" data-i18n="sub">What one agent learns, every agent knows.</p>
+
+        <div class="ctas">
+          <a class="btn light" href="https://github.com/proelias7/fxmind">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            <span data-i18n="star">Star on GitHub</span>
+            <span class="count" id="stars" hidden></span>
+          </a>
+          <button class="btn" type="button" id="installBtn" aria-expanded="false" aria-controls="installPop">
+            <span data-i18n="nav.install">Install</span>
+            <svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+          </button>
+          <div class="pop" id="installPop" hidden>
+            <div class="row">
+              <p><strong data-i18n="pop.t1">In your project folder</strong> <span data-i18n="pop.d1">· then restart your agent</span></p>
+              <div class="cmd"><code id="c1">npx --yes github:proelias7/fxmind -y</code><button class="copy" type="button" data-copy="c1" data-i18n="copy">Copy</button></div>
+            </div>
+            <div class="row">
+              <p><strong data-i18n="pop.t2">To update later</strong> <span data-i18n="pop.d2">· your memories stay</span></p>
+              <div class="cmd"><code id="c2">npx --yes github:proelias7/fxmind --update -y</code><button class="copy" type="button" data-copy="c2" data-i18n="copy">Copy</button></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <span class="step">02</span>
-          <h3 data-i18n="install.t2">Or ask your agent.</h3>
-          <p data-i18n="install.d2">Paste this into Cursor, Claude Code or Codex and press Enter.</p>
-          <div class="code noprompt wrap"><code id="cmd-ask" data-i18n="install.ask">Install fxmind in this project: run `npx --yes github:proelias7/fxmind -y` in the project root, then tell me to restart.</code><button class="copy" type="button" data-copy="cmd-ask" data-i18n="copy">Copy</button></div>
+
+        <div class="agent" aria-hidden="true">
+          <div class="meta">
+            <span class="ag"><svg class="lg" style="color:#d97757" aria-hidden="true"><use href="#lg-claude"/></svg><b>Claude</b></span><span class="sep"></span>
+            <span data-i18n="bar.facts">3 facts recalled</span><span class="sep"></span>
+            <span class="ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg><span data-i18n="bar.ok">Reviewed</span></span>
+          </div>
+          <div class="box"><span data-i18n="bar.prompt">Ask your agent anything…</span><kbd>/fxmind</kbd></div>
+          <div class="foot"><span data-i18n="bar.shared">Shared with</span><span class="ags"><svg class="lg" aria-hidden="true"><use href="#lg-cursor"/></svg><svg class="lg" aria-hidden="true"><use href="#lg-openai"/></svg><svg class="lg" style="fill:url(#gem)" aria-hidden="true"><use href="#lg-gemini"/></svg><svg class="lg" aria-hidden="true"><use href="#lg-copilot"/></svg></span></div>
         </div>
       </div>
-      <div class="card" style="margin-top:16px">
-        <h3 data-i18n="update.title">Update anytime.</h3>
-        <p data-i18n="update.d">Your memories stay. Only fxmind's own files are refreshed.</p>
-        <div class="code"><code id="cmd-update">npx --yes github:proelias7/fxmind --update -y</code><button class="copy" type="button" data-copy="cmd-update" data-i18n="copy">Copy</button></div>
+
+      <div class="stair" aria-hidden="true">
+        <div class="ev top">
+          <div class="pillset">
+            <img src="assets/logo.png" alt="" width="22" height="22" />
+            <span><b data-i18n="ev0.mem">Memory</b> <em style="color:var(--muted);font-style:normal" data-i18n="ev0.facts">· 128 facts</em></span>
+            <span style="display:inline-flex;align-items:center;gap:10px"><span class="toggle"><i></i></span><span data-i18n="ev0.shared">Shared</span></span>
+            <span style="color:var(--muted)" data-i18n="ev0.agents">4 agents</span>
+            <span class="chipbtn on" style="font-size:16px">Gate V</span>
+          </div>
+        </div>
+
+        <div class="ev">
+          <svg class="deco" viewBox="0 0 600 92" preserveAspectRatio="none"><g class="drift" stroke="rgba(126,224,180,.35)" fill="none"><path d="M300 30 360 52 430 24 500 60"/><circle cx="300" cy="30" r="3" fill="rgba(126,224,180,.6)"/><circle cx="360" cy="52" r="2.5" fill="rgba(126,224,180,.5)"/><circle cx="430" cy="24" r="3.5" fill="rgba(126,224,180,.6)"/><circle cx="500" cy="60" r="2.5" fill="rgba(126,224,180,.45)"/></g></svg>
+          <span class="who"><svg class="lg" style="color:#d97757" aria-hidden="true"><use href="#lg-claude"/></svg></span>
+          <span><span class="t"><span data-i18n="ev1.t">Claude learned</span> <em data-i18n="ev1.e">checkout checks the cart owner</em></span><span class="d">api/checkout.ts:42</span></span>
+          <span class="act"><span class="chipbtn" data-i18n="ev1.b">Shared</span></span>
+        </div>
+
+        <div class="ev">
+          <span class="who"><svg class="lg" aria-hidden="true"><use href="#lg-cursor"/></svg></span>
+          <span><span class="t"><span data-i18n="ev2.t">Cursor recalled it</span> <em data-i18n="ev2.e">no rescan needed</em></span><span class="d" data-i18n="ev2.d">Two minutes later, another tab</span></span>
+          <span class="act"><span class="chipbtn" data-i18n="ev2.b">0 searches</span></span>
+        </div>
+
+        <div class="ev">
+          <svg class="deco" viewBox="0 0 600 92" preserveAspectRatio="none"><g class="drift" fill="rgba(242,180,90,.5)"><circle cx="330" cy="22" r="2"/><circle cx="380" cy="70" r="1.6"/><circle cx="455" cy="40" r="2.4"/><circle cx="520" cy="18" r="1.6"/></g></svg>
+          <span class="who"><svg class="lg" aria-hidden="true"><use href="#lg-openai"/></svg></span>
+          <span><span class="t"><span data-i18n="ev3.t">Codex is waiting</span> <em>api/orders.ts</em></span><span class="d" data-i18n="ev3.d">Claimed by another agent</span></span>
+          <span class="act"><span class="chipbtn" data-i18n="ev3.b">Pick other work</span></span>
+        </div>
+
+        <div class="ev">
+          <svg class="ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="2.4"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="#7ee0b4" stroke-width="2.4" stroke-dasharray="47.1" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 10 10)"/></svg>
+          <span><span class="t"><span data-i18n="ev4.t">Independent review</span> <em data-i18n="ev4.e">lint, types, 6 tests</em></span><span class="d" data-i18n="ev4.d">Before anything counts as done</span></span>
+          <span class="act"><span class="chipbtn on">VERIFIED</span></span>
+        </div>
       </div>
-      <p class="note" data-i18n-html="install.note">Pick an agent with <code>--claude</code>, <code>--cursor</code>, <code>--codex</code>… or a pack with <code>--pack web</code>. Everything else is in the <a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md">full reference</a>.</p>
     </div>
   </section>
 
-  <section id="how">
-    <div class="wrap">
-      <h2 data-i18n="feat.title">What changes.</h2>
-      <p class="lead" data-i18n="feat.lead">Agents stop starting from zero, stop guessing, and stop stepping on each other.</p>
-      <div class="features">
-        <div class="card feat"><div class="ico">◎</div><h3 data-i18n="f1.t">One memory for everyone.</h3><p data-i18n="f1.d">What any agent learns is saved in .fxmind/memory/ and committed with your code. The whole team reuses it.</p></div>
-        <div class="card feat"><div class="ico">⌁</div><h3 data-i18n="f2.t">Facts with receipts.</h3><p data-i18n="f2.d">Every memory points to the exact line of code that proves it, and drops out when that code changes.</p></div>
-        <div class="card feat"><div class="ico">✦</div><h3 data-i18n="f3.t">An expert for your stack.</h3><p data-i18n="f3.d">Packs bring binding best practices — security, data, performance, accessibility, clean code.</p></div>
-        <div class="card feat"><div class="ico">✓</div><h3 data-i18n="f4.t">Reviewed before it's done.</h3><p data-i18n="f4.d">Each change passes short gates and a fresh, independent reviewer. Tests and checks run for real.</p></div>
-        <div class="card feat"><div class="ico">⇄</div><h3 data-i18n="f5.t">Parallel agents, no collisions.</h3><p data-i18n="f5.d">Agents claim the files they edit. Two tabs, two CLIs, two teammates — nobody overwrites anybody.</p></div>
-        <div class="card feat"><div class="ico">⌘</div><h3 data-i18n="f6.t">Just talk to it.</h3><p data-i18n="f6.d">No new workflow to learn. Ask in plain language; /fxmind learn, create and audit are there when you want them.</p></div>
-      </div>
+  <section class="logos" aria-label="Works with">
+    <div class="wrap"><ul><li><svg class="lg" style="color:#d97757" aria-hidden="true"><use href="#lg-claude"/></svg><span>Claude Code</span></li><li><svg class="lg" aria-hidden="true"><use href="#lg-cursor"/></svg><span>Cursor</span></li><li><svg class="lg" aria-hidden="true"><use href="#lg-openai"/></svg><span>Codex</span></li><li><svg class="lg" style="fill:url(#gem)" aria-hidden="true"><use href="#lg-gemini"/></svg><span>Gemini CLI</span></li><li><svg class="lg" aria-hidden="true"><use href="#lg-copilot"/></svg><span>Copilot</span></li><li><svg class="lg" aria-hidden="true"><use href="#lg-opencode"/></svg><span>OpenCode</span></li></ul></div>
+  </section>
+
+  <section class="sec" id="how">
+    <div class="wrap trio">
+      <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M11 7 6 16M13 7l5 9M7.2 18h9.6"/></svg><h3 data-i18n="t1.t">One memory, every agent.</h3><p data-i18n="t1.d">Lives in your repo, shared through git.</p></div>
+      <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><h3 data-i18n="t2.t">No collisions.</h3><p data-i18n="t2.d">Agents claim the files they edit.</p></div>
+      <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.5 2.5 2.5 4.5-5.5"/></svg><h3 data-i18n="t3.t">Reviewed before done.</h3><p data-i18n="t3.d">Real checks and an independent reviewer.</p></div>
     </div>
   </section>
 
-  <section id="packs">
+  <section class="sec" id="packs">
     <div class="wrap">
-      <h2 data-i18n="packs.title">Knowledge packs.</h2>
-      <p class="lead" data-i18n="packs.lead">Picked automatically from your project. Install both if you need both.</p>
+      <h2 data-i18n="packs.title">Packs for your stack.</h2>
       <div class="packs">
-        <div class="card">
-          <div class="detect" data-i18n="packs.webdetect">detected by package.json · composer.json · pyproject.toml</div>
-          <h3 style="margin-top:8px">Web</h3>
-          <p data-i18n="packs.web">Frontend, backend and data — with rules agents must follow and cite.</p>
-          <div class="chips"><span class="chip">React</span><span class="chip">Next.js</span><span class="chip">Vue / Nuxt</span><span class="chip">Svelte</span><span class="chip">Angular</span><span class="chip">Node / Express / NestJS</span><span class="chip">Python / PHP</span><span class="chip">SQL / Prisma</span><span class="chip" data-i18n="chip.sec">Security</span><span class="chip" data-i18n="chip.a11y">Accessibility</span><span class="chip" data-i18n="chip.tests">Tests</span></div>
-        </div>
-        <div class="card">
-          <div class="detect" data-i18n="packs.fivemdetect">detected by fxmanifest.lua</div>
-          <h3 style="margin-top:8px">FiveM</h3>
-          <p data-i18n="packs.fivem">Lua resources, natives and server patterns for every major framework.</p>
-          <div class="chips"><span class="chip">vRP</span><span class="chip">QBCore</span><span class="chip">Qbox</span><span class="chip">ESX</span><span class="chip">NUI / React</span><span class="chip" data-i18n="chip.perf">Network &amp; performance</span><span class="chip" data-i18n="chip.sec">Security</span></div>
-        </div>
+        <div class="pack"><h3>Web</h3><p>React · Next.js · Vue · Node · SQL</p></div>
+        <div class="pack fivem"><h3>FiveM</h3><p>vRP · QBCore · Qbox · ESX · NUI</p></div>
       </div>
+      <p class="fine" data-i18n="packs.auto">Picked automatically from your project.</p>
     </div>
   </section>
 
-  <section>
+  <section class="sec end" id="install">
     <div class="wrap">
-      <h2 data-i18n="flow.title">How a change goes.</h2>
-      <p class="lead" data-i18n="flow.lead">Short steps the agent runs on its own. You just see the result.</p>
-      <div class="flow">
-        <div class="card"><h3 data-i18n="s1.t">Recall</h3><p data-i18n="s1.d">Loads the facts the team already verified.</p></div>
-        <div class="card"><h3 data-i18n="s2.t">Plan</h3><p data-i18n="s2.d">Reuses what exists, claims the files it will touch.</p></div>
-        <div class="card"><h3 data-i18n="s3.t">Verify</h3><p data-i18n="s3.d">Runs lint, types and tests; an independent reviewer checks the diff.</p></div>
-        <div class="card"><h3 data-i18n="s4.t">Learn</h3><p data-i18n="s4.d">Saves what it proved, for the next agent.</p></div>
+      <h2 data-i18n="end.title">Give your agents a memory.</h2>
+      <div class="cmds">
+        <div class="cmd"><code id="c3">npx --yes github:proelias7/fxmind -y</code><button class="copy" type="button" data-copy="c3" data-i18n="copy">Copy</button></div>
+        <div class="cmd"><code id="c5">npx --yes github:proelias7/fxmind --update -y</code><button class="copy" type="button" data-copy="c5" data-i18n="copy">Copy</button></div>
       </div>
+      <p class="fine"><span data-i18n="end.fine">Install, then update anytime. Needs Node.js 20.9+.</span><a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md" data-i18n="foot.ref">Reference</a></p>
     </div>
   </section>
 </main>
@@ -288,65 +376,71 @@
 <footer>
   <div class="wrap">
     <span>fxmind · MIT · <a href="https://github.com/proelias7">proelias7</a></span>
-    <div class="links">
+    <nav aria-label="Footer">
       <a href="#install" data-i18n="nav.install">Install</a>
       <a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md" data-i18n="foot.ref">Reference</a>
       <a href="https://github.com/proelias7/fxmind/issues" data-i18n="foot.bug">Report a bug</a>
       <a href="https://github.com/proelias7/fxmind">GitHub</a>
-    </div>
+    </nav>
   </div>
 </footer>
 
 <script>
 (() => {
-  const T = {
-    pt: {
-      "nav.how": "Como funciona", "nav.packs": "Packs", "nav.install": "Instalar",
-      "hero.eyebrow": "// memória compartilhada para agentes de IA",
-      "hero.title": "Seus agentes esquecem.<br/>O <em>fxmind</em> lembra.",
-      "hero.sub": "Uma memória no seu repositório, compartilhada por todos os agentes de IA e pelo time. Skills de especialista para a sua stack e revisão independente antes de qualquer mudança valer como pronta.",
-      "hero.install": "Instale com um comando", "hero.star": "Estrela no GitHub",
-      "mock.user": "Adiciona paginação na API de pedidos",
-      "mock.agent": "Já vou. Usando o que o time já sabe sobre esse endpoint.",
-      "mock.p1a": "Memória", "mock.p1b": "3 fatos carregados", "mock.p2a": "Reservado",
-      "mock.prompt": "Responda ao seu agente…",
-      "install.title": "Instalar",
-      "install.lead": "Precisa do Node.js 20.9+. Rode na pasta do projeto e reinicie o agente.",
-      "install.t1": "Rode um comando.", "install.d1": "Instala memória, skills e o pack certo para o seu projeto.",
-      "install.t2": "Ou peça ao seu agente.", "install.d2": "Cole isto no Cursor, Claude Code ou Codex e aperte Enter.",
-      "install.ask": "Instale o fxmind neste projeto: rode `npx --yes github:proelias7/fxmind -y` na raiz do projeto e depois me diga para reiniciar.",
-      "update.title": "Atualize quando quiser.", "update.d": "Suas memórias ficam. Só os arquivos do próprio fxmind são atualizados.",
-      "install.note": "Escolha o agente com <code>--claude</code>, <code>--cursor</code>, <code>--codex</code>… ou o pack com <code>--pack web</code>. O resto está na <a href=\"https://github.com/proelias7/fxmind/blob/main/docs/reference.md\">referência completa</a>.",
-      "copy": "Copiar", "copied": "Copiado",
-      "feat.title": "O que muda.", "feat.lead": "Os agentes param de começar do zero, param de chutar e param de atropelar uns aos outros.",
-      "f1.t": "Uma memória para todos.", "f1.d": "O que qualquer agente aprende fica em .fxmind/memory/ e vai para o git com o código. O time inteiro reaproveita.",
-      "f2.t": "Fatos com prova.", "f2.d": "Cada memória aponta a linha exata do código que a comprova, e sai de cena quando esse código muda.",
-      "f3.t": "Um especialista na sua stack.", "f3.d": "Os packs trazem boas práticas obrigatórias — segurança, dados, performance, acessibilidade, código limpo.",
-      "f4.t": "Revisado antes de ficar pronto.", "f4.d": "Cada mudança passa por etapas curtas e por um revisor novo e independente. Testes e checagens rodam de verdade.",
-      "f5.t": "Agentes em paralelo, sem colisão.", "f5.d": "Cada agente reserva os arquivos que edita. Duas abas, dois CLIs, duas pessoas — ninguém sobrescreve ninguém.",
-      "f6.t": "É só conversar.", "f6.d": "Nenhum fluxo novo para aprender. Peça em linguagem natural; /fxmind learn, create e audit estão lá quando quiser.",
-      "packs.title": "Packs de conhecimento.", "packs.lead": "Escolhidos automaticamente pelo projeto. Instale os dois se precisar dos dois.",
-      "packs.webdetect": "detectado por package.json · composer.json · pyproject.toml",
-      "packs.web": "Frontend, backend e dados — com regras que os agentes precisam seguir e citar.",
-      "packs.fivemdetect": "detectado por fxmanifest.lua",
-      "packs.fivem": "Resources Lua, natives e padrões de servidor para os principais frameworks.",
-      "chip.sec": "Segurança", "chip.a11y": "Acessibilidade", "chip.tests": "Testes", "chip.perf": "Rede e performance",
-      "flow.title": "Como uma mudança acontece.", "flow.lead": "Etapas curtas que o agente faz sozinho. Você só vê o resultado.",
-      "s1.t": "Lembrar", "s1.d": "Carrega os fatos que o time já verificou.",
-      "s2.t": "Planejar", "s2.d": "Reaproveita o que existe e reserva os arquivos que vai mexer.",
-      "s3.t": "Verificar", "s3.d": "Roda lint, tipos e testes; um revisor independente confere o diff.",
-      "s4.t": "Aprender", "s4.d": "Salva o que comprovou, para o próximo agente.",
-      "foot.ref": "Referência", "foot.bug": "Reportar bug",
-      "_title": "fxmind — memória compartilhada para agentes de IA"
-    }
+  const PT = {
+    "strip": "Agora com pack Web.", "strip.link": "Ver packs",
+    "nav.how": "Como funciona", "nav.packs": "Packs", "nav.install": "Instalar",
+    "tag": "Memória para agentes de IA",
+    "sub": "O que um agente aprende, todos os agentes sabem.",
+    "star": "Estrela no GitHub",
+    "pop.t1": "Na pasta do projeto", "pop.d1": "· depois reinicie o agente",
+    "pop.t2": "Para atualizar depois", "pop.d2": "· suas memórias ficam",
+    "copy": "Copiar", "copied": "Copiado",
+    "bar.facts": "3 fatos lembrados", "bar.ok": "Revisado", "bar.prompt": "Peça qualquer coisa ao seu agente…", "bar.shared": "Compartilhado com",
+    "ev0.mem": "Memória", "ev0.facts": "· 128 fatos", "ev0.shared": "Compartilhada", "ev0.agents": "4 agentes",
+    "ev1.t": "Claude aprendeu", "ev1.e": "o checkout confere o dono do carrinho", "ev1.b": "Compartilhado",
+    "ev2.t": "Cursor já sabia", "ev2.e": "sem reescanear", "ev2.d": "Dois minutos depois, em outra aba", "ev2.b": "0 buscas",
+    "ev3.t": "Codex aguarda", "ev3.d": "Reservado por outro agente", "ev3.b": "Pegar outra tarefa",
+    "ev4.t": "Revisão independente", "ev4.e": "lint, tipos, 6 testes", "ev4.d": "Antes de qualquer coisa valer como pronta",
+    "install.title": "Instale em uma linha.",
+    "install.lead": "Precisa do Node.js 20.9 ou mais novo. O fxmind escolhe o pack certo para o projeto e configura todos os agentes que encontrar.",
+    "w1.t": "Rode você mesmo.", "w1.d": "Na pasta do projeto. Depois reinicie o agente.",
+    "w2.t": "Ou peça ao seu agente.", "w2.d": "Cole no Claude Code, Cursor ou Codex e aperte Enter.",
+    "w2.ask": "Instale o fxmind neste projeto rodando `npx --yes github:proelias7/fxmind -y` na raiz do projeto e depois me diga para reiniciar.",
+    "w3.t": "Atualize quando quiser.", "w3.d": "Suas memórias ficam. Só os arquivos do próprio fxmind mudam.",
+    "install.fine": "Escolha o agente com <code>--claude</code>, <code>--cursor</code> ou <code>--codex</code>, ou o pack com <code>--pack web</code>. O resto está na <a href=\"https://github.com/proelias7/fxmind/blob/main/docs/reference.md\">referência completa</a>.",
+    "how.title": "Os agentes param de começar do zero.",
+    "how.lead": "Hoje cada chat redescobre o seu projeto. Com o fxmind, o conhecimento se acumula e anda junto com o código.",
+    "r1.t": "Uma memória, todos os agentes.", "r1.d": "Os fatos ficam em .fxmind/memory/ e vão para o git com o código. Claude, Cursor, Codex e o seu time leem a mesma coisa.",
+    "r2.t": "Todo fato tem prova.", "r2.d": "Cada memória aponta a linha exata que a comprova e sai de cena quando essa linha muda. Nada de conselho vencido.",
+    "r3.t": "Agentes em paralelo, sem colisão.", "r3.d": "Um agente reserva os arquivos que edita. Outra aba ou outra pessoa pega outra tarefa em vez de sobrescrever.",
+    "r4.t": "Revisado antes de ficar pronto.", "r4.d": "Um revisor novo confere cada mudança contra o objetivo. Lint, tipos e testes rodam de verdade; afirmação sem evidência não passa.",
+    "r5.t": "É só pedir.", "r5.d": "Nada novo para aprender. Converse com o agente como sempre; /fxmind learn, create e audit estão lá quando quiser.",
+    "packs.title": "Um especialista na sua stack.",
+    "packs.lead": "Os packs trazem as regras que um engenheiro sênior cobraria do seu agente. O fxmind detecta qual o projeto precisa.",
+    "packs.when": "Quando encontra", "packs.web": "Frontend, backend e dados, com segurança e acessibilidade de fábrica.",
+    "packs.fivem": "Resources Lua, natives e padrões de servidor para os principais frameworks.",
+    "chip.sec": "Segurança", "chip.a11y": "Acessibilidade", "chip.tests": "Testes", "chip.net": "Rede", "chip.perf": "Performance",
+    "flow.title": "O que acontece em cada mudança.", "flow.lead": "O agente faz essas etapas sozinho. Você vê o resultado.",
+    "s1.t": "Lembrar", "s1.d": "Carrega o que o time já verificou.",
+    "s2.t": "Planejar", "s2.d": "Reaproveita o código existente e reserva os arquivos que vai mexer.",
+    "s3.t": "Verificar", "s3.d": "Roda as checagens; um revisor independente lê o diff.",
+    "s4.t": "Aprender", "s4.d": "Salva o que comprovou para o próximo agente.",
+    "end.title": "Dê uma memória aos seus agentes.", "end.lead": "Um comando na pasta do projeto.",
+    "t1.t": "Uma memória, todos os agentes.", "t1.d": "Fica no seu repositório, compartilhada pelo git.",
+    "t2.t": "Sem colisões.", "t2.d": "Cada agente reserva os arquivos que edita.",
+    "t3.t": "Revisado antes de ficar pronto.", "t3.d": "Checagens reais e um revisor independente.",
+    "packs.title": "Packs para a sua stack.", "packs.auto": "Escolhido automaticamente pelo projeto.",
+    "end.fine": "Instale e atualize quando quiser. Precisa do Node.js 20.9+.",
+    "foot.ref": "Referência", "foot.bug": "Reportar bug",
+    "_title": "fxmind — memória compartilhada para agentes de IA"
   };
-  const en = {};
-  document.querySelectorAll("[data-i18n]").forEach((el) => { en[el.dataset.i18n] = el.textContent; });
-  document.querySelectorAll("[data-i18n-html]").forEach((el) => { en[el.dataset.i18nHtml] = el.innerHTML; });
-  en.copy = "Copy"; en.copied = "Copied"; en._title = document.title;
-  T.en = en;
+  const EN = { copy: "Copy", copied: "Copied", _title: document.title };
+  document.querySelectorAll("[data-i18n]").forEach((el) => { EN[el.dataset.i18n] ??= el.textContent; });
+  document.querySelectorAll("[data-i18n-html]").forEach((el) => { EN[el.dataset.i18nHtml] = el.innerHTML; });
+  const T = { en: EN, pt: PT };
 
-  let lang = "en";
+  let lang = "";
   try { lang = localStorage.getItem("fxmind-lang") || ""; } catch {}
   if (!T[lang]) lang = (navigator.language || "").toLowerCase().startsWith("pt") ? "pt" : "en";
 
@@ -355,25 +449,35 @@
     const d = T[lang];
     document.documentElement.lang = lang === "pt" ? "pt-BR" : "en";
     document.title = d._title;
-    document.querySelectorAll("[data-i18n]").forEach((el) => { if (d[el.dataset.i18n]) el.textContent = d[el.dataset.i18n]; });
-    document.querySelectorAll("[data-i18n-html]").forEach((el) => { if (d[el.dataset.i18nHtml]) el.innerHTML = d[el.dataset.i18nHtml]; });
+    document.querySelectorAll("[data-i18n]").forEach((el) => { const v = d[el.dataset.i18n]; if (v) el.textContent = v; });
+    document.querySelectorAll("[data-i18n-html]").forEach((el) => { const v = d[el.dataset.i18nHtml]; if (v) el.innerHTML = v; });
     document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
     try { localStorage.setItem("fxmind-lang", lang); } catch {}
   }
   document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => apply(b.dataset.lang)));
   apply(lang);
 
-  document.querySelectorAll(".copy").forEach((btn) => btn.addEventListener("click", async () => {
-    const text = document.getElementById(btn.dataset.copy).textContent.trim();
+  // Install popover
+  const btn = document.getElementById("installBtn");
+  const pop = document.getElementById("installPop");
+  const setOpen = (open) => { pop.hidden = !open; btn.setAttribute("aria-expanded", String(open)); };
+  btn.addEventListener("click", () => setOpen(pop.hidden));
+  document.addEventListener("click", (e) => { if (!pop.hidden && !pop.contains(e.target) && !btn.contains(e.target)) setOpen(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !pop.hidden) { setOpen(false); btn.focus(); } });
+
+  // Copy buttons
+  document.querySelectorAll(".copy").forEach((b) => b.addEventListener("click", async () => {
+    const text = document.getElementById(b.dataset.copy).textContent.trim();
     try { await navigator.clipboard.writeText(text); }
     catch {
       const ta = Object.assign(document.createElement("textarea"), { value: text });
       document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
     }
-    btn.textContent = T[lang].copied; btn.classList.add("ok");
-    setTimeout(() => { btn.textContent = T[lang].copy; btn.classList.remove("ok"); }, 1600);
+    b.textContent = T[lang].copied; b.classList.add("ok");
+    setTimeout(() => { b.textContent = T[lang].copy; b.classList.remove("ok"); }, 1600);
   }));
 
+  // Live star count
   fetch("https://api.github.com/repos/proelias7/fxmind")
     .then((r) => (r.ok ? r.json() : null))
     .then((repo) => {

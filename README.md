@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png" alt="fxmind" width="110" />
+  <img src="docs/assets/logo.png" alt="fxmind" width="110" />
 </p>
 
 <h1 align="center">fxmind</h1>
