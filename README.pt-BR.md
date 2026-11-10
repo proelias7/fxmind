@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="fxmind" width="110" />
+  <img src="https://i.postimg.cc/zG0KyWXS/image.png" alt="fxmind" width="100%" />
+</p>
+
+<p align="center">
+  <img src="https://i.postimg.cc/RZXKWfVh/fxmind.png" alt="fxmind" width="110" />
 </p>
 
 <h1 align="center">fxmind</h1>

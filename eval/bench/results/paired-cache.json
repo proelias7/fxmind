@@ -1,0 +1,51 @@
+{
+  "project": "ecco-base",
+  "indexedFiles": 3333,
+  "sourceMB": 39.3,
+  "nodes": 33681,
+  "questions": 150,
+  "seed": 7,
+  "corpusHash": "ec71dbdbae288e55dac434fd10ee82f5b3a3aacd80c43eab49567a79bda0aaee",
+  "responseHash": "d54f35fdab3fc86bdeebf0b16fe6228225a1ee56a652e54d70c549d8d1d4119d",
+  "indexing": {
+    "coldMs": 11657,
+    "incrementalMs": 846
+  },
+  "fxmind": {
+    "tokensMedian": 242,
+    "tokensP90": 365,
+    "msMedian": 73.48,
+    "msP90": 129.1,
+    "firstQueryMs": 750.88,
+    "warmMsMedian": 72.65,
+    "top1": 0.84,
+    "top3": 0.92,
+    "anyHit": 0.92
+  },
+  "exactNameBaseline": {
+    "note": "agent already knows the exact identifier: reads only the defining file",
+    "tokensMedian": 3919,
+    "tokensP90": 21748
+  },
+  "grepBaseline": {
+    "tokensMedian": 1318276,
+    "tokensP90": 3939537,
+    "msMedian": 216.57,
+    "timedWith": "ripgrep on disk",
+    "filesToReadMedian": 139,
+    "contains": 1,
+    "precisionMedian": 0.0073
+  },
+  "note": "Mechanism benchmark: no agent or LLM. Tokens estimated as chars/4. Ground truth = file defining a symbol/event unique to one file.",
+  "comparison": {
+    "sameResponses": true,
+    "responseHash": "d54f35fdab3fc86bdeebf0b16fe6228225a1ee56a652e54d70c549d8d1d4119d",
+    "msMedian": 783.44,
+    "msP90": 1085.56,
+    "firstQueryMs": 711.64,
+    "warmMsMedian": 783.44,
+    "tokensMedian": 242,
+    "top1": 0.84,
+    "top3": 0.92
+  }
+}

@@ -52,6 +52,113 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
+describe("atomic query cache", () => {
+  it("reuses the index and prepared terms without changing scores or answers", (t) => {
+    atomic.buildAtomic(root);
+    const indexFile = atomic.indexPath(root);
+    const read = fs.readFileSync;
+    const retrieval = require("./memory-retrieval");
+    const terms = retrieval.termsOf;
+    let reads = 0, tokenizations = 0;
+    t.mock.method(fs, "readFileSync", (file, ...args) => {
+      if (file === indexFile) reads++;
+      return read(file, ...args);
+    });
+    t.mock.method(retrieval, "termsOf", (...args) => { tokenizations++; return terms(...args); });
+    const options = { refresh: false, budget: 450 };
+    const first = atomic.queryAtomic(root, "guardar veiculo garagem", options);
+    const prepared = tokenizations;
+    assert.ok(prepared > 0);
+    const second = atomic.queryAtomic(root, "guardar veiculo garagem", options);
+    assert.equal(reads, 1);
+    assert.equal(tokenizations, prepared);
+    assert.equal(second.index, first.index);
+    assert.deepEqual(second, first);
+    const concepts = retrieval.questionConcepts("guardar veiculo garagem");
+    for (const hit of second.hits) assert.equal(hit.score, atomic.scoreNode(hit.node, concepts));
+  });
+
+  it("reloads an index rebuilt by another process, including its search terms", () => {
+    atomic.buildAtomic(root);
+    const first = atomic.queryAtomic(root, "canStoreVehicle", { refresh: false });
+    assert.ok(first.hits.some((h) => h.node.name === "canStoreVehicle"));
+    fs.writeFileSync(path.join(root, source), body.replace("canStoreVehicle", "canPlaceVehicle"));
+    require("node:child_process").execFileSync(process.execPath, [
+      "-e", "require(process.argv[1]).buildAtomic(process.argv[2])", require.resolve("./atomic-memory"), root,
+    ], { timeout: 30000 });
+    const second = atomic.queryAtomic(root, "canPlaceVehicle", { refresh: false });
+    assert.notEqual(second.index, first.index);
+    assert.ok(second.hits.some((h) => h.node.name === "canPlaceVehicle"));
+    assert.ok(!second.hits.some((h) => h.node.name === "canStoreVehicle"));
+  });
+
+  it("still checks source freshness when the query index is already cached", () => {
+    atomic.buildAtomic(root);
+    atomic.queryAtomic(root, "canStoreVehicle", { refresh: false });
+    fs.writeFileSync(path.join(root, source), body.replace("canStoreVehicle", "canPlaceVehicle"));
+    const result = atomic.queryAtomic(root, "canPlaceVehicle");
+    assert.ok(result.hits.some((h) => h.node.name === "canPlaceVehicle"));
+    assert.ok(!result.index.nodes.some((n) => n.name === "canStoreVehicle"));
+  });
+
+  it("resolves storage changes instead of reusing a previous project's data path", () => {
+    const index = atomic.buildAtomic(root);
+    const first = atomic.queryAtomic(root, "garages store", { refresh: false });
+    const globalRoot = path.join(root, "global-store");
+    fs.mkdirSync(path.join(globalRoot, "graph"), { recursive: true });
+    fs.writeFileSync(path.join(globalRoot, "graph", "atomic-index.json"), JSON.stringify({ ...index, nodes: [], links: [] }));
+    const storeFile = path.join(root, ".fxmind", "store.json");
+    fs.writeFileSync(storeFile, JSON.stringify({ mode: "global", globalRoot }));
+    assert.equal(atomic.queryAtomic(root, "garages store", { refresh: false }).hits.length, 0);
+    fs.unlinkSync(storeFile);
+    assert.deepEqual(atomic.queryAtomic(root, "garages store", { refresh: false }).hits, first.hits);
+  });
+
+  it("does not return cached facts after deletion, corruption or an incompatible version", () => {
+    atomic.buildAtomic(root);
+    const file = atomic.indexPath(root);
+    const saved = fs.readFileSync(file, "utf8");
+    const query = () => atomic.queryAtomic(root, "garages store", { refresh: false });
+    assert.ok(query().hits.length);
+    fs.unlinkSync(file);
+    assert.equal(query(), null);
+    fs.writeFileSync(file, saved);
+    assert.ok(query().hits.length);
+    fs.writeFileSync(file, "{");
+    assert.equal(query(), null);
+    fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(saved), version: -1 }));
+    assert.equal(query(), null);
+    fs.writeFileSync(file, saved);
+    assert.ok(query().hits.length);
+  });
+
+  it("keeps project caches separate and evicts the least recently used index", (t) => {
+    const projects = [root, path.join(root, "second"), path.join(root, "third")];
+    for (const project of projects) {
+      fs.mkdirSync(path.join(project, "src"), { recursive: true });
+      fs.writeFileSync(path.join(project, "src", "test.js"), "function benchmarkHelper() { return true; }");
+      atomic.buildAtomic(project);
+    }
+    const read = fs.readFileSync;
+    const reads = new Map();
+    const indexes = new Set(projects.map(atomic.indexPath));
+    t.mock.method(fs, "readFileSync", (file, ...args) => {
+      if (indexes.has(file)) reads.set(file, (reads.get(file) || 0) + 1);
+      return read(file, ...args);
+    });
+    const query = (project) => atomic.queryAtomic(project, "benchmarkHelper", { refresh: false });
+    const first = query(root);
+    const second = query(projects[1]);
+    assert.notEqual(second.index.projectRoot, first.index.projectRoot);
+    query(root);
+    query(projects[2]);
+    assert.equal(query(root).index, first.index);
+    assert.notEqual(query(projects[1]).index, second.index);
+    assert.equal(reads.get(atomic.indexPath(root)), 1);
+    assert.equal(reads.get(atomic.indexPath(projects[1])), 2);
+  });
+});
+
 describe("atomic graph and memory", () => {
   it("indexes code, events, and one memory fact per section without modifying notes", () => {
     const before = fs.readFileSync(path.join(root, memory), "utf8");

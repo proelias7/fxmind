@@ -31,6 +31,8 @@ In global-store mode these generated records live under `~/.fxmind/projects/<pro
 
 A source's stored timestamp and size are checked periodically on queries; Gate V/C and graph rebuilds refresh affected files incrementally.
 
+Long-lived MCP processes reuse up to two recently queried indexes and prepare each node's search terms once per loaded index. Every query checks the index file's size, modification/change timestamps and file identity; a changed, deleted or invalid index discards its cached snapshot. Local/global storage paths remain separate. The ranking rules, token budget and source-freshness checks are unchanged. The first query after a reload still pays the parsing and preparation cost; separate CLI processes do not share this cache.
+
 ## Learning
 
 After independently verified Gate V and C, FXMIND extracts source-exact records per discovered symbol and event in the changed files, stored in `graph/verified-atoms.json`. `/fxmind learn` stores one concise fact per verified claim through the existing `fxmind_graph` MCP tool's `addFact` argument in `memory/atoms.json`; the CLI also supports `fxmind memory add --topic garages --text "..." --path "..." --evidence "..."`. Both require evidence exactly present in an existing source file. Deduplication and source SHA-256 checking keep stale claims out of the active graph: when a file changes, a fact stays active only while its exact evidence still occurs in the current source (its line is recomputed). No broad snapshot is appended to `garages.md`.

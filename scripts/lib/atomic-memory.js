@@ -41,6 +41,30 @@ function readAtomic(root) {
   const data = safeReadJson(indexPath(root));
   return data && data.version === VERSION ? data : null;
 }
+// Keep query state bounded in long-lived MCP servers; other readers stay fresh.
+const QUERY_INDEXES = new Map();
+const NODE_FIELDS = new WeakMap();
+function readQueryIndex(root) {
+  const file = indexPath(root);
+  try {
+    const stat = fs.statSync(file, { bigint: true });
+    const cached = QUERY_INDEXES.get(file);
+    if (cached && ["size", "mtimeNs", "ctimeNs", "ino"].every((key) => cached.stat[key] === stat[key])) {
+      QUERY_INDEXES.delete(file);
+      QUERY_INDEXES.set(file, cached);
+      return cached.index;
+    }
+    QUERY_INDEXES.delete(file);
+    const index = readAtomic(root);
+    if (!index) return null;
+    QUERY_INDEXES.set(file, { stat, index });
+    if (QUERY_INDEXES.size > 2) QUERY_INDEXES.delete(QUERY_INDEXES.keys().next().value);
+    return index;
+  } catch {
+    QUERY_INDEXES.delete(file);
+    return null;
+  }
+}
 function resourceFor(rel) {
   const parts = asUnix(rel).split("/");
   const i = parts.findIndex((p) => p.toLowerCase() === "resources");
@@ -414,8 +438,8 @@ function buildAtomic(root, options = {}) {
   } finally { try { fs.unlinkSync(tmp); } catch {} }
   return result;
 }
-function scoreNode(node, concepts) {
-  const fields = {
+function fieldsForNode(node) {
+  return {
     name: new Set(retrieval.termsOf(node.name || "")),
     resource: new Set(retrieval.termsOf(node.resource || "")),
     kind: new Set(retrieval.termsOf(node.kind || "")),
@@ -423,6 +447,8 @@ function scoreNode(node, concepts) {
     file: new Set(retrieval.termsOf(node.file || "")),
     triggers: new Set(retrieval.termsOf((node.triggers || []).join(" "))),
   };
+}
+function scoreNode(node, concepts, fields = fieldsForNode(node)) {
   let score = 0, matched = 0;
   for (const concept of concepts) {
     let weight = 0;
@@ -466,7 +492,7 @@ function indexHasChanged(root, index) {
 }
 
 function queryAtomic(root, question, options = {}) {
-  let index = readAtomic(root);
+  let index = readQueryIndex(root);
   if (!index) return null;
   const key = path.resolve(root);
   if (options.refresh !== false && Date.now() - (RECENT_CHECKS.get(key) || 0) > 30000) {
@@ -511,7 +537,14 @@ function queryAtomic(root, question, options = {}) {
   }
   const ranked = (index.nodes || [])
     .filter((node) => ["code-symbol", "memory-atom", "verified-atom"].includes(node.group))
-    .map((node) => ({ node, score: scoreNode(node, concepts) }))
+    .map((node) => {
+      let fields = NODE_FIELDS.get(node);
+      if (!fields) {
+        fields = fieldsForNode(node);
+        NODE_FIELDS.set(node, fields);
+      }
+      return { node, score: scoreNode(node, concepts, fields) };
+    })
     .filter((hit) => hit.score >= (concepts.length > 1 ? 1.5 : 0.5))
     .sort((a, b) => b.score - a.score || a.node.id.localeCompare(b.node.id));
   const hits = [], selected = new Set(), memorySlugs = new Set();
