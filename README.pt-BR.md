@@ -20,6 +20,7 @@ Seus agentes esquecem tudo entre um chat e outro, e cada um aprende o projeto do
 - **Memória compartilhada** — o que qualquer agente aprende fica em `.fxmind/memory/`, vai para o git junto com o código e é reaproveitado por todos os agentes e pelo time.
 - **Packs de conhecimento** — boas práticas da sua stack: **Web** (React, Next.js, Vue, Node, APIs, bancos de dados, segurança, acessibilidade) e **FiveM** (vRP, QBCore, Qbox, ESX, NUI). O pack certo é escolhido automaticamente.
 - **Trabalho verificado** — toda mudança passa por etapas curtas e por um revisor independente antes de ser aceita.
+- **Decisões com a Jev AI (opcional)** — a Jev ajuda a escolher o tipo de tarefa, as memórias relevantes, as ferramentas e o que vale salvar. Desligada por padrão; nunca vê seu código nem os caminhos dos arquivos. Veja [docs/jev-optional.md](docs/jev-optional.md).
 - **Feito para agentes em paralelo** — cada agente reserva os arquivos que vai editar, então dois agentes não sobrescrevem o trabalho um do outro.
 
 ## Instalar

@@ -20,6 +20,7 @@ Your agents forget everything between chats, and each one learns the project fro
 - **Shared memory** — facts learned by any agent are saved in `.fxmind/memory/`, committed with your code and reused by every agent and teammate.
 - **Knowledge packs** — best practices for your stack: **Web** (React, Next.js, Vue, Node, APIs, databases, security, accessibility) and **FiveM** (vRP, QBCore, Qbox, ESX, NUI). The right pack is picked automatically.
 - **Verified work** — every change goes through short gates and an independent reviewer before it is accepted.
+- **Decisions with Jev AI (optional)** — Jev helps choose the task type, relevant memories, tools and what is worth saving. Off by default; it never sees your code or file paths. See [docs/jev-optional.md](docs/jev-optional.md).
 - **Built for parallel agents** — agents claim the files they edit, so two agents don't overwrite each other.
 
 ## Install

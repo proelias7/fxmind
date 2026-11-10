@@ -87,6 +87,10 @@
   .pack.fivem { border-top-color: var(--amber); }
   .pack h3 { margin: 0 0 10px; font-size: clamp(44px, 6vw, 72px); font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
   .pack p { margin: 0; color: var(--muted); }
+  .jevname { color: var(--pink); }
+  .jevp { margin: 0; max-width: 34em; font-size: clamp(19px, 2.2vw, 23px); color: var(--muted); letter-spacing: -0.01em; }
+  .jev h2 { margin-bottom: 20px; }
+  .jev .auto { margin-top: 20px; }
   .auto { margin: 40px 0 0; color: var(--faint); font-size: 15px; }
   @media (max-width: 760px) { .packs { grid-template-columns: 1fr; gap: 40px; } }
 
@@ -210,6 +214,14 @@
     </div>
   </section>
 
+  <section class="sec jev" id="jev">
+    <div class="wrap">
+      <h2><span data-i18n="jev.t">Decisions, with</span> <span class="jevname">Jev AI</span></h2>
+      <p class="jevp" data-i18n="jev.d">Optional. Jev helps fxmind choose: which kind of task this is, which memories matter, which tool to use, what is worth saving.</p>
+      <p class="auto" data-i18n="jev.n">Off by default. Never sees your code or file paths.</p>
+    </div>
+  </section>
+
   <section class="sec" id="packs">
     <div class="wrap">
       <h2 data-i18n="packs.t">An expert for your stack.</h2>
@@ -250,6 +262,7 @@
     "h1.t": "Memória no seu repositório.", "h1.d": "Compartilhada com o time pelo git.",
     "h2.t": "Sem colisões.", "h2.d": "Cada agente reserva os arquivos que edita.",
     "h3.t": "Revisado antes de pronto.", "h3.d": "Checagens reais e um revisor independente.",
+    "jev.t": "Decisões com a", "jev.d": "Opcional. A Jev ajuda o fxmind a escolher: que tipo de tarefa é, quais memórias importam, qual ferramenta usar e o que vale salvar.", "jev.n": "Desligada por padrão. Nunca vê seu código nem os caminhos dos arquivos.",
     "packs.t": "Um especialista na sua stack.", "packs.auto": "Escolhido automaticamente pelo projeto.",
     "install.t": "Dê uma memória aos seus agentes.", "install.update": "Para atualizar:",
     "install.req": "Rode na pasta do projeto. Node.js 20.9+.", "install.ref": "Referência completa",
