@@ -162,16 +162,16 @@ function hookLibDir() {
   return path.join(__dirname, "lib");
 }
 
-function copyHookBundle(projectRoot) {
+function copyHookBundle(projectRoot, hooksDirRel = HOOKS_DIR_REL, scripts = HOOK_SCRIPTS) {
   const projectRootResolved = path.resolve(projectRoot);
-  const hooksDir = path.join(projectRootResolved, HOOKS_DIR_REL);
+  const hooksDir = path.join(projectRootResolved, hooksDirRel);
   fs.mkdirSync(hooksDir, { recursive: true });
 
   const srcDir = templateHooksDir();
   const installed = [];
   const unchanged = [];
 
-  for (const name of HOOK_SCRIPTS) {
+  for (const name of scripts) {
     const src = path.join(srcDir, name);
     if (!fs.existsSync(src)) continue;
     const dest = path.join(hooksDir, name);

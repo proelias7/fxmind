@@ -38,6 +38,8 @@ Knowledge packs add domain-specific skills under \`.fxmind/skills/\` and the fxm
 Recommended (install once globally, then use short command):
   ${globalInstall()}
   fxmind -y
+  fxmind init                Configure packs, agents and optional Jev interactively
+  fxmind jev                 Configure Jev separately (hidden API key prompt)
   fxmind --update -y
   fxmind graph               Build 3D knowledge graph + open browser
   fxmind graph --no-open     Build graph files only
@@ -52,8 +54,8 @@ Recommended (install once globally, then use short command):
 The web panel build is generated automatically after install and update.
 
 Without global install:
-  ${npxInstall()}                    Interactive mode (packs, agents, skills)
-  ${npxInstall("-y")}                Core + fivem pack (Cursor only)
+  ${npxInstall("init")}               Interactive mode (packs, agents, skills, Jev)
+  ${npxInstall("-y")}                Core + detected pack (Cursor only)
   ${npxInstall("--cursor -y")}       Cursor only (explicit)
   ${npxInstall("--claude -y")}       Claude Code only
   ${npxInstall("--codex -y")}        Codex only
@@ -470,7 +472,7 @@ async function promptSelections(targetRoot) {
 
     const installCommand = await confirm({
       message:
-        "Install /fxmind helper (/fxmind, /fxmind reference, /fxmind audit, /fxmind learn, /fxmind memory health, /fxmind graph)?",
+        "Install /fxmind helper (/fxmind, /fxmind init, /fxmind audit, /fxmind learn, /fxmind memory health, /fxmind graph)?",
       default: true,
     });
 

@@ -23,13 +23,34 @@ Your agents forget everything between chats, and each one learns the project fro
 
 ## Install
 
-Requires [Node.js](https://nodejs.org) 20.9+. Run in your project folder:
+Requires [Node.js](https://nodejs.org) 20.9+. Pick one way:
 
-```bash
-npx --yes github:proelias7/fxmind -y
+**Ask your agent** (any agent) — paste this in the chat, inside your project:
+
+```text
+Install fxmind in this project. Check that Node.js 20.9+ is installed, then run in the project root:
+npx --yes github:proelias7/fxmind --claude -y
+(replace --claude with the flag for the agent you are: --codex, --cursor, --gemini, --opencode or --copilot).
+It installs the fxmind runtime globally so its MCP and hooks keep working. Show me the summary and tell me to restart you; then I will run /fxmind init.
 ```
 
-Restart your agent. That's it — just ask for changes in plain language.
+**Plugin** — Claude Code: `/plugin install fxmind --marketplace proelias7/fxmind` · Codex: `codex plugin marketplace add proelias7/fxmind` then `codex plugin add fxmind@fxmind`. Then ask: *"set up fxmind in this project"*.
+
+**Terminal** — run in your project folder:
+
+```bash
+npx --yes github:proelias7/fxmind init
+```
+
+Choose packs, agents and skills in the terminal. Setup asks whether to enable Jev; its key is entered through a hidden prompt. Restart your agent, then run `/fxmind init` in chat to read the main modules and learn project facts.
+
+To configure Jev separately later:
+
+```bash
+npx --yes github:proelias7/fxmind jev
+```
+
+With the CLI installed globally, use `fxmind init` and `fxmind jev`. The key stays in `~/.fxmind/jev.env`; never send it through chat.
 
 ## Update
 
@@ -45,6 +66,7 @@ Talk to your agent normally. A few commands help:
 
 | In the agent chat | What it does |
 |---|---|
+| `/fxmind init` | Read the main modules, learn verified facts and map the project |
 | `/fxmind learn <topic>` | Save what the agent verified about a part of the project |
 | `/fxmind create <feature>` | Design a new feature, approve it, then build it |
 | `/fxmind audit <folder>` | Security and performance report |

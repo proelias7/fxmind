@@ -1,6 +1,6 @@
 ---
-description: "fxmind — shared project memory — task, create, refactor, judge, reference, audit, learn, teach, memory health, graph, painel, query, path, explain, update"
-argument-hint: "task <implementation> | create <resource> | refactor <resource> | judge [target] | reference | audit [scope] | learn <topic> | teach <playbook> | memory health [fix] [topic] | graph | painel | query \"<question>\" [--dfs] [--budget N] | path <a> <b> | explain <topic> | update | <question>"
+description: "fxmind — shared project memory — task, create, refactor, judge, init, audit, learn, teach, memory health, graph, painel, query, path, explain, update"
+argument-hint: "task <implementation> | create <resource> | refactor <resource> | judge [target] | init [scope] | audit [scope] | learn <topic> | teach <playbook> | memory health [fix] [topic] | graph | painel | query \"<question>\" [--dfs] [--budget N] | path <a> <b> | explain <topic> | update | <question>"
 ---
 
 # fxmind
@@ -17,7 +17,8 @@ Parse `$ARGUMENTS` (trim, case-insensitive). **Prefer Task for any code/config c
 | `create` or `create ...` | `.fxmind/modes/create.md` — new resource: design + approval, then build |
 | `refactor` or `refactor ...` | `.fxmind/modes/refactor.md` — large rewrite of an existing resource with contract parity |
 | `judge` or `judge ...` | `.fxmind/modes/judge.md` (claims vs observation; after Task / any "done") |
-| `reference` or `reference ...` | `.fxmind/modes/reference.md` |
+| `init` or `init ...` | `.fxmind/modes/init.md` — read main modules, map the project and learn verified facts |
+| `reference` (legacy alias) | `.fxmind/modes/init.md` |
 | `audit` or `audit ...` | `.fxmind/modes/audit.md` |
 | `learn` or `learn <topic>` / `learn list` | `.fxmind/modes/learn.md` |
 | `teach <name>` | `.fxmind/modes/teach.md` — turn a task that worked into a playbook (surgical steps for repeated requests) |

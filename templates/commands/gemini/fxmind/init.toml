@@ -1,0 +1,7 @@
+description = "Initialize project knowledge: read main modules and learn verified facts"
+
+prompt = """
+Run FXMIND Init for this project. Scope (optional): {{args}}
+Read and follow .fxmind/modes/init.md: inspect the main modules, save source-grounded atomic facts, create or update .fxmind/reference.md and verify retrieval.
+Never change application source. Preserve existing memories. Report incomplete coverage honestly.
+"""

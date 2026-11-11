@@ -6,7 +6,9 @@ alterações nem substitui as evidências exigidas pelos gates do FXMIND.
 
 ## Configuração
 
-Crie/edite o arquivo **local** `fxmind/.env` (ignorando pelo Git):
+Execute `fxmind jev` em um terminal interativo (ou aceite a configuração da Jev durante `fxmind init`). A chave é pedida com entrada oculta, nunca por argumento ou pelo chat, e fica em `~/.fxmind/jev.env`. Isso configura a integração; não baixa um modelo e não testa a autenticação na API. Reinicie o agente/MCP ao terminar.
+
+Para ajustar manualmente o arquivo **local** `~/.fxmind/jev.env` (ignorado pelo Git):
 
 ```dotenv
 FXMIND_JEV_ENABLED=false
@@ -24,7 +26,7 @@ FXMIND_JEV_TOOL_ROUTING_ENABLED=false
 4. Opcionalmente mude `FXMIND_JEV_TOOL_ROUTING_ENABLED=true` para ativar desempate de ferramentas MCP somente quando as regras locais forem ambíguas.
 5. Reinicie o processo do painel/MCP/CLI para garantir o uso dos valores atuais.
 
-Variáveis de ambiente de processo têm prioridade sobre `.env`. Também é aceito
+A prioridade é: ambiente do processo > `.env` do projeto (ou do pacote em chamadas legadas) > `~/.fxmind/jev.env`. Também é aceito
 `TYPESAFE_API_KEY` como alternativa à chave `FXMIND_JEV_API_KEY`.
 O arquivo de configuração fica no diretório do pacote FXMIND, não no frontend
 nem em cada repositório consumidor.

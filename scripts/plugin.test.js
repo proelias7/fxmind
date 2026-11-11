@@ -41,6 +41,22 @@ test("packed skill stays identical to FXMIND source template", () => {
   assert.match(fs.readFileSync(path.join(ROOT, "skills", "fxmind-setup", "SKILL.md"), "utf8"), /FXMIND_TARGET/);
 });
 
+test("marketplace plugin bundle is skills-only and in sync", () => {
+  const pkg = json("package.json");
+  const bundle = "plugins/fxmind";
+  assert.equal(json(".claude-plugin/marketplace.json").plugins[0].source, "./" + bundle);
+  assert.equal(json(".agents/plugins/marketplace.json").plugins[0].source.path, "./" + bundle);
+  assert.equal(json(bundle + "/plugin.json").version, pkg.version);
+  assert.equal(json(bundle + "/.claude-plugin/plugin.json").version, pkg.version);
+  for (const skill of ["fxmind", "fxmind-setup"]) {
+    const rel = path.join("skills", skill, "SKILL.md");
+    assert.equal(fs.readFileSync(path.join(ROOT, bundle, rel), "utf8"), fs.readFileSync(path.join(ROOT, rel), "utf8"), rel);
+  }
+  for (const mcp of [".mcp.json", "mcp.json", ".cursor-plugin"]) {
+    assert.equal(fs.existsSync(path.join(ROOT, bundle, mcp)), false, mcp + " would register a second MCP");
+  }
+});
+
 test("launcher refuses unknown, uninitialized, or self-owned target", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-plugin-target-"));
   try {

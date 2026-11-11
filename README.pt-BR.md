@@ -29,13 +29,34 @@ Seus agentes esquecem tudo entre um chat e outro, e cada um aprende o projeto do
 
 ## Instalar
 
-Precisa do [Node.js](https://nodejs.org) 20.9+. Rode na pasta do projeto:
+Precisa do [Node.js](https://nodejs.org) 20.9+. Escolha uma forma:
 
-```bash
-npx --yes github:proelias7/fxmind -y
+**Peça ao seu agente** (qualquer agente) — cole isto no chat, dentro do projeto:
+
+```text
+Instale o fxmind neste projeto. Confira se o Node.js 20.9+ está instalado e rode na raiz do projeto:
+npx --yes github:proelias7/fxmind --claude -y
+(troque --claude pela flag do agente que você é: --codex, --cursor, --gemini, --opencode ou --copilot).
+Ele instala o runtime do fxmind globalmente para o MCP e os hooks continuarem funcionando. Me mostre o resumo e peça para eu reiniciar você; depois eu rodo /fxmind init.
 ```
 
-Reinicie o agente. Pronto — é só pedir as mudanças em linguagem natural.
+**Plugin** — Claude Code: `/plugin install fxmind --marketplace proelias7/fxmind` · Codex: `codex plugin marketplace add proelias7/fxmind` e depois `codex plugin add fxmind@fxmind`. Depois peça: *"configure o fxmind neste projeto"*.
+
+**Terminal** — rode na pasta do projeto:
+
+```bash
+npx --yes github:proelias7/fxmind init
+```
+
+Escolha os packs, agentes e skills no terminal. A configuração pergunta se deseja ativar a Jev; a chave é solicitada com entrada oculta. Reinicie o agente e execute `/fxmind init` no chat para ler os módulos principais e criar as memórias.
+
+Para configurar a Jev depois, separadamente:
+
+```bash
+npx --yes github:proelias7/fxmind jev
+```
+
+Se instalou o CLI globalmente, use `fxmind init` e `fxmind jev`. A chave fica em `~/.fxmind/jev.env`; não a envie pelo chat.
 
 ## Atualizar
 
@@ -51,6 +72,7 @@ Converse com o agente normalmente. Alguns comandos ajudam:
 
 | No chat do agente | O que faz |
 |---|---|
+| `/fxmind init` | Lê os módulos principais, aprende fatos verificados e monta o mapa do projeto |
 | `/fxmind learn <tópico>` | Salva o que o agente verificou sobre uma parte do projeto |
 | `/fxmind create <feature>` | Desenha uma feature nova, você aprova e ele constrói |
 | `/fxmind audit <pasta>` | Relatório de segurança e performance |

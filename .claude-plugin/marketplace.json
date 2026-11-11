@@ -1,0 +1,12 @@
+{
+  "name": "fxmind",
+  "description": "fxmind: shared project memory, knowledge packs and MCP tools for AI coding agents.",
+  "owner": { "name": "proelias7", "url": "https://github.com/proelias7" },
+  "plugins": [
+    {
+      "name": "fxmind",
+      "source": "./plugins/fxmind",
+      "description": "Shared project memory for AI agents. Ask: \"set up fxmind in this project\"."
+    }
+  ]
+}

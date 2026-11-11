@@ -61,6 +61,7 @@ Restart your agent IDE/CLI after install or update.
 | Command | Purpose |
 |---------|---------|
 | `/fxmind task <request>` | Explicit Task shortcut (optional — natural language also auto-runs Task) |
+| `/fxmind init` | Read main modules, learn source-grounded facts and create the project map |
 | `/fxmind learn <topic>` | Save or update a topic memory |
 | `/fxmind teach <name>` | Turn a task that worked into a **playbook** (surgical steps for a repeated request) |
 | `/fxmind query "…"` | Search the knowledge graph |

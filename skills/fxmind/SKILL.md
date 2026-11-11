@@ -9,6 +9,8 @@ Shared knowledge lives under `.fxmind/`; domain skills live in `.fxmind/skills/`
 
 ## Routing
 
+- Explicit `/fxmind init [scope]`: read `.fxmind/modes/init.md` (read main modules, save source-grounded facts and map the project; no application code changes).
+
 - Code/config implementation, including "analyze and fix": read `.fxmind/modes/task.md`.
 - New resource/feature/module: read `.fxmind/modes/create.md` (design + approval before code).
 - Large rewrite/optimization of existing code: read `.fxmind/modes/refactor.md`.

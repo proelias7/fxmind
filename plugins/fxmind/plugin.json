@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fxmind",
+  "version": "1.0.0",
+  "description": "Shared project memory for AI agents. Ask: \"set up fxmind in this project\".",
+  "author": {
+    "name": "proelias7"
+  },
+  "repository": "https://github.com/proelias7/fxmind",
+  "license": "MIT",
+  "keywords": ["memory", "coding-agent", "mcp", "skills"],
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/fxmind-setup/SKILL.md"
+    }
+  }
+}

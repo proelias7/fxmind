@@ -79,8 +79,13 @@ function updateGlobalInstall() {
   }
 }
 
+/** `npx github:…` runs from the npm cache; MCP and hooks need a stable global runtime. */
+function isNpxRun(packageRoot = PACKAGE_ROOT) {
+  return path.resolve(packageRoot).replace(/\\/g, "/").includes("/_npx/");
+}
+
 function maybeSelfUpdateAndReexec(argv, options = {}) {
-  if (!argv.includes("--update")) {
+  if (!argv.includes("--update") && !isNpxRun()) {
     return false;
   }
   if (options.noSelfUpdate) {
@@ -124,6 +129,7 @@ function maybeSelfUpdateAndReexec(argv, options = {}) {
 module.exports = {
   GITHUB_PKG,
   isLocalDevelopmentInstall,
+  isNpxRun,
   isReadableDir,
   fallbackPrefix,
   fallbackInstallScript,

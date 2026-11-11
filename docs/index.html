@@ -37,7 +37,13 @@
   .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
 
   /* nav: links only — the brand is the hero */
-  .nav .wrap { display: flex; justify-content: flex-end; align-items: center; gap: 28px; height: 68px; font-size: 15px; color: var(--muted); }
+  .nav { position: fixed; z-index: 9; top: 14px; left: 0; right: 0; padding: 0 16px; pointer-events: none; }
+  .nav .wrap { pointer-events: auto; display: flex; align-items: center; gap: 28px; height: 58px; max-width: 1072px; padding: 0 10px 0 14px; font-size: 15px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; background: rgba(13, 15, 20, .62); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .35); animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; margin-right: auto; color: var(--text); font-weight: 800; font-size: 19px; letter-spacing: -.03em; }
+  .brand img { width: 34px; height: 34px; }
+  @media (max-width: 640px) { .nav .wrap { gap: 16px; } }
   .nav a { text-decoration: none; }
   .nav a:hover { color: var(--text); }
   .lang { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 999px; }
@@ -46,21 +52,12 @@
   .lang button:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
   @media (max-width: 640px) { .nav .opt { display: none; } }
 
-  /* hero: the memory network */
-  .hero { position: relative; isolation: isolate; overflow-x: clip; text-align: center; padding-bottom: 112px; }
-  .hero::before { content: ""; position: absolute; z-index: -1; left: 50%; top: 0; width: 900px; height: 620px; transform: translateX(-50%);
-    background: radial-gradient(closest-side, rgba(126, 224, 180, 0.13), transparent 72%); }
-  .net { display: block; width: 100%; max-width: 760px; height: auto; margin: 0 auto; overflow: hidden; }
-  @media (max-width: 640px) { .net { width: 118%; margin-left: -9%; } .net .name { display: none; } }
-  .net .edge { fill: none; stroke: rgba(126, 224, 180, 0.22); stroke-width: 1.2; }
-  .net .jevedge { stroke: rgba(255,143,214,.4); stroke-dasharray: 3 5; }
-  .net .jevnode { stroke: rgba(255,143,214,.45); }
-  .net .node { fill: #131821; stroke: rgba(255, 255, 255, 0.14); }
-  .net .logo { fill: #eef1ef; }
-  .net .name { fill: var(--muted); font-family: var(--font); font-size: 13px; font-weight: 500; text-anchor: middle; }
-  h1 { margin: 4px 0 0; font-size: clamp(64px, 11vw, 128px); font-weight: 800; letter-spacing: -0.035em; line-height: 0.95; }
-  .sub { margin: 18px auto 34px; max-width: 28em; font-size: clamp(19px, 2.2vw, 23px); color: var(--muted); letter-spacing: -0.01em; }
-  .ctas { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+
+  /* hero: the brain story, scrubbed by scroll */
+  .hero { position: relative; isolation: isolate; height: 620vh; }
+  h1 { margin: 0; font-size: clamp(64px, 9vw, 120px); font-weight: 800; letter-spacing: -0.035em; line-height: 0.95; }
+  .sub { margin: 16px 0 28px; max-width: 22em; font-size: clamp(19px, 2vw, 23px); color: var(--muted); letter-spacing: -0.01em; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
   .btn { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: 16px; text-decoration: none;
     border: 1px solid var(--line-2); transition: background .15s ease, border-color .15s ease; }
   .btn:hover { border-color: rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.04); }
@@ -72,66 +69,55 @@
   /* sections */
   .sec { padding-top: 104px; padding-bottom: 104px; }
   h2 { margin: 0 0 48px; font-size: clamp(34px, 4.8vw, 56px); font-weight: 700; letter-spacing: -0.045em; line-height: 1.02; }
+  .jevname { color: var(--pink); }
 
-  .three { display: grid; grid-template-columns: repeat(3, 1fr); }
-  .three > div { padding: 4px 32px 0; border-left: 1px solid var(--line); }
-  .three > div:first-child { padding-left: 0; border-left: 0; }
-  .three svg { width: 28px; height: 28px; color: var(--mint); }
-  .three h3 { margin: 22px 0 6px; font-size: 24px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; }
-  .three p { margin: 0; color: var(--muted); }
+  /* tools: groups orbit fxmind; the selected group lights its spoke and lists its tools */
+  .tools-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 48px; align-items: center; }
+  .tgroups { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tgroups button { all: unset; cursor: pointer; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line-2); font-weight: 600; font-size: 15px; color: var(--muted); transition: .25s ease; }
+  .tgroups button:hover { color: var(--text); }
+  .tgroups button[aria-pressed="true"] { color: #08251a; background: var(--mint); border-color: var(--mint); }
+  .tgroups button:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  .tchips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 84px; margin-top: 28px; align-content: flex-start; }
+  .tchips code { font-family: var(--mono); font-size: 13.5px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(126,224,180,.4); color: #cfd6d3; background: rgba(126,224,180,.06);
+    animation: pop .45s cubic-bezier(.2,.8,.2,1.2) both; animation-delay: calc(var(--i) * 70ms); }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.9); } }
+  .hub { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
+  .hub-orbit { fill: none; stroke: rgba(126,224,180,.12); stroke-dasharray: 2 8; }
+  .hub-core { fill: #0f191a; stroke: rgba(126,224,180,.45); }
+  .spoke { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 1.4; transition: stroke .3s; }
+  .spoke.on { stroke: var(--mint); filter: drop-shadow(0 0 5px rgba(126,224,180,.6)); }
+  .spoke-pkt { fill: var(--mint); visibility: hidden; }
+  .spoke-pkt.on { visibility: visible; }
+  .hnode { cursor: pointer; }
+  .hnode circle { fill: #131821; stroke: rgba(255,255,255,.14); transition: fill .3s, stroke .3s; }
+  .hnode text { fill: var(--muted); font-size: 15px; font-weight: 600; text-anchor: middle; transition: fill .3s; }
+  .hnode .hn-count { font: 600 15px var(--mono); fill: var(--faint); }
+  .hnode.on circle { fill: rgba(126,224,180,.14); stroke: var(--mint); }
+  .hnode.on text { fill: var(--text); } .hnode.on .hn-count { fill: var(--mint); }
+
+  /* practices: a change rides the track through four gates */
+  .pipe { display: block; width: 100%; height: auto; overflow: visible; margin-bottom: 28px; }
+  .pipe-track { stroke: rgba(255,255,255,.08); stroke-width: 3; stroke-linecap: round; }
+  .pipe-fill { stroke: var(--mint); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 5px rgba(126,224,180,.6)); }
+  .pc-bg { fill: #131c20; stroke: rgba(255,255,255,.2); }
+  .pc-add { fill: var(--mint); } .pc-del { fill: #ff7b8a; opacity: .8; } .pc-mid { fill: #4a5359; }
+  .pc-ok { opacity: 0; transition: opacity .3s; } .pc-ok circle { fill: var(--mint); } .pc-ok path { fill: none; stroke: #08251a; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .pipe.done .pc-ok { opacity: 1; } .pipe.done .pc-bg { stroke: var(--mint); }
+  .gate rect { fill: rgba(126,224,180,.02); stroke: rgba(255,255,255,.14); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
+  .gate text { fill: var(--faint); font: 15px var(--mono); text-anchor: middle; transition: fill .3s; }
+  .gate.on rect { stroke: var(--mint); fill: rgba(126,224,180,.08); } .gate.on text { fill: var(--mint); }
+  .packs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
+  .pack { border-top: 2px solid var(--line-2); padding-top: 18px; opacity: .45; transition: opacity .4s, border-color .4s; }
+  .pack.on { opacity: 1; border-top-color: var(--mint); }
+  .pack h3 { margin: 0 0 10px; font-size: clamp(20px, 2vw, 26px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+  .pack p { margin: 0; color: var(--muted); font-size: 15.5px; }
   @media (max-width: 760px) {
-    .three { grid-template-columns: 1fr; gap: 36px; }
-    .three > div { padding: 0; border-left: 0; }
+    .tools-grid { grid-template-columns: 1fr; gap: 24px; }
+    .hub { max-width: 420px; margin: 0 auto; order: -1; }
+    .packs { grid-template-columns: 1fr 1fr; gap: 28px 20px; }
   }
 
-  .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; }
-  .pack { border-top: 2px solid var(--mint); padding-top: 22px; }
-  .pack:nth-child(even) { border-top-color: var(--amber); }
-  .pack h3 { margin: 0 0 14px; font-size: clamp(28px, 3vw, 38px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.1; }
-  .pack p { margin: 0; color: var(--muted); }
-  .packs-intro { margin: -24px 0 44px; max-width: 44em; color: var(--muted); font-size: 20px; }
-  .jevname { color: var(--pink); }
-  .jevp { margin: 0; max-width: 34em; font-size: clamp(19px, 2.2vw, 23px); color: var(--muted); letter-spacing: -0.01em; }
-  .jev h2 { margin-bottom: 20px; }
-  .tools { border-top: 1px solid var(--line); }
-  .trow { display: grid; grid-template-columns: 170px 1fr; gap: 20px; align-items: baseline; padding: 18px 0; border-bottom: 1px solid var(--line); }
-  .tg { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
-  .tl { display: flex; flex-wrap: wrap; gap: 8px; }
-  .tl code { font-family: var(--mono); font-size: 13.5px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line-2); color: #cfd6d3; }
-  @media (max-width: 640px) { .trow { grid-template-columns: 1fr; gap: 10px; } }
-  .methods { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 56px; counter-reset: m; border-top: 1px solid var(--line); }
-  .meth { padding: 26px 0; border-bottom: 1px solid var(--line); }
-  .meth h3 { margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; }
-  .meth p { margin: 0; color: var(--muted); max-width: 30em; }
-  .graph-figure { --demo-accent: var(--mint); margin: 0 0 48px; position: relative; }
-  .graph-figure[data-topic="data"] { --demo-accent: var(--amber); }
-  .graph-figure[data-topic="ui"] { --demo-accent: var(--pink); }
-  .demo-controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
-  .demo-controls button { display: inline-flex; gap: 12px; align-items: center; padding: 12px 18px; border: 1px solid var(--line-2); border-radius: 999px; color: var(--muted); background: transparent; cursor: pointer; font: 600 15px var(--font); transition: .2s ease; }
-  .demo-controls button > span:first-child { font: 11px var(--mono); opacity: .6; }
-  .demo-controls button:hover { color: var(--text); border-color: var(--mint); }
-  .demo-controls button[aria-pressed="true"] { color: var(--demo-accent); border-color: var(--demo-accent); background: #7ee0b40b; }
-  .demo-layout { max-width: 760px; margin: 0 auto; }
-  .demo-network { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
-  .demo-orbit { fill: none; stroke: #7ee0b412; stroke-dasharray: 2 8; }
-  .demo-branch { color: var(--mint); opacity: .35; transition: opacity .35s; }
-  .demo-branch path { fill: none; stroke: currentColor; stroke-width: 1.3; }
-  .demo-branch .demo-cross { stroke-dasharray: 3 6; opacity: .4; }
-  .demo-branch g circle { fill: #131c20; stroke: currentColor; stroke-opacity: .5; }
-  .demo-branch text { fill: currentColor; text-anchor: middle; }
-  .demo-label { font-size: 14px; }
-  .demo-icon { font: 13px var(--mono); }
-  .demo-branch[data-branch="data"] { color: var(--amber); }
-  .demo-branch[data-branch="ui"] { color: var(--pink); }
-  [data-topic="access"] [data-branch="access"], [data-topic="data"] [data-branch="data"], [data-topic="ui"] [data-branch="ui"] { opacity: 1; }
-  .demo-packet { fill: currentColor; visibility: hidden; }
-  [data-topic="access"] [data-branch="access"] .demo-packet, [data-topic="data"] [data-branch="data"] .demo-packet, [data-topic="ui"] [data-branch="ui"] .demo-packet { visibility: visible; }
-  .demo-core { fill: #0f191a; stroke: #7ee0b44d; }
-  .demo-core-label { fill: var(--muted); text-anchor: middle; font: 10px var(--mono); letter-spacing: 1.7px; }
-  @media (max-width: 760px) { .demo-controls { gap: 8px; } .demo-controls button { padding: 10px 12px; font-size: 13px; } .demo-controls button > span:first-child { display: none; } .demo-network { margin: 12px 0; } }
-  @media (max-width: 480px) { .demo-label { font-size: 20px; } .demo-icon { font-size: 18px; } .demo-core-label { font-size: 14px; letter-spacing: 1px; } }
-  @media (prefers-reduced-motion: reduce) { .demo-packet { display: none; } .demo-branch, .demo-controls button { transition: none; } }
-  @media (max-width: 760px) { .methods { grid-template-columns: 1fr; } }
   .big { margin: 0 0 44px; font-size: clamp(26px, 3.6vw, 40px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.15; max-width: 18em; }
   .bignum { display: block; font-size: clamp(72px, 13vw, 148px); font-weight: 800; letter-spacing: -0.06em; line-height: .95; color: var(--mint); }
   .bars { display: grid; gap: 18px; }
@@ -149,7 +135,6 @@
   .metric-speed .b3 { background: var(--amber); }
   @media (max-width: 850px) { .metrics { grid-template-columns: 1fr; gap: 72px; } }
   @media (max-width: 700px) { .bar { grid-template-columns: 1fr auto; } .bar .bt { grid-column: 1 / -1; order: 3; } }
-  @media (max-width: 760px) { .packs { grid-template-columns: 1fr; gap: 40px; } }
 
   .install { text-align: center; }
   .install h2 { margin-bottom: 36px; }
@@ -160,8 +145,31 @@
   .copy { all: unset; cursor: pointer; flex: none; padding: 10px 18px; border-radius: 999px; background: var(--mint); color: #08251a; font-family: var(--font); font-weight: 700; font-size: 14.5px; }
   .copy:hover { background: #95e9c3; }
   .copy:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-  .installbox { margin-top: 28px; animation: reveal .25s ease; }
-  .installbox[hidden] { display: none; }
+  .installbox { width: min(640px, calc(100vw - 32px)); max-height: calc(100svh - 32px); padding: 44px 24px 24px; border: 1px solid var(--line-2); border-radius: 24px;
+    background: var(--ink-2); color: var(--text); text-align: center; }
+  .installbox[open] { animation: reveal .25s ease; }
+  .installbox::backdrop { background: rgba(5, 7, 10, .72); backdrop-filter: blur(4px); }
+  .installbox .close { all: unset; cursor: pointer; position: absolute; top: 10px; right: 14px; width: 32px; height: 32px; border-radius: 999px; text-align: center; font-size: 22px; line-height: 32px; color: var(--muted); }
+  .installbox .close:hover { color: var(--text); background: rgba(255,255,255,.06); }
+  .installbox .close:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  .itabs { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 18px; border-radius: 999px; border: 1px solid var(--line, rgba(255,255,255,.12)); }
+  .itabs button, .agents button { all: unset; cursor: pointer; padding: 8px 16px; border-radius: 999px; font-family: var(--font); font-weight: 600; font-size: 14.5px; color: var(--muted); }
+  .itabs button[aria-pressed="true"] { background: var(--mint); color: #08251a; }
+  .agents { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 16px; }
+  .agents button { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; font-size: 13.5px; border: 1px solid var(--line, rgba(255,255,255,.12)); }
+  .agents svg { width: 17px; height: 17px; flex: none; fill: currentColor; }
+  .agents button { height: 22px; padding: 7px 11px; }
+  .agents button:not([aria-pressed="true"]) .an { display: none; }
+  .agents button:not([aria-pressed="true"]):hover { color: var(--text); }
+  .installbox .req { margin-top: 16px; }
+  .agents button[aria-pressed="true"] { color: var(--text); border-color: rgba(126, 224, 180, 0.7); background: rgba(126, 224, 180, 0.1); }
+  .itabs button:focus-visible, .agents button:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  .ipanel[hidden] { display: none; }
+  .pbox { position: relative; border-radius: 18px; border: 1px solid rgba(126, 224, 180, 0.45); background: rgba(126, 224, 180, 0.06); text-align: left; }
+  .pbox pre { margin: 0; padding: 18px 20px 62px; font-family: var(--mono); font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pbox .copy { position: absolute; right: 10px; bottom: 10px; }
+  .ilabel { margin: 18px 0 8px; color: var(--muted); font-size: 14.5px; font-weight: 600; }
+  .ilabel:first-child { margin-top: 0; }
   @keyframes reveal { from { opacity: 0; transform: translateY(-6px); } }
   button.btn { font-family: var(--font); cursor: pointer; }
   .update { margin: 22px 0 0; color: var(--muted); font-size: 15.5px; }
@@ -176,14 +184,117 @@
   footer nav { display: flex; gap: 22px; }
   footer a { text-decoration: none; } footer a:hover { color: var(--text); }
 
-  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .btn { transition: none; } }
+  /* scroll: page progress, hero entrance, section reveals */
+  .progress { position: fixed; z-index: 10; left: 0; top: 0; width: 100%; height: 2px; pointer-events: none; transform-origin: left;
+    transform: scaleX(var(--page, 0)); background: linear-gradient(90deg, var(--mint), var(--amber), var(--pink)); }
+  @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+  @keyframes fadein { from { opacity: 0; } }
+  @keyframes bob { 50% { transform: translateY(5px); } }
+  .hero h1, .hero .sub, .hero .ctas, .hero .steps { animation: rise .9s cubic-bezier(.2,.7,.2,1) both; }
+  .hero .sub { animation-delay: .12s; } .hero .ctas { animation-delay: .24s; } .hero .steps { animation-delay: .4s; }
+  .brain { animation: fadein 1.4s ease; }
+  .rv { opacity: 0; transform: translateY(32px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0s); }
+  .rv.in { opacity: 1; transform: none; }
+  .bars.rv .bt i { transform: scaleX(0); transform-origin: left; transition: transform 1.4s cubic-bezier(.2,.7,.2,1) .3s; }
+  .bars.in .bt i { transform: none; }
+
+  /* hero story: agents feed a brain, Jev decides, memories form, a query walks the graph */
+  .story-pin { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; align-items: center; overflow: hidden; }
+  .story-pin::before { content: ""; position: absolute; z-index: -1; left: 50%; top: 50%; width: 1100px; height: 760px; transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgba(126, 224, 180, 0.09), transparent 72%); }
+  .story-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 40px; align-items: center; }
+  .story-copy { order: -1; }
+  .steps { list-style: none; margin: 40px 0 0; padding: 0; display: grid; }
+  .step { grid-area: 1 / 1; opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease; }
+  .step.on { opacity: 1; transform: none; }
+  .hint { display: flex; align-items: center; gap: 10px; color: var(--faint); font: 14px var(--mono); }
+  .hint .arrow { display: inline-block; animation: bob 1.6s ease-in-out infinite; }
+  .step-n { font: 13px var(--mono); color: var(--faint); }
+  .step h3 { margin: 6px 0; font-size: clamp(22px, 2.4vw, 28px); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+  .step p { margin: 0; color: var(--muted); max-width: 26em; }
+  .step-bars { display: flex; gap: 8px; margin-top: 26px; }
+  .step-bars i { position: relative; flex: 1; max-width: 64px; height: 3px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.08); }
+  .step-bars i::after { content: ""; position: absolute; inset: 0; background: var(--mint); transform-origin: left; transform: scaleX(var(--t, 0)); }
+  .step-bars i:nth-child(2)::after { background: var(--pink); }
+  .step-bars i:nth-child(4)::after { background: var(--amber); }
+  .brain { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
+  .brain .sigline { fill: none; stroke: rgba(255,255,255,.1); stroke-dasharray: 3 6; }
+  .brain .bn-agent circle { fill: #131821; stroke: rgba(255,255,255,.14); }
+  .brain .bn-agent use { fill: #eef1ef; }
+  .bn-outline { fill: rgba(16, 24, 26, .85); stroke: rgba(126,224,180,.35); stroke-width: 1.4; }
+  .bn-stem { fill: rgba(16, 24, 26, .85); stroke: rgba(126,224,180,.2); }
+  .bn-folds path { fill: none; stroke: rgba(126,224,180,.13); stroke-width: 1.3; stroke-linecap: round; }
+  .brain .syn { fill: none; stroke: rgba(255,255,255,.09); }
+  .brain .spark { fill: var(--mint); opacity: .55; }
+  .brain .learn, .brain .qtrail { fill: none; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--t, 0)); }
+  .brain .learn { stroke: var(--mint); stroke-width: 2.4; filter: drop-shadow(0 0 5px rgba(126,224,180,.7)); }
+  .brain .qtrail { stroke: var(--amber); stroke-width: 2.4; filter: drop-shadow(0 0 5px rgba(242,180,90,.7)); }
+  .brain .pkt { filter: drop-shadow(0 0 6px rgba(255,255,255,.55)); }
+  .neu .core { fill: #131c20; stroke: rgba(126,224,180,.45); stroke-width: 1.4; transition: fill .3s, stroke .3s; }
+  .neu .glow, .jev-node .glow { fill: var(--mint); opacity: 0; transform-box: fill-box; transform-origin: center; transition: opacity .3s; }
+  .neu.on .core { fill: var(--mint); stroke: var(--mint); }
+  .neu.on .glow, .jev-node.on .glow { opacity: .22; animation: neu-pulse 2.4s ease-in-out infinite; }
+  .neu.q .core { fill: var(--amber); stroke: var(--amber); }
+  .neu.q .glow { fill: var(--amber); opacity: .3; }
+  @keyframes neu-pulse { 50% { transform: scale(1.5); opacity: .08; } }
+  .brain .jevline { fill: none; stroke: rgba(255,143,214,.3); stroke-dasharray: 3 5; }
+  .jev-node .core { fill: #131821; stroke: rgba(255,143,214,.45); transition: stroke .3s; }
+  .jev-node .glow { fill: var(--pink); }
+  .jev-node.on .core { stroke: var(--pink); }
+  .jev-label { fill: var(--pink); font: 600 14px var(--font); text-anchor: end; }
+  .jev-pill { fill: #1c1119; stroke: rgba(255,143,214,.6); }
+  .jev-t { font: 600 12.5px var(--mono); fill: var(--pink); text-anchor: middle; }
+  .brain .fade { opacity: var(--t, 0); transform: translateY(calc((1 - var(--t, 0)) * 10px)); }
+  .card-bg { fill: #10171a; stroke: rgba(126,224,180,.55); transition: stroke .3s; }
+  .card-pin { fill: none; stroke: rgba(126,224,180,.4); stroke-dasharray: 2 4; }
+  .card-k { font: 600 10px var(--mono); letter-spacing: 1.4px; fill: var(--mint); transition: fill .3s; }
+  .card-ok { font: 10px var(--mono); fill: var(--muted); text-anchor: end; }
+  .card-v { font: 13px var(--mono); fill: var(--text); }
+  .card.hit .card-bg { stroke: var(--amber); } .card.hit .card-k { fill: var(--amber); }
+  .ask-bg { fill: #1a1610; stroke: rgba(242,180,90,.6); }
+  .ask-t { font: 600 15px var(--font); fill: var(--text); }
+  #bnScene { opacity: calc(1 - var(--c, 0)); transform: scale(calc(1 - var(--c, 0) * .2)); transform-origin: 310px 200px; }
+  #bnChart { opacity: var(--c, 0); transform: translateY(calc((1 - var(--c, 0)) * 24px)); pointer-events: none; }
+  .ch-num { font: 800 64px var(--font); letter-spacing: -.05em; fill: var(--mint); }
+  .ch-num.amber, .ch-v.amber { fill: var(--amber); }
+  .ch-big { font: 700 18px var(--font); fill: var(--text); }
+  .ch-l { font: 15px var(--font); fill: var(--muted); }
+  .ch-v { font: 14px var(--mono); fill: var(--muted); text-anchor: end; }
+  .ch-v.hi { fill: var(--mint); font-weight: 700; }
+  .ch-v.hi.amber { fill: var(--amber); }
+  .ch-foot { font: 13px var(--mono); fill: var(--faint); }
+  .ch-bar { transform-box: fill-box; transform-origin: left; transform: scaleX(clamp(0, calc(var(--c, 0) * 1.6 - var(--k)), 1)); }
+  .ch-bar.b1 { fill: #4a5359; } .ch-bar.b2 { fill: #6b767b; } .ch-bar.b3 { fill: var(--mint); } .ch-bar.b4 { fill: var(--amber); }
+  .tok-bg { fill: var(--amber); }
+  .tok-t { font: 700 11px var(--mono); fill: #2a1a05; text-anchor: middle; }
+  @media (max-width: 760px) {
+    .story-grid { grid-template-columns: 1fr; gap: 8px; }
+    .story-copy { order: 0; }
+    .brain { max-height: 38svh; margin-top: 40px; }
+    h1 { font-size: 52px; }
+    .sub { margin: 8px 0 16px; font-size: 17px; }
+    .btn { height: 44px; padding: 0 18px; font-size: 15px; }
+    .steps { margin-top: 20px; }
+    .step h3 { font-size: 21px; }
+    .step p { font-size: 15.5px; }
+    .step-bars { margin-top: 16px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; } .btn { transition: none; }
+    .hero h1, .hero .sub, .hero .ctas, .hero .steps, .brain, .hint .arrow { animation: none; }
+    .neu.on .glow, .jev-node.on .glow { animation: none; }
+    .step, .neu .core, .neu .glow, .jev-node .glow { transition: none; }
+  }
 </style>
 </head>
 <body>
+<div class="progress" aria-hidden="true"></div>
 
 <header class="nav">
   <nav class="wrap" aria-label="Main">
-    <a class="opt" href="#how" data-i18n="nav.how">How it works</a>
+    <a class="brand" href="#brain" aria-label="fxmind"><img src="assets/logo.png" alt="" width="34" height="34" />fxmind</a>
+    <a class="opt" href="#tools" data-i18n="nav.how">Tools</a>
     <a class="opt" href="#packs" data-i18n="nav.specialties">Specialties</a>
     <a href="https://github.com/proelias7/fxmind">GitHub</a>
     <div class="lang" role="group" aria-label="Language">
@@ -194,10 +305,11 @@
 </header>
 
 <main>
-  <section class="hero">
-    <div class="wrap">
-      <svg class="net" viewBox="0 -100 760 520" role="img" aria-labelledby="netTitle">
-        <title id="netTitle">fxmind connects Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode to one shared memory</title>
+  <section class="hero story" id="brain">
+    <div class="story-pin">
+      <div class="wrap story-grid">
+      <svg class="brain" id="brainSvg" viewBox="-110 -80 760 540" role="img" aria-labelledby="brainSvgTitle">
+        <title id="brainSvgTitle" data-i18n="br.aria">Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode send signals into one brain. Jev AI decides what is worth saving, new memories form as connected neurons, and a question travels those connections to find the memory.</title>
         <defs>
           <linearGradient id="gem" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4285f4"/><stop offset=".55" stop-color="#9b72cb"/><stop offset="1" stop-color="#d96570"/></linearGradient>
           <radialGradient id="halo"><stop offset="0" stop-color="#7ee0b4" stop-opacity=".28"/><stop offset="1" stop-color="#7ee0b4" stop-opacity="0"/></radialGradient>
@@ -207,181 +319,167 @@
           <symbol id="lg-gemini" viewBox="0 0 24 24"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></symbol>
           <symbol id="lg-copilot" viewBox="0 0 24 24"><path d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/></symbol>
           <symbol id="lg-opencode" viewBox="0 0 24 24"><path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></symbol>
-          <path id="e1" d="M110 86 Q250 90 380 210"/>
-          <path id="e2" d="M74 210 Q230 210 380 210"/>
-          <path id="e3" d="M110 334 Q250 330 380 210"/>
-          <path id="e4" d="M650 86 Q510 90 380 210"/>
-          <path id="e5" d="M686 210 Q530 210 380 210"/>
-          <path id="e6" d="M650 334 Q510 330 380 210"/>
-          <path id="ej" d="M380 138 L380 -22"/>
+          <radialGradient id="bn-halo"><stop offset="0" stop-color="#7ee0b4" stop-opacity=".16"/><stop offset="1" stop-color="#7ee0b4" stop-opacity="0"/></radialGradient>
         </defs>
-
-        <g class="edges">
-          <use href="#e1" class="edge"/><use href="#e2" class="edge"/><use href="#e3" class="edge"/>
-          <use href="#ej" class="edge jevedge"/><use href="#e4" class="edge"/><use href="#e5" class="edge"/><use href="#e6" class="edge"/>
+        <g id="bnScene">
+        <ellipse cx="310" cy="200" rx="320" ry="260" fill="url(#bn-halo)"/>
+        <!-- agents and their signal paths are built by the script below -->
+        <g id="bnAgents"></g>
+        <path id="jevA" class="jevline" d="M240 -12C250 60 320 100 352 168"/>
+        <path id="jevB" class="jevline" d="M240 -12C330 20 450 90 492 192"/>
+        <!-- brain: stem, cerebrum, cerebellum, folds -->
+        <path class="bn-stem" d="M344 350C352 390 348 420 340 452L368 452C372 420 374 388 374 354Z"/>
+        <path class="bn-outline" d="M168 318C110 304 74 252 84 196C92 140 138 92 200 80C236 54 298 44 344 56C392 44 452 64 482 104C522 126 546 172 536 218C548 262 524 304 486 314C470 340 432 352 398 344C372 362 330 360 306 340C268 356 212 346 168 318Z"/>
+        <path class="bn-outline" d="M402 344C446 344 482 362 470 392C458 418 412 420 388 402C372 390 376 350 402 344Z"/>
+        <g class="bn-folds">
+          <path d="M128 190C150 170 170 196 196 178C222 160 236 192 262 176"/>
+          <path d="M108 250C140 236 166 262 198 246C232 228 252 262 288 244"/>
+          <path d="M232 96C246 126 274 120 280 150C286 176 268 192 290 214"/>
+          <path d="M378 66C368 100 396 116 388 146C382 172 410 186 438 178"/>
+          <path d="M206 314C246 300 276 320 314 306C344 296 366 316 400 306"/>
+          <path d="M486 130C470 160 500 186 488 220C480 246 500 262 496 286"/>
+          <path d="M318 200C342 186 366 208 392 196C420 184 432 208 462 200"/>
+          <path d="M150 140C170 132 186 146 200 134"/>
+          <path d="M392 372C410 366 440 368 462 380M394 390C414 384 440 388 458 396"/>
         </g>
-
-        <!-- facts travelling: learned by one agent, delivered to the others -->
-        <g class="packets">
-          <circle cx="0" cy="0" r="4" fill="#d97757" opacity="0"><animateMotion dur="2.6s" begin="0s" repeatCount="indefinite"><mpath href="#e1"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="2.6s" begin="0s" repeatCount="indefinite"/></circle>
-          <circle cx="0" cy="0" r="4" fill="#7ee0b4" opacity="0"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#e4"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="2.6s" begin="1.3s" repeatCount="indefinite"/></circle>
-          <circle cx="0" cy="0" r="4" fill="#7ee0b4" opacity="0"><animateMotion dur="2.6s" begin="1.3s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#e3"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="2.6s" begin="1.3s" repeatCount="indefinite"/></circle>
-          <circle cx="0" cy="0" r="4" fill="#f2b45a" opacity="0"><animateMotion dur="3.1s" begin=".6s" repeatCount="indefinite"><mpath href="#e5"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="3.1s" begin=".6s" repeatCount="indefinite"/></circle>
-          <circle cx="0" cy="0" r="4" fill="#7ee0b4" opacity="0"><animateMotion dur="3.1s" begin="2.15s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#e2"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="3.1s" begin="2.15s" repeatCount="indefinite"/></circle>
-          <circle cx="0" cy="0" r="4" fill="#ff8fd6" opacity="0"><animateMotion dur="3.4s" begin="1s" repeatCount="indefinite"><mpath href="#e6"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="3.4s" begin="1s" repeatCount="indefinite"/></circle>
+        <!-- neurons and synapses are built by the script below -->
+        <g id="bnSyn"></g><g id="bnLearn"></g>
+        <path id="bnQuery" class="qtrail" pathLength="1" data-a=".74 .94"/>
+        <g id="bnNeurons"></g>
+        <g class="jev-node" id="bnJev" transform="translate(240 -36)">
+          <circle class="glow" r="34"/><circle class="core" r="24"/>
+          <path d="M0 -12 L3.2 -3.2 L12 0 L3.2 3.2 L0 12 L-3.2 3.2 L-12 0 L-3.2 -3.2Z" fill="#ff8fd6"/>
+          <text class="jev-label" x="-36" y="5">Jev AI</text>
         </g>
-
-        <circle cx="0" cy="0" r="4" fill="#ff8fd6" opacity="0"><animateMotion dur="2.2s" begin="0s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#ej"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="2.2s" begin="0s" repeatCount="indefinite"/></circle>
-          <circle cx="0" cy="0" r="4" fill="#ff8fd6" opacity="0"><animateMotion dur="2.2s" begin="1.1s" repeatCount="indefinite"><mpath href="#ej"/></animateMotion><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="2.2s" begin="1.1s" repeatCount="indefinite"/></circle>
+        <g id="bnPkts"></g>
+        <circle class="pkt" r="5" fill="#ff8fd6" data-path="jevA" data-a=".27 .37"/>
+        <circle class="pkt" r="5" fill="#ff8fd6" data-path="jevB" data-a=".73 .8"/>
+        <circle class="pkt" r="6" fill="#f2b45a" data-path="bnQuery" data-a=".74 .94"/>
+        <g transform="translate(276 -52)"><g class="fade" data-a=".31 .35 .45 .5">
+          <rect class="jev-pill" width="144" height="30" rx="15"/><text class="jev-t" x="72" y="20" data-i18n="br.jsave">✓ worth saving</text>
+        </g></g>
+        <g transform="translate(276 -52)"><g class="fade" data-a=".77 .8">
+          <rect class="jev-pill" width="144" height="30" rx="15"/><text class="jev-t" x="72" y="20" data-i18n="br.jpick">→ right memory</text>
+        </g></g>
+        <g transform="translate(462 22)"><g class="fade card" id="bnCard" data-a=".64 .69">
+          <path class="card-pin" d="M40 62L30 170"/>
+          <rect class="card-bg" width="176" height="62" rx="12"/>
+          <text class="card-k" x="14" y="24" data-i18n="br.saved">MEMORY SAVED</text><text class="card-ok" x="162" y="24">sha256 ✓</text>
+          <text class="card-v" x="14" y="46">auth.ts:42 · owner</text>
+        </g></g>
+        <g transform="translate(40 404)"><g class="fade" data-a=".7 .74">
+          <rect class="ask-bg" width="236" height="40" rx="20"/><text class="ask-t" x="20" y="26" data-i18n="br.ask">Who can edit orders?</text>
+        </g></g>
+        <g transform="translate(508 214)"><g class="fade" data-a=".93 .98">
+          <rect class="tok-bg" width="140" height="28" rx="14"/><text class="tok-t" x="70" y="19" data-i18n="br.tok">5,400× fewer tokens</text>
+          <rect class="tok-bg" y="36" width="140" height="28" rx="14"/><text class="tok-t" x="70" y="55" data-i18n="br.fast">10.8× faster</text>
+        </g></g>
         </g>
-        <g>
-        <circle cx="380" cy="210" r="150" fill="url(#halo)"/>
-        <image href="assets/logo.png" x="300" y="130" width="160" height="160"/>
-
-        <g class="agents">
-          <!-- Jev AI: replace the sparkle with the official logo (assets/jev.svg) when available -->
-          <g transform="translate(380 -52)"><circle class="node jevnode" r="30"/><path d="M0 -13 L3.5 -3.5 L13 0 L3.5 3.5 L0 13 L-3.5 3.5 L-13 0 L-3.5 -3.5Z" fill="#ff8fd6"/><text class="name" y="52" style="fill:#ff8fd6">Jev AI</text></g>
-          <g transform="translate(110 86)"><circle class="node" r="30"/><use href="#lg-claude" x="-14" y="-14" width="28" height="28" style="fill:#d97757"/><text class="name" y="52">Claude Code</text></g>
-          <g transform="translate(74 210)"><circle class="node" r="30"/><use href="#lg-cursor" class="logo" x="-14" y="-14" width="28" height="28"/><text class="name" y="52">Cursor</text></g>
-          <g transform="translate(110 334)"><circle class="node" r="30"/><use href="#lg-openai" class="logo" x="-14" y="-14" width="28" height="28"/><text class="name" y="52">Codex</text></g>
-          <g transform="translate(650 86)"><circle class="node" r="30"/><use href="#lg-gemini" x="-14" y="-14" width="28" height="28" style="fill:url(#gem)"/><text class="name" y="52">Gemini CLI</text></g>
-          <g transform="translate(686 210)"><circle class="node" r="30"/><use href="#lg-copilot" class="logo" x="-14" y="-14" width="28" height="28"/><text class="name" y="52">Copilot</text></g>
-          <g transform="translate(650 334)"><circle class="node" r="30"/><use href="#lg-opencode" class="logo" x="-14" y="-14" width="28" height="28"/><text class="name" y="52">OpenCode</text></g>
+        <!-- final phase: the brain turns into the benchmark chart -->
+        <g id="bnChart" aria-hidden="true">
+          <text class="ch-num" x="-80" y="40" data-i18n="sv.num">5,400×</text>
+          <text class="ch-big" x="-80" y="72" data-i18n="sv.big">fewer tokens to find the right code.</text>
+          <text class="ch-l" x="-80" y="124" data-i18n="sv.grep">Search the code, read every match</text><text class="ch-v" x="280" y="124" data-i18n="sv.grepCount">1,318,276</text>
+          <rect class="ch-bar b1" x="-80" y="134" width="360" height="14" rx="7" style="--k:0"/>
+          <text class="ch-l" x="-80" y="184" data-i18n="sv.exact">Already know the file, read it whole</text><text class="ch-v" x="280" y="184" data-i18n="sv.exactCount">3,919</text>
+          <rect class="ch-bar b2" x="-80" y="194" width="6" height="14" rx="7" style="--k:.15"/>
+          <text class="ch-l" x="-80" y="244">fxmind</text><text class="ch-v hi" x="280" y="244">242</text>
+          <rect class="ch-bar b3" x="-80" y="254" width="6" height="14" rx="7" style="--k:.3"/>
+          <text class="ch-num amber" x="340" y="40" data-i18n="speed.num">10.8×</text>
+          <text class="ch-big" x="340" y="72" data-i18n="speed.big">faster searches with a warm cache.</text>
+          <text class="ch-l" x="340" y="124" data-i18n="speed.before">Before caching</text><text class="ch-v" x="640" y="124">783 ms</text>
+          <rect class="ch-bar b1" x="340" y="134" width="300" height="14" rx="7" style="--k:.1"/>
+          <text class="ch-l" x="340" y="184" data-i18n="speed.after">With caching</text><text class="ch-v hi amber" x="640" y="184">73 ms</text>
+          <rect class="ch-bar b4" x="340" y="194" width="28" height="14" rx="7" style="--k:.25"/>
+          <text class="ch-foot" x="-80" y="330" data-i18n="ch.foot">Median across 150 questions. Same answers, same tokens.</text>
         </g>
       </svg>
 
+      <div class="story-copy">
       <h1>fxmind</h1>
       <p class="sub" data-i18n="sub">What one agent learns, every agent knows.</p>
       <div class="ctas">
-        <button class="btn primary" type="button" id="installBtn" aria-expanded="false" aria-controls="installBox" data-i18n="cta.install">Install</button>
+        <button class="btn primary" type="button" id="installBtn" aria-haspopup="dialog" aria-controls="installBox" data-i18n="cta.install">Install</button>
         <a class="btn" href="https://github.com/proelias7/fxmind">
           <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
           <span data-i18n="cta.star">Star</span><span class="count" id="stars" hidden></span>
         </a>
       </div>
-      <div class="installbox" id="installBox" hidden>
-        <div class="cmd"><code id="cmdInstall">npx --yes github:proelias7/fxmind -y</code><button class="copy" type="button" data-copy="cmdInstall" data-i18n="copy">Copy</button></div>
-        <p class="update"><span data-i18n="install.update">Update anytime:</span> <code id="cmdUpdate">npx --yes github:proelias7/fxmind --update -y</code><button type="button" data-copy="cmdUpdate" data-i18n="copy">Copy</button></p>
-        <p class="req"><span data-i18n="install.req">Run in your project folder. Node.js 20.9+.</span> <a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md" data-i18n="install.ref">Full reference</a></p>
+        <ol class="steps">
+          <li class="step hint on"><span data-i18n="br.hint">Scroll to see how it works</span><span class="arrow" aria-hidden="true">↓</span></li>
+          <li class="step"><span class="step-n">01</span><h3 data-i18n="br.s1">Learns from every agent.</h3><p data-i18n="br.s1d">Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode share one memory. What one agent decides, fixes and verifies becomes a signal.</p></li>
+          <li class="step"><span class="step-n">02</span><h3><span class="jevname">Jev AI</span> <span data-i18n="br.s2">decides what matters.</span></h3><p data-i18n="br.s2d">Optional. Jev classifies the task, picks which memories matter and which tool to use, and what is worth saving.</p></li>
+          <li class="step"><span class="step-n">03</span><h3 data-i18n="br.s3">Creates memories with evidence.</h3><p data-i18n="br.s3d">New facts become neurons wired to the code: file, line and SHA-256 as proof.</p></li>
+          <li class="step"><span class="step-n">04</span><h3 data-i18n="br.s4">Queries the graph.</h3><p data-i18n="br.s4d">Jev points to the right memory, and the question travels the connections and comes back with just the right snippet: 242 tokens instead of 1.3 million, in 73 ms.</p></li>
+          <li class="step"><span class="step-n">05</span><h3 data-i18n="br.s5">Fewer tokens, faster answers.</h3><p data-i18n="br.s5d">5,400× fewer tokens than searching and reading the code, and 10.8× faster searches with a warm cache.</p></li>
+        </ol>
+        <div class="step-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
       </div>
     </div>
-  </section>
-
-  <section class="sec" id="how">
-    <div class="wrap three">
-      <div>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
-        <h3 data-i18n="h1.t">Memory in your repo.</h3>
-        <p data-i18n="h1.d">Shared with the team through git.</p>
-      </div>
-      <div>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-        <h3 data-i18n="h2.t">No collisions.</h3>
-        <p data-i18n="h2.d">Agents claim the files they edit.</p>
-      </div>
-      <div>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m8.5 12.5 2.5 2.5 4.5-5.5"/></svg>
-        <h3 data-i18n="h3.t">Reviewed before done.</h3>
-        <p data-i18n="h3.d">Real checks and an independent reviewer.</p>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec" id="savings">
-    <div class="wrap metrics">
-      <div class="metric">
-      <p class="big"><span class="bignum" data-i18n="sv.num">5,400×</span> <span data-i18n="sv.big">fewer tokens to find the right code.</span></p>
-      <div class="bars" role="img" data-i18n-aria="sv.aria" aria-label="Median tokens per question: grep and read matches 1,318,276; read the right file 3,919; fxmind 242">
-        <div class="bar"><span class="bl" data-i18n="sv.grep">Search the code, read every match</span><div class="bt"><i class="b1" style="width:100%"></i></div><span class="bv" data-i18n="sv.grepCount">1,318,276</span></div>
-        <div class="bar"><span class="bl" data-i18n="sv.exact">Already know the file, read it whole</span><div class="bt"><i class="b2" style="width:0.3%"></i></div><span class="bv" data-i18n="sv.exactCount">3,919</span></div>
-        <div class="bar"><span class="bl">fxmind</span><div class="bt"><i class="b3" style="width:0.3%"></i></div><span class="bv hi">242</span></div>
-      </div>
-      </div>
-      <div class="metric metric-speed">
-        <p class="big"><span class="bignum" data-i18n="speed.num">10.8×</span> <span data-i18n="speed.big">faster searches with a warm cache.</span></p>
-        <div class="bars" role="img" data-i18n-aria="speed.aria" aria-label="Median warm query time: before caching, 783 milliseconds; with caching, 73 milliseconds. Same answers and tokens across 150 questions.">
-          <div class="bar"><span class="bl" data-i18n="speed.before">Before caching</span><div class="bt"><i class="b1" style="width:100%"></i></div><span class="bv">783 ms</span></div>
-          <div class="bar"><span class="bl" data-i18n="speed.after">With caching</span><div class="bt"><i class="b3" style="width:9.27%"></i></div><span class="bv hi">73 ms</span></div>
+      <dialog class="installbox" id="installBox" aria-labelledby="installBtn">
+        <button class="close" type="button" data-i18n-aria="close" aria-label="Close">×</button>
+        <div class="agents" role="group" aria-label="Agent">
+          <button type="button" data-agent="claude" aria-pressed="true">Claude Code</button>
+          <button type="button" data-agent="codex" aria-pressed="false">Codex</button>
+          <button type="button" data-agent="cursor" aria-pressed="false">Cursor</button>
+          <button type="button" data-agent="gemini" aria-pressed="false">Gemini CLI</button>
+          <button type="button" data-agent="opencode" aria-pressed="false">OpenCode</button>
+          <button type="button" data-agent="copilot" aria-pressed="false">Copilot</button>
         </div>
-      </div>
-    </div>
+        <div class="itabs" role="group" aria-label="Format">
+          <button type="button" data-mode="cmd" aria-pressed="true" data-i18n="it.cmd">Command</button>
+          <button type="button" data-mode="prompt" aria-pressed="false" data-i18n="it.prompt">Prompt</button>
+        </div>
+        <div class="pbox"><pre id="cmdOut" aria-live="polite"></pre><button class="copy" type="button" data-copy="cmdOut" data-i18n="copy">Copy</button></div>
+        <p class="req">Node.js 20.9+ · <a href="https://github.com/proelias7/fxmind/blob/main/docs/reference.md" data-i18n="install.ref">Full reference</a></p>
+      </dialog>
   </section>
 
   <section class="sec" id="tools">
-    <div class="wrap">
-      <h2 data-i18n="tools.t">40+ tools for your agents.</h2>
-      <div class="tools">
-        <div class="trow"><span class="tg" data-i18n="g.mem">Memory</span><div class="tl"><code>query</code><code>search</code><code>read_file</code><code>graph</code><code>list_memories</code><code>validate_memories</code></div></div>
-        <div class="trow"><span class="tg" data-i18n="g.gate">Verified work</span><div class="tl"><code>start_task</code><code>record_gate</code><code>independent_review</code><code>gate_status</code><code>playbook</code></div></div>
-        <div class="trow"><span class="tg" data-i18n="g.team">Teamwork</span><div class="tl"><code>claim_paths</code><code>release_paths</code><code>session_status</code><code>subagent_run</code></div></div>
-        <div class="trow"><span class="tg" data-i18n="g.learn">Learning</span><div class="tl"><code>record_correction</code><code>list_corrections</code><code>drift_check</code></div></div>
-        <div class="trow"><span class="tg" data-i18n="g.db">Database</span><div class="tl"><code>db_query</code><code>db_schema</code><code>db_sample</code><code>db_explore</code></div></div>
-        <div class="trow"><span class="tg" data-i18n="g.fivem">FiveM</span><div class="tl"><code>fivem_status</code><code>fivem_cmd</code><code>fivem_console_tail</code><code>fivem_nui_dump</code></div></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="sec" id="engine">
-    <div class="wrap">
-      <h2 data-i18n="eng.t">Graph engineering for project memory.</h2>
-      <figure class="graph-figure" id="graphDemo" data-topic="access">
-        <div class="demo-controls" role="group" data-i18n-aria="demo.choose" aria-label="Choose a topic">
-          <button type="button" data-topic="access" aria-pressed="true"><span>01</span><span data-i18n="demo.access">Access & permissions</span></button>
-          <button type="button" data-topic="data" aria-pressed="false"><span>02</span><span data-i18n="demo.data">Data & queries</span></button>
-          <button type="button" data-topic="ui" aria-pressed="false"><span>03</span><span data-i18n="demo.ui">Interface & state</span></button>
+    <div class="wrap tools-grid">
+      <div>
+        <h2 data-i18n="tools.t">40+ tools for your agents.</h2>
+        <div class="tgroups" role="group" data-i18n-aria="tools.t" aria-label="Tool groups">
+          <button type="button" aria-pressed="true" data-tools="query search read_file graph list_memories validate_memories"><span data-i18n="g.mem">Memory</span></button>
+          <button type="button" aria-pressed="false" data-tools="start_task record_gate independent_review gate_status playbook"><span data-i18n="g.gate">Verified work</span></button>
+          <button type="button" aria-pressed="false" data-tools="claim_paths release_paths session_status subagent_run"><span data-i18n="g.team">Teamwork</span></button>
+          <button type="button" aria-pressed="false" data-tools="record_correction list_corrections drift_check"><span data-i18n="g.learn">Learning</span></button>
+          <button type="button" aria-pressed="false" data-tools="db_query db_schema db_sample db_explore"><span data-i18n="g.db">Database</span></button>
+          <button type="button" aria-pressed="false" data-tools="fivem_status fivem_cmd fivem_console_tail fivem_nui_dump"><span data-i18n="g.fivem">FiveM</span></button>
         </div>
-        <div class="demo-layout">
-          <svg class="demo-network" viewBox="0 0 620 420" role="img" data-i18n-aria="demo.network" aria-label="A shared memory connects code, evidence and related facts. The selected topic lights up its connections.">
-            <defs><radialGradient id="demo-halo"><stop stop-color="#7ee0b4" stop-opacity=".18"/><stop offset="1" stop-color="#7ee0b4" stop-opacity="0"/></radialGradient></defs>
-            <circle cx="310" cy="210" r="186" fill="url(#demo-halo)"/>
-            <ellipse cx="310" cy="210" rx="220" ry="151" class="demo-orbit"/><ellipse cx="310" cy="210" rx="152" ry="100" class="demo-orbit"/>
-            <g class="demo-branch" data-branch="access">
-              <path id="demo-a" d="M106 112Q198 110 310 210Q415 253 504 314"/>
-              <path d="M106 112Q296 47 504 314" class="demo-cross"/>
-              <circle class="demo-packet" r="3.5"><animateMotion dur="4s" repeatCount="indefinite"><mpath href="#demo-a"/></animateMotion></circle>
-              <g transform="translate(106 112)"><circle r="24"/><text class="demo-icon" y="5">ƒ</text><text class="demo-label" y="47">auth.ts</text></g>
-              <g transform="translate(504 314)"><circle r="24"/><text class="demo-icon" y="5">✓</text><text class="demo-label" y="47" data-i18n="demo.rule">Ownership rule</text></g>
-            </g>
-            <g class="demo-branch" data-branch="data">
-              <path id="demo-d" d="M310 55Q266 126 310 210Q269 300 310 365"/>
-              <path d="M310 55Q426 203 310 365" class="demo-cross"/>
-              <circle class="demo-packet" r="3.5"><animateMotion dur="4s" repeatCount="indefinite"><mpath href="#demo-d"/></animateMotion></circle>
-              <g transform="translate(310 55)"><circle r="24"/><text class="demo-icon" y="5">SQL</text><text class="demo-label" y="46">orders.sql</text></g>
-              <g transform="translate(310 365)"><circle r="24"/><text class="demo-icon" y="5">#</text><text class="demo-label" y="43" data-i18n="demo.index">Database index</text></g>
-            </g>
-            <g class="demo-branch" data-branch="ui">
-              <path id="demo-u" d="M512 112Q416 111 310 210Q199 264 106 314"/>
-              <path d="M512 112Q312 39 106 314" class="demo-cross"/>
-              <circle class="demo-packet" r="3.5"><animateMotion dur="4s" repeatCount="indefinite"><mpath href="#demo-u"/></animateMotion></circle>
-              <g transform="translate(512 112)"><circle r="24"/><text class="demo-icon" y="5">&lt;/&gt;</text><text class="demo-label" y="47">OrderForm.tsx</text></g>
-              <g transform="translate(106 314)"><circle r="24"/><text class="demo-icon" y="5">◇</text><text class="demo-label" y="47" data-i18n="demo.state">Form state</text></g>
-            </g>
-            <circle class="demo-core" cx="310" cy="210" r="60"/>
-            <image href="assets/logo.png" x="262" y="162" width="96" height="96"/>
-            <text class="demo-core-label" x="310" y="293" data-i18n="demo.memory">PROJECT MEMORY</text>
-          </svg>
-        </div>
-      </figure>
-      <div class="methods">
-        <div class="meth"><h3 data-i18n="m1.t">Atomic knowledge modeling.</h3><p data-i18n="m1.d">Code symbols, events, SQL tables and notes become individual nodes, each with its exact file and line.</p></div>
-        <div class="meth"><h3 data-i18n="m2.t">Provenance and evidence validation.</h3><p data-i18n="m2.d">A fact is saved only if its evidence exists in the source. It stays active while the SHA-256 or the evidence still matches.</p></div>
-        <div class="meth"><h3 data-i18n="m3.t">Incremental indexing.</h3><p data-i18n="m3.d">Only changed files are rescanned. Nothing runs your code, and secrets are skipped.</p></div>
-        <div class="meth"><h3 data-i18n="m5.t">Retrieval on a token budget.</h3><p data-i18n="m5.d">Terms are weighted by rarity, PT and EN synonyms match, and only the best snippets fit the budget. No match falls back to source search.</p></div>
+        <div class="tchips" id="toolChips" aria-live="polite"></div>
       </div>
-    </div>
-  </section>
-
-  <section class="sec jev" id="jev">
-    <div class="wrap">
-      <h2><span data-i18n="jev.t">Decisions, with</span> <span class="jevname">Jev AI</span></h2>
-      <p class="jevp" data-i18n="jev.d">Optional. Jev helps fxmind choose: which kind of task this is, which memories matter, which tool to use, what is worth saving.</p>
+      <!-- hub: the agent calls fxmind, fxmind runs the selected group's tools -->
+      <svg class="hub" id="toolHub" viewBox="0 0 520 440" aria-hidden="true">
+        <circle class="hub-orbit" cx="260" cy="220" r="165"/>
+        <g id="hubSpokes"></g>
+        <circle class="hub-core" cx="260" cy="220" r="56"/>
+        <image href="assets/logo.png" x="214" y="174" width="92" height="92"/>
+        <g id="hubNodes"></g>
+      </svg>
     </div>
   </section>
 
   <section class="sec" id="packs">
     <div class="wrap">
       <h2 data-i18n="packs.t">Best practices in every specialty.</h2>
-      <p class="packs-intro" data-i18n="packs.intro">Guide every change with solid programming practices and the lessons your team has learned.</p>
+      <!-- pipeline: a change passes through the four practice gates -->
+      <svg class="pipe" id="pipe" viewBox="0 0 1000 200" aria-hidden="true">
+        <line class="pipe-track" x1="40" y1="100" x2="960" y2="100"/>
+        <line class="pipe-fill" id="pipeFill" x1="40" y1="100" x2="40" y2="100"/>
+        <g id="pipeCard">
+          <rect class="pc-bg" x="-55" y="-38" width="110" height="76" rx="12"/>
+          <rect class="pc-add" x="-41" y="-22" width="58" height="6" rx="3"/>
+          <rect class="pc-del" x="-41" y="-6" width="76" height="6" rx="3"/>
+          <rect class="pc-mid" x="-41" y="10" width="44" height="6" rx="3"/>
+          <g class="pc-ok" transform="translate(44 -36)"><circle r="13"/><path d="M-6 0l4 4 8-8"/></g>
+        </g>
+        <g class="gate" transform="translate(125 100)"><rect x="-38" y="-66" width="76" height="132" rx="22"/><text y="-78">01</text></g>
+        <g class="gate" transform="translate(375 100)"><rect x="-38" y="-66" width="76" height="132" rx="22"/><text y="-78">02</text></g>
+        <g class="gate" transform="translate(625 100)"><rect x="-38" y="-66" width="76" height="132" rx="22"/><text y="-78">03</text></g>
+        <g class="gate" transform="translate(875 100)"><rect x="-38" y="-66" width="76" height="132" rx="22"/><text y="-78">04</text></g>
+      </svg>
       <div class="packs">
         <div class="pack"><h3 data-i18n="practice.arch.t">Architecture</h3><p data-i18n="practice.arch.d">Clear responsibilities, reuse of existing solutions and consistent contracts between components.</p></div>
         <div class="pack"><h3 data-i18n="practice.security.t">Security</h3><p data-i18n="practice.security.d">Input validation, permission checks and data protection at every entry point.</p></div>
@@ -406,16 +504,18 @@
 <script>
 (() => {
   const PT = {
-    "demo.choose": "Escolha um assunto",
-    "demo.access": "Acesso e permissões",
-    "demo.data": "Dados e consultas",
-    "demo.ui": "Interface e estado",
-    "demo.network": "A memória compartilhada conecta código, evidências e fatos relacionados. O assunto escolhido ilumina suas conexões.",
-    "demo.rule": "Regra de propriedade",
-    "demo.index": "Índice do banco",
-    "demo.state": "Estado do formulário",
-    "demo.memory": "MEMÓRIA DO PROJETO",
-    "nav.how": "Como funciona",
+    "br.aria": "Claude Code, Cursor, Codex, Gemini CLI, Copilot e OpenCode enviam sinais para um cérebro. A Jev AI decide o que vale salvar, novas memórias se formam como neurônios conectados e uma pergunta percorre essas conexões até achar a memória.",
+    "br.hint": "Role para ver como funciona",
+    "br.s1": "Aprende com cada agente.", "br.s1d": "Claude Code, Cursor, Codex, Gemini CLI, Copilot e OpenCode compartilham uma memória. O que um agente decide, corrige e verifica vira sinal.",
+    "br.s2": "decide o que importa.", "br.s2d": "Opcional. A Jev classifica a tarefa, escolhe quais memórias importam, qual ferramenta usar e o que vale salvar.",
+    "br.s3": "Cria memórias com evidência.", "br.s3d": "Fatos novos viram neurônios ligados ao código: arquivo, linha e SHA-256 como prova.",
+    "br.s4": "Consulta o grafo.", "br.s4d": "A Jev aponta a memória certa, e a pergunta percorre as conexões e volta só com o trecho certo: 242 tokens em vez de 1,3 milhão, em 73 ms.",
+    "br.s5": "Menos tokens, respostas mais rápidas.", "br.s5d": "5.400× menos tokens do que buscar e ler o código, e buscas 10,8× mais rápidas com o cache carregado.",
+    "ch.foot": "Mediana em 150 perguntas. Mesmas respostas, mesmos tokens.",
+    "br.tok": "5.400× menos tokens", "br.fast": "10,8× mais rápido",
+    "br.jsave": "✓ vale salvar", "br.jpick": "→ memória certa", "br.saved": "MEMÓRIA SALVA", "br.ask": "Quem pode editar pedidos?",
+    "close": "Fechar",
+    "nav.how": "Ferramentas",
     "nav.specialties": "Especialidades",
     "sub": "O que um agente aprende, todos os agentes sabem.",
     "cta.install": "Instalar", "cta.star": "Estrela",
@@ -429,17 +529,7 @@
     "speed.num": "10,8×", "speed.big": "buscas mais rápidas com o cache carregado.",
     "speed.before": "Antes do cache", "speed.after": "Com cache",
     "speed.aria": "Mediana por consulta com o cache carregado: antes da otimização, 783 milissegundos; depois, 73 milissegundos. Mesmas respostas e tokens em 150 perguntas.",
-    "eng.t": "Engenharia de grafos para a memória do projeto.",
-    "eng.diagram": "Código e notas viram nós com evidência em um grafo. A busca seleciona fatos relevantes dentro do orçamento de tokens para o agente.",
-    "eng.s1": "01 / FONTES", "eng.s2": "02 / GRAFO DE CONHECIMENTO", "eng.s3": "03 / CONTEXTO",
-    "eng.code": "Código do projeto", "eng.symbols": "funções · eventos · SQL", "eng.notes": "Fatos verificados", "eng.evidence": "Notas + evidência no código",
-    "eng.relation": "relações tipadas", "eng.trace": "Arquivo · linha · SHA-256", "eng.result": "Trechos relevantes", "eng.budget": "Dentro do limite de tokens",
-    "m1.t": "Modelagem atômica do conhecimento.", "m1.d": "Símbolos, eventos, tabelas SQL e notas viram nós individuais, cada um com arquivo e linha exatos.",
-    "m2.t": "Proveniência e validação de evidências.", "m2.d": "Um fato só é salvo se a evidência existir no código. Ele continua ativo enquanto o SHA-256 ou a evidência ainda batem.",
-    "m3.t": "Indexação incremental.", "m3.d": "Só os arquivos alterados são relidos. Nada executa seu código e segredos são ignorados.",
-    "m5.t": "Busca com orçamento de tokens.", "m5.d": "Termos são pesados pela raridade, sinônimos PT e EN casam, e só os melhores trechos cabem no orçamento. Sem resultado, busca no código.",
     "g.mem": "Memória", "g.gate": "Trabalho verificado", "g.team": "Trabalho em equipe", "g.learn": "Aprendizado", "g.db": "Banco de dados", "g.fivem": "FiveM", "tools.t": "Mais de 40 tools para seus agentes.",
-    "jev.t": "Decisões com a", "jev.d": "Opcional. A Jev ajuda o fxmind a escolher: que tipo de tarefa é, quais memórias importam, qual ferramenta usar e o que vale salvar.",
     "packs.t": "Boas práticas em cada especialidade.",
     "packs.intro": "Oriente cada alteração com boas práticas de programação e os aprendizados que o time já construiu.",
     "practice.arch.t": "Arquitetura", "practice.arch.d": "Responsabilidades claras, reaproveitamento de soluções e contratos consistentes entre componentes.",
@@ -447,7 +537,8 @@
     "practice.perf.t": "Desempenho", "practice.perf.d": "Consultas eficientes, cache bem definido e menos processamento e transferência de dados desnecessários.",
     "practice.quality.t": "Qualidade de código", "practice.quality.d": "Código legível, tratamento de erros, acessibilidade e testes que evitam regressões.",
     "install.update": "Para atualizar:",
-    "install.req": "Rode na pasta do projeto. Node.js 20.9+.", "install.ref": "Referência completa",
+    "install.req": "Node.js 20.9+.", "install.ref": "Referência completa",
+    "it.prompt": "Prompt", "it.cmd": "Comando",
     "copy": "Copiar", "copied": "Copiado", "foot.bug": "Reportar bug",
     "_title": "fxmind — memória compartilhada para agentes de IA"
   };
@@ -455,6 +546,24 @@
   document.querySelectorAll("[data-i18n]").forEach((el) => { EN[el.dataset.i18n] ??= el.textContent; });
   document.querySelectorAll("[data-i18n-aria]").forEach((el) => { EN[el.dataset.i18nAria] ??= el.getAttribute("aria-label"); });
   const T = { en: EN, pt: PT };
+
+  // Install prompt: same steps as skills/fxmind-setup, with the chosen agent's flag.
+  const PROMPT = {
+    en: (flag, init) => `Install fxmind in this project. Check that Node.js 20.9+ is installed, then run in the project root:\n\nnpx --yes github:proelias7/fxmind --${flag} -y\n\nIt installs the fxmind runtime globally so its MCP and hooks keep working, and picks the knowledge pack from the project. Show me the summary and tell me to restart you; then I will run ${init}.`,
+    pt: (flag, init) => `Instale o fxmind neste projeto. Confira se o Node.js 20.9+ está instalado e rode na raiz do projeto:\n\nnpx --yes github:proelias7/fxmind --${flag} -y\n\nEle instala o runtime do fxmind globalmente para o MCP e os hooks continuarem funcionando, e escolhe o pack de conhecimento pelo projeto. Me mostre o resumo e peça para eu reiniciar você; depois eu rodo ${init}.`,
+  };
+  const INIT = { codex: "$fxmind init", gemini: "/fxmind:init" };
+  // Agents with a plugin get its install command; the rest get the project installer.
+  const PLUGIN = {
+    claude: "/plugin install fxmind --marketplace proelias7/fxmind",
+    codex: "codex plugin marketplace add proelias7/fxmind\ncodex plugin add fxmind@fxmind",
+    cursor: "npx --yes github:proelias7/fxmind plugin cursor",
+  };
+  let agent = "claude", mode = "cmd";
+  function renderPrompt() {
+    document.getElementById("cmdOut").textContent = mode === "prompt" ? PROMPT[lang](agent, INIT[agent] || "/fxmind init")
+      : PLUGIN[agent] || `npx --yes github:proelias7/fxmind --${agent} -y`;
+  }
 
   let lang = "";
   try { lang = localStorage.getItem("fxmind-lang") || ""; } catch {}
@@ -467,6 +576,7 @@
     document.querySelectorAll("[data-i18n]").forEach((el) => { const v = d[el.dataset.i18n]; if (v) el.textContent = v; });
     document.querySelectorAll("[data-i18n-aria]").forEach((el) => { const v = d[el.dataset.i18nAria]; if (v) el.setAttribute("aria-label", v); });
     document.querySelectorAll(".lang button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
+    renderPrompt();
     try { localStorage.setItem("fxmind-lang", lang); } catch {}
   }
   document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => apply(b.dataset.lang)));
@@ -483,21 +593,190 @@
     setTimeout(() => { b.textContent = T[lang].copy; }, 1600);
   }));
 
-  const demo = document.getElementById("graphDemo");
-  demo.querySelectorAll("button[data-topic]").forEach((button) => button.addEventListener("click", () => {
-    demo.dataset.topic = button.dataset.topic;
-    demo.querySelectorAll("button[data-topic]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
-  }));
-
   const ib = document.getElementById("installBtn"), box = document.getElementById("installBox");
-  ib.addEventListener("click", () => { box.hidden = !box.hidden; ib.setAttribute("aria-expanded", String(!box.hidden)); });
+  ib.addEventListener("click", () => box.showModal());
+  box.querySelector(".close").addEventListener("click", () => box.close());
+  box.addEventListener("click", (e) => { if (e.target === box) box.close(); });  // click on the backdrop
 
-  // The travelling facts are decoration: stop them for reduced motion.
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const net = document.querySelector(".net");
-    net.pauseAnimations();
-    net.querySelector(".packets").style.display = "none";
+  // Reuse the hero's logo symbols on the agent chips.
+  const LOGO = { claude: ["lg-claude", "#d97757"], codex: ["lg-openai"], cursor: ["lg-cursor"],
+    gemini: ["lg-gemini", "url(#gem)"], opencode: ["lg-opencode"], copilot: ["lg-copilot"] };
+  // Icon-only chips: the name shows on the selected one, and stays in aria-label/title for the rest.
+  box.querySelectorAll("[data-agent]").forEach((b) => {
+    const [id, fill] = LOGO[b.dataset.agent], name = b.textContent;
+    b.setAttribute("aria-label", name); b.title = name;
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"${fill ? ` style="fill:${fill}"` : ""}><use href="#${id}"/></svg><span class="an" aria-hidden="true">${name}</span>`;
+  });
+
+  const pick = (attr, set) => box.querySelectorAll(`[data-${attr}]`).forEach((b) => b.addEventListener("click", () => {
+    set(b.dataset[attr]);
+    box.querySelectorAll(`[data-${attr}]`).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderPrompt();
+  }));
+  pick("agent", (v) => { agent = v; });
+  pick("mode", (v) => { mode = v; });
+
+  const rm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Sections fade up as they enter the viewport.
+  if (!rm && "IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => entries.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }), { threshold: 0.15, rootMargin: "0px 0px -8% 0px" });
+    document.querySelectorAll(".sec h2, .tgroups, .hub, .pipe").forEach((el) => {
+      el.classList.add("rv");
+      el.style.setProperty("--d", `${([...el.parentElement.children].indexOf(el) % 6) * 80}ms`);
+      io.observe(el);
+    });
   }
+
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, parent) => { const n = document.createElementNS(SVGNS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.append(n); return n; };
+  // Runs fn on every frame only while el is on screen.
+  const whileVisible = (el, fn) => {
+    let raf = 0;
+    const loop = (t) => { fn(t); raf = requestAnimationFrame(loop); };
+    new IntersectionObserver(([e]) => { cancelAnimationFrame(raf); if (e.isIntersecting) raf = requestAnimationFrame(loop); }).observe(el);
+  };
+
+  // Tools hub: six groups around fxmind; the selected one sends packets in and lists its tools.
+  const hub = document.getElementById("toolHub"), chips = document.getElementById("toolChips");
+  const groups = [...document.querySelectorAll(".tgroups button")];
+  const hubNodes = groups.map((btn, i) => {
+    const a = (-90 + i * 60) * Math.PI / 180, x = 260 + 165 * Math.cos(a), y = 220 + 165 * Math.sin(a);
+    const spoke = mk("path", { id: `spoke${i}`, class: "spoke", d: `M${x} ${y}L260 220` }, hub.querySelector("#hubSpokes"));
+    const pkt = mk("circle", { class: "spoke-pkt", r: 4 }, hub.querySelector("#hubSpokes"));
+    if (!rm) mk("mpath", { href: `#spoke${i}` }, mk("animateMotion", { dur: "1.4s", repeatCount: "indefinite" }, pkt));
+    else Object.assign(pkt.style, { display: "none" });
+    const g = mk("g", { class: "hnode", transform: `translate(${x} ${y})` }, hub.querySelector("#hubNodes"));
+    mk("circle", { r: 34 }, g);
+    mk("text", { class: "hn-count", y: 6 }, g).textContent = btn.dataset.tools.split(" ").length;
+    const label = mk("text", { y: y < 220 ? -46 : 56, "data-i18n": btn.firstElementChild.dataset.i18n }, g);
+    label.textContent = btn.textContent;
+    g.addEventListener("click", () => select(i, true));
+    return [g, spoke, pkt];
+  });
+  let current = 0, paused = false;
+  function select(i, byUser) {
+    current = i; if (byUser) paused = true;
+    groups.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+    hubNodes.forEach(([g, spoke, pkt], j) => [g, spoke, pkt].forEach((n) => n.classList.toggle("on", j === i)));
+    chips.innerHTML = groups[i].dataset.tools.split(" ").map((t, k) => `<code style="--i:${k}">${t}</code>`).join("");
+  }
+  groups.forEach((b, i) => b.addEventListener("click", () => select(i, true)));
+  select(0);
+  if (!rm) setInterval(() => { if (!paused && !document.hidden) select((current + 1) % groups.length); }, 2800);
+
+  // Practices pipeline: a change rides the track and lights each gate as it passes.
+  const pipe = document.getElementById("pipe"), pipeCard = pipe.querySelector("#pipeCard"), fill = pipe.querySelector("#pipeFill");
+  const gates = [...pipe.querySelectorAll(".gate")], packs = [...document.querySelectorAll(".pack")], GX = [125, 375, 625, 875];
+  const drawPipe = (x, done) => {
+    pipeCard.setAttribute("transform", `translate(${x} 100)`);
+    fill.setAttribute("x2", x);
+    gates.forEach((g, i) => { g.classList.toggle("on", x >= GX[i]); packs[i].classList.toggle("on", x >= GX[i]); });
+    pipe.classList.toggle("done", done);
+  };
+  const CYCLE = 7000;
+  if (rm) drawPipe(960, true);
+  else whileVisible(pipe, (t) => {
+    const k = (t % CYCLE) / CYCLE, m = Math.min(1, k / 0.8), e = m < 0.5 ? 2 * m * m : 1 - (-2 * m + 2) ** 2 / 2;
+    drawPipe(40 + 920 * e, k >= 0.8);
+  });
+
+  // Brain story: neurons, synapses and the query path, driven by scroll progress.
+  const NS = "http://www.w3.org/2000/svg", brain = document.getElementById("brainSvg"), story = document.getElementById("brain");
+  const svgEl = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); parent.append(n); return n; };
+  const arc = ([x1, y1], [x2, y2], bend) => `M${x1} ${y1}Q${(x1 + x2) / 2 - (y2 - y1) * bend} ${(y1 + y2) / 2 + (x2 - x1) * bend} ${x2} ${y2}`;
+  const smooth = (pts) => pts.reduce((d, p, i, a) => {  // Catmull-Rom through every point
+    if (!i) return `M${p}`;
+    const p0 = a[i - 2] || a[i - 1], p1 = a[i - 1], p3 = a[i + 1] || p;
+    return `${d}C${p1[0] + (p[0] - p0[0]) / 6},${p1[1] + (p[1] - p0[1]) / 6} ${p[0] - (p3[0] - p1[0]) / 6},${p[1] - (p3[1] - p1[1]) / 6} ${p}`;
+  }, "");
+  const N = { a: [170, 205], b: [215, 140], c: [285, 108], d: [362, 92], e: [440, 122], f: [492, 192], g: [468, 262], h: [398, 300],
+    i: [318, 312], j: [240, 292], k: [182, 258], l: [268, 198], m: [352, 168], n: [422, 212], o: [330, 245], q: [252, 245] };
+  const BASE = "ab bc cd de ef fg gh hi ij jk ka bl cl dm em fn gn ho io jq kq lm mn no oq ql".split(" ");
+  const LEARN = [["aq", ".45 .52"], ["qm", ".52 .59"], ["mf", ".59 .66"]];  // new synapses = the memory being formed
+  const ON = { a: 0.14, k: 0.2, q: 0.52, m: 0.59, f: 0.66 };  // when each neuron fires
+  // Agents on the left, each sending a signal into the brain.
+  const AGENTS = [["lg-claude", "#d97757", "a"], ["lg-cursor", "", "a"], ["lg-openai", "", "a"],
+    ["lg-gemini", "url(#gem)", "k"], ["lg-copilot", "", "k"], ["lg-opencode", "", "k"]];
+  const agentG = brain.querySelector("#bnAgents"), pktG = brain.querySelector("#bnPkts");
+  AGENTS.forEach(([logo, fill, to], i) => {
+    const y = 40 + i * 70, [tx, ty] = N[to], start = 0.02 + i * 0.02;
+    svgEl("path", { id: `sig${i}`, class: "sigline", d: `M-60 ${y}C40 ${y} ${tx - 70} ${ty} ${tx} ${ty}` }, agentG);
+    const g = svgEl("g", { class: "bn-agent", transform: `translate(-60 ${y})` }, agentG);
+    svgEl("circle", { r: 22 }, g);
+    svgEl("use", { href: `#${logo}`, x: -12, y: -12, width: 24, height: 24, ...(fill && { style: `fill:${fill}` }) }, g);
+    svgEl("circle", { class: "pkt", r: 5, fill: fill.startsWith("#") ? fill : i % 2 ? "#eef1ef" : "#7ee0b4", "data-path": `sig${i}`, "data-a": `${start} ${start + 0.12}` }, pktG);
+  });
+  const synG = brain.querySelector("#bnSyn");
+  BASE.forEach((pair, i) => {
+    svgEl("path", { id: `syn-${pair}`, class: "syn", d: arc(N[pair[0]], N[pair[1]], i % 2 ? 0.1 : -0.1) }, synG);
+    if (rm || i % 4) return;
+    const am = svgEl("animateMotion", { dur: `${3 + (i % 3)}s`, begin: `${i * 0.3}s`, repeatCount: "indefinite" }, svgEl("circle", { class: "spark", r: 2 }, synG));
+    svgEl("mpath", { href: `#syn-${pair}` }, am);
+  });
+  LEARN.forEach(([pair, a]) => svgEl("path", { class: "learn", pathLength: 1, "data-a": a, d: arc(N[pair[0]], N[pair[1]], 0.18) }, brain.querySelector("#bnLearn")));
+  const neurons = Object.entries(N).map(([id, [x, y]]) => {
+    const g = svgEl("g", { class: "neu", transform: `translate(${x} ${y})` }, brain.querySelector("#bnNeurons"));
+    svgEl("circle", { class: "glow", r: 18 }, g);
+    svgEl("circle", { class: "core", r: id === "f" ? 9 : 6 }, g);
+    return [id, g];
+  });
+  // The question walks the memory just formed; each neuron lights when the pulse reaches it.
+  const qPath = brain.querySelector("#bnQuery");
+  qPath.setAttribute("d", smooth([[158, 404], N.k, N.q, N.m, N.f]));
+  const qLen = qPath.getTotalLength(), [qs, qe] = qPath.dataset.a.split(" ").map(Number);
+  const QHIT = Object.fromEntries(["k", "q", "m", "f"].map((id) => {
+    let best = 0, bd = Infinity;
+    for (let s = 0; s <= 100; s++) {
+      const pt = qPath.getPointAtLength((qLen * s) / 100), d = Math.hypot(pt.x - N[id][0], pt.y - N[id][1]);
+      if (d < bd) { bd = d; best = s / 100; }
+    }
+    return [id, qs + best * (qe - qs)];
+  }));
+  // data-a="in-start in-end [out-start out-end]" in scroll progress (0..1); data-path makes it ride a path.
+  const anims = [...brain.querySelectorAll("[data-a]")].map((el) => [el, el.dataset.a.split(" ").map(Number), el.dataset.path && document.getElementById(el.dataset.path)]);
+  const steps = story.querySelectorAll(".step"), bars = story.querySelectorAll(".step-bars i");
+  const card = document.getElementById("bnCard"), jev = document.getElementById("bnJev");
+  const SEG = [0.02, 0.25, 0.45, 0.7, 1];  // hint, then 01 learn, 02 Jev, 03 memory, 04 query
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+  function renderStory(raw) {
+    // 0-.62 brain story, .62-.74 brain becomes the chart, then the chart holds still until the hero ends
+    const pc = clamp((raw - 0.62) / 0.12), p = clamp(raw / 0.62);
+    brain.style.setProperty("--c", pc.toFixed(3));
+    for (const [el, [s, e, os, oe], path] of anims) {
+      const t = clamp((p - s) / (e - s)) * (os ? 1 - clamp((p - os) / (oe - os)) : 1);
+      el.style.setProperty("--t", t.toFixed(3));
+      if (!path) continue;
+      const pt = path.getPointAtLength(path.getTotalLength() * t);
+      el.setAttribute("cx", pt.x); el.setAttribute("cy", pt.y);
+      el.style.opacity = t > 0 && t < 1 ? 1 : 0;
+    }
+    for (const [id, g] of neurons) {
+      g.classList.toggle("on", p >= (ON[id] ?? 2));
+      g.classList.toggle("q", p >= (QHIT[id] ?? 2));
+    }
+    const step = SEG.filter((s) => p >= s).length;  // 0 = hint
+    steps.forEach((s, i) => s.classList.toggle("on", i === (pc > 0 ? 5 : Math.min(step, 4))));
+    bars.forEach((b, i) => b.style.setProperty("--t", (i < 4 ? clamp((p - SEG[i]) / (SEG[i + 1] - SEG[i])) : pc).toFixed(3)));
+    jev.classList.toggle("on", p >= 0.25);
+    card.classList.toggle("hit", p >= QHIT.f);
+  }
+
+  const root = document.documentElement;
+  let ticking = false;
+  function onScroll() {
+    ticking = false;
+    const max = root.scrollHeight - innerHeight;
+    root.style.setProperty("--page", max > 0 ? (scrollY / max).toFixed(4) : "0");
+    const r = story.getBoundingClientRect();
+    if (r.top < innerHeight && r.bottom > 0) renderStory(clamp(-r.top / (r.height - innerHeight)));
+  }
+  const queue = () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } };
+  addEventListener("scroll", queue, { passive: true });
+  addEventListener("resize", queue);
+  renderStory(0); onScroll();
 
   fetch("https://api.github.com/repos/proelias7/fxmind")
     .then((r) => (r.ok ? r.json() : null))

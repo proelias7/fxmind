@@ -11,9 +11,18 @@ This repository packages the existing FXMIND skill and MCP for the portable [Age
 - `.cursor-plugin/plugin.json` — Cursor adapter with `${CURSOR_PLUGIN_ROOT}` support (Cursor does not currently expand portable `${PLUGIN_ROOT}`).
 - `scripts/plugin-mcp.js` — launcher that refuses to run in the plugin folder.
 
+## Installation (marketplace)
+
+This repository is also a plugin marketplace. `plugins/fxmind/` is the skills-only bundle it serves (no MCP, so it never duplicates the project-level server); its skills must stay identical to `skills/` (checked by `scripts/plugin.test.js`).
+
+- Claude Code: `/plugin install fxmind --marketplace proelias7/fxmind`
+- Codex: `codex plugin marketplace add proelias7/fxmind`, then `codex plugin add fxmind@fxmind`
+
+Then ask the agent to "set up fxmind in this project": the `fxmind-setup` skill runs the project installer.
+
 ## Installation (CLI)
 
-Install Node.js >=20.9 and the FXMIND runtime. Until this branch is merged into `main`, install its plugin CLI with:
+Install Node.js >=20.9 and the FXMIND runtime with:
 
 ```sh
 npm install -g github:proelias7/fxmind

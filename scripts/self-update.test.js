@@ -13,6 +13,13 @@ describe("self-update fallback", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it("detects npx cache runs so first installs get a global runtime", () => {
+    assert.equal(selfUpdate.isNpxRun("C:\\Users\\a\\AppData\\Local\\npm-cache\\_npx\\1f2e\\node_modules\\fxmind"), true);
+    assert.equal(selfUpdate.isNpxRun("/home/a/.npm/_npx/1f2e/node_modules/fxmind"), true);
+    assert.equal(selfUpdate.isNpxRun("/usr/local/lib/node_modules/fxmind"), false);
+    assert.equal(selfUpdate.isNpxRun(path.resolve(__dirname, "..")), false);
+  });
+
   it("keeps the fallback install under ~/.fxmind/npm", () => {
     const prefix = selfUpdate.fallbackPrefix();
     assert.equal(prefix, path.join(os.homedir(), ".fxmind", "npm"));

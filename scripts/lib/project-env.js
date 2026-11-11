@@ -3,10 +3,10 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-function readProjectEnv(root, env = process.env) {
+function readProjectEnv(root, env = process.env, filename = ".env") {
   let local = {};
   try {
-    local = require("dotenv").parse(fs.readFileSync(path.join(root, ".env")));
+    local = require("dotenv").parse(fs.readFileSync(path.join(root, filename)));
   } catch (error) {
     if (error.code !== "ENOENT") throw new Error("Unable to read the project .env file.");
   }

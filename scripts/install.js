@@ -91,6 +91,13 @@ function generatePanelBuild(reason) {
 
 async function main() {
   const argv = process.argv.slice(2);
+  const initializing = argv[0] === "init";
+  let jevSetup = null;
+
+  if (argv[0] === "jev") {
+    process.exitCode = await require("./jev-setup").runJevCli(argv.slice(1));
+    return;
+  }
 
   if (
     argv.length === 1 &&
@@ -227,7 +234,7 @@ async function main() {
     return;
   }
 
-  const options = parseArgs(argv);
+  const options = parseArgs(initializing ? argv.slice(1) : argv);
 
   if (options.version) {
     printVersion();
@@ -239,14 +246,22 @@ async function main() {
     process.exit(0);
   }
 
+  if (initializing) {
+    if (options.update || options.yes || !process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error("Execute fxmind init em um terminal interativo, sem -y ou --update. As escolhas e a chave da Jev são informadas no terminal.");
+    }
+    options.interactive = true;
+  }
+
   if (!fs.existsSync(options.target)) {
     console.error(`Error: target directory does not exist: ${options.target}`);
     process.exit(1);
   }
 
-  if (options.update) {
-    maybeSelfUpdateAndReexec(argv, options);
+  // Also on a first `npx` install: the MCP and hooks it writes run the global runtime.
+  maybeSelfUpdateAndReexec(argv, options);
 
+  if (options.update) {
     if (options.interactive || options.allPacks || options.noPacks) {
       console.error("Error: --update cannot be combined with interactive pack selection flags.");
       process.exit(1);
@@ -451,6 +466,7 @@ async function main() {
     options.skills = selections.skills;
     options.command = selections.command;
     state.SKILL_SOURCES = selections.packSources;
+    if (initializing) jevSetup = await require("./jev-setup").promptJevSetup({ optional: true });
 
     console.log(
       `\nPacks: ${selections.packs.length ? selections.packs.join(", ") : "(core only)"}`,
@@ -629,16 +645,20 @@ async function main() {
   }
 
   generatePanelBuild("installation");
+  if (jevSetup) {
+    require("./jev-setup").saveJevSetup(jevSetup);
+    console.log("Jev configurada no armazenamento local do usuário. Reinicie o agente/MCP para ativar.");
+  }
   console.log("Done.");
   console.log("Restart your agent IDE/CLI or open a new session.");
   console.log(`Update packs/skills: ${npxInstall("--update -y")}  (or after global: fxmind --update -y)`);
   console.log(`Reinstall from scratch: ${npxInstall("-y")}  (or after global: fxmind -y)`);
   console.log(
-    "Cursor/Claude/OpenCode: /fxmind  |  Codex: $fxmind  |  Gemini: /fxmind, /fxmind:reference, /fxmind:audit, /fxmind:learn, /fxmind:memory, /fxmind:graph",
+    "Cursor/Claude/OpenCode: /fxmind  |  Codex: $fxmind  |  Gemini: /fxmind, /fxmind:init, /fxmind:audit, /fxmind:learn, /fxmind:memory, /fxmind:graph",
   );
   console.log("Gemini: run /commands reload after install.");
   console.log(
-    "Run /fxmind reference (or /fxmind:reference) to generate reference.mdc at project root.",
+    "Run /fxmind init (or /fxmind:init) to read the main modules, learn verified facts and create .fxmind/reference.md.",
   );
   for (const packId of packs) {
     const hint = require("./packs").getPack(packId).createHint;
@@ -658,6 +678,10 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (["ExitPromptError", "AbortPromptError", "CancelPromptError"].includes(error.name)) {
+    console.log("Configuração cancelada.");
+    return;
+  }
   console.error(`Error: ${error.message}`);
   process.exit(1);
 });

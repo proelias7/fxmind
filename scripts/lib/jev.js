@@ -10,6 +10,7 @@
  */
 const path = require("path");
 const { readProjectEnv } = require("./project-env");
+const { GLOBAL_ROOT } = require("../global-store");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "../..");
 const DEFAULT_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
@@ -17,12 +18,18 @@ const KINDS = ["config", "fix", "mechanic", "create"];
 
 function jevConfig(env = process.env, root = PACKAGE_ROOT) {
   // Configuration errors must never break ordinary tasks when Jev is optional.
-  let values;
-  try { values = readProjectEnv(root, env); } catch { values = env; }
+  let values, local, user = {};
+  try { user = readProjectEnv(GLOBAL_ROOT, {}, "jev.env"); } catch { /* optional user config */ }
+  try {
+    local = readProjectEnv(root, env);
+    values = { ...user, ...local };
+  } catch { local = env; user = {}; values = env; }
   const enabled = /^(1|true|yes)$/i.test(String(values.FXMIND_JEV_ENABLED || ""));
   const memoryEnabled = /^(1|true|yes)$/i.test(String(values.FXMIND_JEV_MEMORY_ENABLED || ""));
   const toolRoutingEnabled = /^(1|true|yes)$/i.test(String(values.FXMIND_JEV_TOOL_ROUTING_ENABLED || ""));
-  const apiKey = String(values.FXMIND_JEV_API_KEY || values.TYPESAFE_API_KEY || "").trim();
+  const apiKey = String(env.FXMIND_JEV_API_KEY || env.TYPESAFE_API_KEY
+    || local.FXMIND_JEV_API_KEY || local.TYPESAFE_API_KEY
+    || user.FXMIND_JEV_API_KEY || user.TYPESAFE_API_KEY || "").trim();
   const parsedConfidence = Number(values.FXMIND_JEV_MIN_CONFIDENCE);
   const minConfidence = Number.isFinite(parsedConfidence) && parsedConfidence >= 0 && parsedConfidence <= 1
     ? parsedConfidence : 0.75;

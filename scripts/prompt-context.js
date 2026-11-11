@@ -17,6 +17,16 @@ const DEFAULT_BUDGET = 1200;
 const MIN_PROMPT_CHARS = 8;
 const CLAUDE_SETTINGS_REL = path.join(".claude", "settings.json");
 const CLAUDE_HOOK_COMMAND = "fxmind context --hook";
+const CLAUDE_HOOKS_DIR_REL = path.join(".claude", "hooks");
+const CLAUDE_HOOK_SCRIPTS = ["claude-adapter.js", "gate-guard.js", "drift-watcher.js", "learn-prompt.js"];
+const EDIT_TOOLS = "Edit|Write|MultiEdit|NotebookEdit";
+const adapter = (event) => `node "$CLAUDE_PROJECT_DIR/.claude/hooks/claude-adapter.js" ${event}`;
+const CLAUDE_HOOKS = {
+  UserPromptSubmit: { command: CLAUDE_HOOK_COMMAND, timeout: 10 },
+  PreToolUse: { matcher: EDIT_TOOLS, command: adapter("pre"), timeout: 15 },
+  PostToolUse: { matcher: EDIT_TOOLS, command: adapter("post"), timeout: 15 },
+  Stop: { command: adapter("stop"), timeout: 15 },
+};
 
 function findProjectRoot(start) {
   let dir = path.resolve(start || process.cwd());
@@ -184,14 +194,22 @@ function installClaudePromptHook(targetRoot) {
     }
   }
   settings.hooks = settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {};
-  const groups = Array.isArray(settings.hooks.UserPromptSubmit) ? settings.hooks.UserPromptSubmit : [];
-  const present = groups.some((group) =>
-    (group?.hooks || []).some((hook) => hook?.command === CLAUDE_HOOK_COMMAND),
-  );
-  if (!present) {
-    groups.push({ hooks: [{ type: "command", command: CLAUDE_HOOK_COMMAND, timeout: 10 }] });
+  for (const [event, spec] of Object.entries(CLAUDE_HOOKS)) {
+    const groups = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
+    const present = groups.some((group) =>
+      (group?.hooks || []).some((hook) => hook?.command === spec.command),
+    );
+    if (!present) {
+      groups.push({
+        ...(spec.matcher ? { matcher: spec.matcher } : {}),
+        hooks: [{ type: "command", command: spec.command, timeout: spec.timeout }],
+      });
+    }
+    settings.hooks[event] = groups;
   }
-  settings.hooks.UserPromptSubmit = groups;
+  // Gate, drift and stop hooks run the project's own copy, like Cursor's.
+  const { copyHookBundle } = require("./hooks");
+  copyHookBundle(targetRoot, CLAUDE_HOOKS_DIR_REL, CLAUDE_HOOK_SCRIPTS);
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   const written = writeJsonIfChanged(settingsPath, settings);
   return { changed: Boolean(written?.changed), path: CLAUDE_SETTINGS_REL.replace(/\\/g, "/") };
@@ -199,6 +217,7 @@ function installClaudePromptHook(targetRoot) {
 
 module.exports = {
   CLAUDE_HOOK_COMMAND,
+  CLAUDE_HOOKS,
   findProjectRoot,
   shouldSkipPrompt,
   buildPromptContext,
