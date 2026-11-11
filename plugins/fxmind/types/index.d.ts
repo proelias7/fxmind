@@ -1,19 +1,3 @@
-export type FxmindSnapshot = {
-  /** A task is open and Gate C is not recorded yet. */
-  isTaskActive: boolean
-  gates: { A: boolean; B: boolean; V: boolean; C: boolean }
-  memories: number
-  /** Memories the last edits may have made stale (drift log). */
-  stale: number
-  /** Jev key saved in ~/.fxmind/jev.env. */
-  hasJev: boolean
-}
-
-/** One line of what fxmind did this session, newest last. */
-export type FxmindActivity = { at: number; text: string; tone: 'ok' | 'warn' | 'info' }
-
-export type FxmindUpdate = { local: string; remote: string | null; isAvailable: boolean; message: string | null }
-
 /** One clarifying question of the prompt refiner: its text, the choices offered (maybe none) and the answer given. */
 export type RefineQuestion = { text: string; options: string[]; answer: string | null }
 
@@ -97,6 +81,13 @@ export type SettingsDraft = {
   /** violet (the brand), orange (Claude's) or rose (cherry blossom). */
   theme?: string
   appearance?: string
+  /** pt-BR or en. */
+  language?: string
+  /** The prompt refiner: auto, command or off; haiku or session; on or off; send or fill. */
+  refine?: string
+  refineWith?: string
+  refineClear?: string
+  refineSend?: string
 }
 
 /** One step of the task the progress bar follows: a todo or a task. */
@@ -164,11 +155,6 @@ export type FileTouch = {
 declare module 'claude-code' {
   interface PluginState {
     fxmind: {
-      snapshot: FxmindSnapshot | null
-      activity: FxmindActivity[]
-      update: FxmindUpdate | null
-      /** Which body the pane shows. */
-      view: 'main' | 'jev'
       /** The demand the prompt refiner is working on, or null. */
       refine: Refine | null
       /** Auto on effort: every prompt is judged and its effort applied. */
@@ -196,7 +182,7 @@ declare module 'claude-code' {
       judgeDownHidden: string | null
       /** The fxmind effort settings panel is open above the prompt. */
       settingsOpen: boolean
-      settingsCard: 'effort' | 'judge' | 'handoff' | 'show' | null
+      settingsCard: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | null
       /** Changes made in the settings panel and not saved yet. */
       settingsDraft: SettingsDraft
       /** The user and plugin skills, read when the settings panel opens. */

@@ -3,6 +3,8 @@ import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
 import { helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
 import { ART_COLUMNS, artFrame, artPixel, MOVING } from './art'
+import { MARK_SVG } from './brand-mark'
+import { setLanguage, tr } from './i18n'
 import { isLight, lightHex, lightProps, setLight, setTheme, themedEls, themedSvg, tint, tintHex } from './theme'
 import { importsOf, moduleLinks, moduleOf, relPath, withTouch } from './agents'
 import { afterPrompt, currentStep, phaseAtTurnEnd, progressShare, progressShows, progressTitle, soundArgv, stepNumber, stepsFromTodos, withTaskCreated, withTaskUpdated } from './progress'
@@ -12,7 +14,7 @@ import { afterPrompt, currentStep, phaseAtTurnEnd, progressShare, progressShows,
 // The dashboard's own tests pass { layout: 'default' }.
 type Opts = Parameters<typeof baseTest>[1]
 // The prompt refiner is off here: it would hold back the prompts these tests send (its own tests: refine.test.ts, beside this file).
-const minimal = (o?: Record<string, unknown>) => ({ ...(o ?? {}), options: { layout: 'minimal', refine: 'off', ...((o?.options as object) ?? {}) } })
+const minimal = (o?: Record<string, unknown>) => ({ ...(o ?? {}), options: { layout: 'minimal', refine: 'off', language: 'en', theme: 'violet', ...((o?.options as object) ?? {}) } })
 const test = ((name: string, a: unknown, b?: unknown) =>
   b === undefined
     ? baseTest(name, minimal() as Opts, a as never)
@@ -1163,7 +1165,12 @@ describe('judge choice (plugin settings)', () => {
       handoffButton: 'advised',
       modelAuto: 'off',
       helpers: 'off',
-      theme: 'violet',
+      theme: 'mint',
+      language: 'pt-BR',
+      refine: 'auto',
+      refineWith: 'haiku',
+      refineClear: 'on',
+      refineSend: 'send',
       appearance: 'auto',
     })
     expect(readConfig({ swampAt: '20' })).toMatchObject({ swampAt: 20 })
@@ -1326,7 +1333,6 @@ describe('setup guide', () => {
     await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
     await $.command.run({ command: 'fxmind-effort', args: 'settings' })
     const panel = await $.ui.mount(DESK)
-    expect(await drawn(panel)).toContain('Haiku')
     await panel.press({ key: 'settings-card-judge' })
     expect(await drawn(panel)).toContain('Haiku only')
     expect(await drawn(panel)).not.toContain('custom')
@@ -2487,17 +2493,15 @@ describe('settings panel', () => {
     expect(await panel.find({ key: 'show-box-swamp' })).toBeDefined()
     expect(await panel.find({ key: 'show-box-cold' })).toBeDefined()
     await panel.press({ key: 'settings-back' })
-    // Model has its own card: two choices, and the card says which is on. Off by default.
-    expect(await drawn(panel)).toContain("Always the chat's")
+    // Model has its own card: two choices. The overview names the cards and says nothing more.
+    expect(await drawn(panel)).not.toContain("Always the chat's")
     await panel.press({ key: 'settings-card-model' })
     await panel.press({ key: 'settings-model-on' })
     // Compact with is a model choice: it lives here, not in the Handoff card.
     expect(await panel.find({ key: 'settings-compact-with' })).toBeDefined()
     await panel.press({ key: 'settings-back' })
-    expect(await drawn(panel)).toContain('Cheaper when it can')
-    // The cards say what is set, unsaved changes included.
-    expect(await drawn(panel)).toContain('Smarter · medium to max · helpers')
-    expect(await drawn(panel)).toContain('/session-handoff · compact alert at')
+    // Something changed, so Save shows in the top bar.
+    expect(await panel.find({ key: 'settings-save' })).toBeDefined()
     await panel.press({ key: 'settings-card-show' })
     await panel.press({ key: 'show-box-timer' })
     await panel.press({ key: 'show-box-reason' })
@@ -2690,17 +2694,19 @@ describe('terminal bands', () => {
     // Title and buttons are in the flow, so a narrow window wraps them instead of drawing one over the other.
     expect(text).not.toMatch(/"key":"settings-(title|actions)"[^}]*"position":"absolute"/)
     expect(text).not.toContain('"href"')
-    await panel.press({ key: 'settings-bug' })
-    expect(copied[0]).toContain('github.com/proelias7/fxmind/issues/new')
     await panel.press({ key: 'settings-card-effort' })
     expect(await drawn(panel)).toContain('Helpers')
     expect(await drawn(panel)).not.toContain(' '.repeat(40))
     // Short choices are buttons, not a dropdown that opens inside the row: one press picks.
     await panel.press({ key: 'settings-back' })
     await panel.press({ key: 'settings-card-show' })
+    await panel.press({ key: 'settings-bug' })
+    expect(copied[0]).toContain('github.com/proelias7/fxmind/issues/new')
     expect(await panel.find({ key: 'settings-theme' })).toBeDefined()
+    // Nothing to save until something changes; then Save shows.
+    expect(await panel.find({ key: 'settings-save' })).toBeUndefined()
     await panel.press({ key: 'settings-theme-rose' })
-    expect(await drawn(panel)).toContain('unsaved changes')
+    expect(await panel.find({ key: 'settings-save' })).toBeDefined()
     expect(JSON.stringify(await panel.find({ key: 'settings-theme-rose' }))).toContain('"variant":"secondary"')
     await panel.unmount()
   })
@@ -3434,9 +3440,11 @@ describe('updates', () => {
     expect(await drawn(ui)).not.toContain('is out')
     await $.command.run({ command: 'fxmind-effort', args: 'settings' } as never)
     const panel = await $.ui.mount({ plugin: 'fxmind', surface: 'desktop', ...BAND })
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     expect(await panel.find({ key: 'settings-check-update' })).toBeDefined()
     await panel.press({ key: 'settings-check-update' })
     await settle()
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     expect((await panel.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.1')
   })
 
@@ -3450,8 +3458,10 @@ describe('updates', () => {
     await ui.press({ key: 'update-later' })
     await $.command.run({ command: 'fxmind-effort', args: 'settings' } as never)
     const panel = await $.ui.mount({ plugin: 'fxmind', surface: 'desktop', ...BAND })
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     await panel.press({ key: 'settings-check-update' })
     await settle()
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     expect((await panel.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.1')
     // Installed some other way (a dev release, claude plugin update), and newer than what was found.
     v.installed = '1.0.2'
@@ -3459,6 +3469,7 @@ describe('updates', () => {
     await start($)
     await settle()
     const again = await $.ui.mount({ plugin: 'fxmind', surface: 'desktop', ...BAND })
+    await again.press({ key: 'settings-card-show' }).catch(() => undefined)
     expect(await again.find({ key: 'settings-update' })).toBeUndefined()
     expect(await again.find({ key: 'settings-check-update' })).toBeDefined()
   })
@@ -3472,8 +3483,10 @@ describe('updates', () => {
     await pastSetup(panel)
     await $.command.run({ command: 'fxmind-effort', args: 'settings' } as never)
     const again = await $.ui.mount({ plugin: 'fxmind', surface: 'desktop', ...BAND })
+    await again.press({ key: 'settings-card-show' }).catch(() => undefined)
     await again.press({ key: 'settings-check-update' })
     await settle()
+    await again.press({ key: 'settings-card-show' }).catch(() => undefined)
     expect((await again.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.2')
     expect(w.ran.some(r => r.includes('fetch -q --depth 1 --filter=blob:none origin main'))).toBe(true)
   })
@@ -3495,8 +3508,10 @@ describe('updates', () => {
     v.latest = '1.0.2'
     await $.command.run({ command: 'fxmind-effort', args: 'settings' } as never)
     const panel = await $.ui.mount({ plugin: 'fxmind', surface: 'desktop', ...BAND })
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     await panel.press({ key: 'settings-check-update' })
     await settle()
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     expect((await panel.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.2')
   })
 
@@ -3508,6 +3523,7 @@ describe('updates', () => {
     await pastSetup(ui)
     await $.command.run({ command: 'fxmind-effort', args: 'settings' } as never)
     const panel = await $.ui.mount({ plugin: 'fxmind', surface: 'desktop', ...BAND })
+    await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
     await panel.press({ key: 'settings-check-update' })
     await settle()
     expect(await drawn(panel)).toContain('Up to date')
@@ -3919,11 +3935,11 @@ describe('agent panel', () => {
 })
 
 describe('theme', () => {
-  test('readConfig reads orange and falls back to violet', () => {
+  test('readConfig reads orange and falls back to mint, the fxmind theme', () => {
     expect(readConfig({ theme: 'orange' }).theme).toBe('orange')
     expect(readConfig({ theme: ' orange ' }).theme).toBe('orange')
-    expect(readConfig({ theme: 'pink' }).theme).toBe('violet')
-    expect(readConfig({}).theme).toBe('violet')
+    expect(readConfig({ theme: 'pink' }).theme).toBe('mint')
+    expect(readConfig({}).theme).toBe('mint')
   })
 
   test('orange turns the violets and leaves greys, greens, blues and yellows alone', () => {
@@ -3993,4 +4009,141 @@ describe('theme', () => {
       setTheme('violet')
     }
   })
+})
+
+describe('language and the fxmind theme', () => {
+  const start = async ($: Engine, on: On) => {
+    engine(on)
+    mock.clock(on)
+    on('session.start', (_$, e) => ({ cwd: e.cwd }) as never)
+    on('command.register', () => ({ value: undefined }) as never)
+    await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
+  }
+  const openSettings = async ($: Engine) => {
+    const guide = await $.ui.mount(DESK_BAND)
+    await guide.press({ key: 'setup-close' })
+    await guide.unmount()
+    await $.command.run({ command: 'fxmind-effort', args: 'settings' })
+    return $.ui.mount(DESK_BAND)
+  }
+
+  test('tr: words, values put back, marks kept, parts joined by a dot; unknown text and English stay', () => {
+    setLanguage('pt-BR')
+    expect(tr('Settings')).toBe('Configurações')
+    expect(tr('✦ Chat went cold')).toBe('✦ O chat esfriou')
+    expect(tr('Effort ›')).toBe('Esforço ›')
+    expect(tr('High · Auto paused')).toBe('Alto · Auto pausado')
+    expect(tr('Balanced · low to max')).toBe('Equilibrado · baixo a máximo')
+    expect(tr('Update to 1.2.3')).toBe('Atualizar para 1.2.3')
+    expect(tr('fxmind: compact failed: no reply')).toBe('fxmind: falha ao compactar: no reply')
+    expect(tr('src/server.js')).toBe('src/server.js')
+    setLanguage('en')
+    expect(tr('Settings')).toBe('Settings')
+  })
+
+  test('pt-BR: the settings panel and the reply to /fxmind-effort speak Portuguese', { options: { layout: 'default', language: 'pt-BR' } } as never, async ($, on) => {
+    await start($, on)
+    const guide = await $.ui.mount(DESK_BAND)
+    await guide.press({ key: 'setup-close' })
+    await guide.unmount()
+    const reply = await $.command.run({ command: 'fxmind-effort', args: 'settings' })
+    expect(String(reply.text)).toBe('As configurações do fxmind estão abertas acima do prompt.')
+    const panel = await $.ui.mount(DESK_BAND)
+    const text = await drawn(panel)
+    for (const word of ['Configurações', 'Esforço', 'Modelo', 'Handoff e alertas', 'Personalizar', 'Juiz']) expect(text).toContain(word)
+    expect(text).not.toContain('"Customize"')
+    await panel.press({ key: 'settings-card-show' })
+    const card = await drawn(panel)
+    expect(card).toContain('Idioma')
+    expect(card).toContain('Buscar atualizações')
+    expect(card).toContain('Português (Brasil)')
+    await panel.unmount()
+  })
+
+  test('the language is picked in Settings, Customize, and saved with the rest', { options: { layout: 'default', language: 'en' } } as never, async ($, on) => {
+    const set: { key: string; value: unknown }[] = []
+    on('config.set', (_$, e) => {
+      set.push({ key: e.key, value: e.value })
+      return { value: e.value } as never
+    })
+    await start($, on)
+    const panel = await openSettings($)
+    expect(await drawn(panel)).toContain('"Customize"')
+    await panel.press({ key: 'settings-card-show' })
+    await panel.select({ key: 'settings-language', value: 'pt-BR' })
+    await panel.press({ key: 'settings-save' })
+    expect(set).toContainEqual({ key: 'fxmind.language', value: 'pt-BR' })
+    await panel.unmount()
+  })
+
+  test('the fxmind theme turns the violets to the site mint and the dark panels to its ink', () => {
+    setTheme('mint')
+    const mint = tintHex('#a79cf7')
+    // Green leads, blue follows, red trails: a mint, not a violet.
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(mint.slice(i, i + 2), 16))
+    expect(g! > b! && b! > r!).toBe(true)
+    // A dark neutral panel leans blue; a light grey text and pure black stay.
+    const ink = tintHex('#141416')
+    expect(parseInt(ink.slice(5, 7), 16)).toBeGreaterThan(parseInt(ink.slice(1, 3), 16))
+    expect(tintHex('#d4d4d8')).toBe('#d4d4d8')
+    expect(tintHex('#000000')).toBe('#000000')
+    setTheme('violet')
+    expect(tintHex('#a79cf7')).toBe('#a79cf7')
+  })
+
+  test('the mark is the fxmind brain, in the accent the theme turns', () => {
+    expect(MARK_SVG).toContain('>FX<')
+    expect(MARK_SVG).toContain('<g mask=')
+    expect(MARK_SVG).toContain('#a79cf7')
+  })
+
+  test('the fxmind card: the prompt refiner is set there and saved with the rest, and its buttons run /fxmind', { options: { layout: 'default' } } as never, async ($, on) => {
+    const set: { key: string; value: unknown }[] = []
+    on('config.set', (_$, e) => {
+      set.push({ key: e.key, value: e.value })
+      return { value: e.value } as never
+    })
+    const ran = recordCommands(on)
+    await start($, on)
+    // A button of the card closes the panel and runs /fxmind with its mode.
+    const first = await openSettings($)
+    await first.press({ key: 'settings-card-fxmind' })
+    await first.press({ key: 'settings-fxmind-init' })
+    expect(ran).toContain('/fxmind init')
+    await first.unmount()
+    await $.command.run({ command: 'fxmind-effort', args: 'settings' })
+    const panel = await $.ui.mount(DESK_BAND)
+    await panel.press({ key: 'settings-card-fxmind' })
+    for (const key of ['settings-refine', 'settings-refine-with', 'settings-refine-clear', 'settings-refine-send']) expect(await panel.find({ key })).toBeDefined()
+    await panel.select({ key: 'settings-refine', value: 'command' })
+    await panel.select({ key: 'settings-refine-send', value: 'fill' })
+    await panel.press({ key: 'settings-save' })
+    expect(set).toContainEqual({ key: 'fxmind.refine', value: 'command' })
+    expect(set).toContainEqual({ key: 'fxmind.refineSend', value: 'fill' })
+    await panel.unmount()
+  })
+
+  // The editor extensions (VS Code, Cursor) do not stack the desktop's layers: they drew the art, the words and the
+  // buttons one under the other. They get the terminal's plain rows instead.
+  for (const surface of ['vscode', 'mobile'] as const) {
+    test(`${surface}: the bar and its settings are plain rows, with no layers laid over each other`, { options: { layout: 'default' } } as never, async ($, on) => {
+      await start($, on)
+      const at = { plugin: 'fxmind', surface, ...BAND } as never
+      const guide = await $.ui.mount(at)
+      expect(await drawn(guide)).not.toContain('"position":"absolute"')
+      await guide.press({ key: 'setup-close' })
+      await guide.unmount()
+      const band = await $.ui.mount(at)
+      const bar = await drawn(band)
+      expect(bar).not.toContain('"position":"absolute"')
+      // The gear is a word here, not three blanks under an icon layer.
+      expect((await band.find({ key: 'dash-settings' }))?.text).toBe('Settings')
+      await band.press({ key: 'dash-settings' })
+      const panel = await drawn(band)
+      expect(panel).toContain('"key":"settings-card-effort"')
+      // No layer stretched over the panel (right or bottom pinned); the one empty anchor box is nothing to stack.
+      expect(panel).not.toMatch(/"position":"absolute"[^}]*"(?:right|bottom)":0/)
+      await band.unmount()
+    })
+  }
 })

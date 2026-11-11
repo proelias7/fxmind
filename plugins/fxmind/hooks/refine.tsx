@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Refine, RefineQuestion } from '../types'
-import { projectRoot } from './pane'
+import { projectRoot } from './status'
 
 // The prompt refiner. A demand to build something is held back before it reaches the agent: Haiku reads it, asks the
 // person what a good engineer would need to know, writes the prompt the agent gets (goal, context, requirements,
@@ -24,6 +24,17 @@ const CHAT_MESSAGE_CHARS = 1500
 export type RefineConfig = { mode: Mode; with: 'haiku' | 'session'; clear: boolean; send: 'send' | 'fill' }
 const DEFAULTS: RefineConfig = { mode: 'auto', with: 'haiku', clear: true, send: 'send' }
 let config: RefineConfig = DEFAULTS
+
+/** When the refiner runs now: the setting, or what /fxmind-refine last said. The settings panel shows this. */
+export const refineMode = () => config.mode
+/** The mode picked in the settings panel, or read at session start. */
+export const setRefineMode = (mode: string) => {
+  if (mode === 'auto' || mode === 'command' || mode === 'off') config = { ...config, mode }
+}
+/** The refiner's other settings as the settings panel saved them; the mode is left as it is (see setRefineMode). */
+export const applyRefineOptions = (o: { with: string; clear: string; send: string }) => {
+  config = { ...config, with: o.with === 'session' ? 'session' : 'haiku', clear: o.clear !== 'off', send: o.send === 'fill' ? 'fill' : 'send' }
+}
 
 /** The refiner's settings as the plugin's options give them (strings); anything else is the default. */
 export function readRefineConfig(options: unknown): RefineConfig {
@@ -315,13 +326,22 @@ const MODE_SAID: Record<Mode, string> = {
   off: 'desligado',
 }
 
-/** At session start: the command, and the mode the person last chose with it (it outlives the session). */
+/** At session start: the command. */
 export async function refineStart($: EngineInterface) {
   await $.command
     .register({ name: 'fxmind-refine', description: 'Refina uma demanda antes de enviá-la ao agente: /fxmind-refine <demanda> | auto | command | off' })
     .catch(() => undefined)
-  const kept = await $.store.get('refineMode').catch(() => null)
-  if (kept === 'auto' || kept === 'command' || kept === 'off') config = { ...config, mode: kept }
+}
+
+/** The mode said with /fxmind-refine is saved as the plugin's own setting, the one the settings panel shows and
+ * writes; where the app has no row for it, in the store the settings are read back from at the next start. */
+async function keepMode($: EngineInterface, mode: Mode) {
+  const { deny } = await $.config
+    .set({ key: 'fxmind.refine', value: mode })
+    .catch((error: unknown) => ({ deny: error instanceof Error ? error.message : String(error) }))
+  const kept = ((await $.store.get('savedSettings').catch(() => null)) ?? {}) as Record<string, string>
+  const { refine: _old, ...others } = kept
+  await $.store.set('savedSettings', deny ? { ...kept, refine: mode } : others).catch(() => undefined)
 }
 
 export function registerRefine(on: On, options: unknown) {
@@ -332,7 +352,7 @@ export function registerRefine(on: On, options: unknown) {
     const arg = e.args.trim()
     if (arg === 'auto' || arg === 'command' || arg === 'off') {
       config = { ...config, mode: arg }
-      await $.store.set('refineMode', arg).catch(() => undefined)
+      await keepMode($, arg)
       if (arg === 'off') await set($, null)
       return { text: `Refinador de prompt: ${MODE_SAID[arg]}.` }
     }

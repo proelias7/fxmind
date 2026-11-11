@@ -168,9 +168,10 @@
     "theme": {
       "type": "string",
       "title": "Theme",
-      "description": "The accent colour of everything the effort bar draws. violet: the brand colour. orange: Claude Code orange. rose: cherry-blossom pink, with falling petals.",
-      "default": "violet",
+      "description": "The accent colour of everything the effort bar draws. mint: fxmind's own, the site's green on its dark ink. violet, orange (Claude Code orange) and rose (cherry-blossom pink, with falling petals).",
+      "default": "mint",
       "options": [
+        "mint",
         "violet",
         "orange",
         "rose"
@@ -225,6 +226,16 @@
       "options": [
         "send",
         "fill"
+      ]
+    },
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "The language of the effort bar, its settings and alerts. pt-BR: Portuguese (Brazil). en: English.",
+      "default": "pt-BR",
+      "options": [
+        "pt-BR",
+        "en"
       ]
     }
   }

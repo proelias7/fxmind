@@ -2,10 +2,14 @@
 // family, so the theme turns them in one place instead of keeping two sets of colours: any #rrggbb in a violet hue is
 // moved to the orange hue, neutrals and the other signal colours (green, yellow, red, blue) are left alone.
 
-export type ThemeName = 'violet' | 'orange' | 'rose'
-export const THEMES: readonly ThemeName[] = ['violet', 'orange', 'rose']
+import { getLanguage, tr, trProps, trSvg } from './i18n'
+
+export type ThemeName = 'mint' | 'violet' | 'orange' | 'rose'
+export const THEMES: readonly ThemeName[] = ['mint', 'violet', 'orange', 'rose']
 // The hue each theme turns the violets to. Rose is a cherry-blossom pink; its sparkles are drawn as falling petals (see petals).
-const HUES: Record<Exclude<ThemeName, 'violet'>, number> = { orange: 15, rose: 340 }
+// Mint is fxmind's own: the site's #7ee0b4, on its blue-black ink instead of the neutral greys (INK_HUE).
+const HUES: Record<Exclude<ThemeName, 'violet'>, number> = { mint: 153, orange: 15, rose: 340 }
+const INK_HUE = 222
 
 let current: ThemeName = 'violet'
 // Light appearance: the panels are drawn for a dark app; on a light one every colour is turned (lightHex) so the surfaces
@@ -62,7 +66,12 @@ export function tintHex(hex: string): string {
   const n = parseInt(key.slice(1), 16)
   const [h, s, l, chroma] = toHsl((n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255)
   // Violet hues with real colour in them; the greys that lean blue (hardly any chroma or saturation) are not in the family.
-  const out = h >= 235 && h <= 300 && chroma >= 0.03 && s >= 0.15 ? fromHsl(HUES[current], Math.min(1, s * (current === 'rose' ? 0.9 : 0.75)), l > 0.5 ? Math.max(0.5, l - (current === 'rose' ? 0.08 : 0.19)) : l) : hex
+  const soft = current === 'mint' ? 0.72 : current === 'rose' ? 0.9 : 0.75
+  const drop = current === 'mint' ? 0.1 : current === 'rose' ? 0.08 : 0.19
+  const out = h >= 235 && h <= 300 && chroma >= 0.03 && s >= 0.15
+    ? fromHsl(HUES[current], Math.min(1, s * soft), l > 0.5 ? Math.max(0.5, l - drop) : l)
+    // The dark neutral surfaces (panels, edges, hovers) take the site's ink; pure black and the light greys stay.
+    : current === 'mint' && s < 0.12 && l >= 0.03 && l < 0.3 ? fromHsl(INK_HUE, 0.22, l) : hex
   memo.set(key, out)
   return out
 }
@@ -178,10 +187,48 @@ const lit = (Part: unknown): unknown => {
   return wrap
 }
 
-/** The parts `$.ui.resolve` hands over, with the Svg in the theme and, in a light app, the Box, Text and Button turned light. Absent stays absent. */
+/** A props object with its hex colours (and those of its hover) in the theme: what the fxmind theme does to the panels. */
+export function tintProps(props: Record<string, unknown>): Record<string, unknown> {
+  let out = props
+  for (const k of PAINT) {
+    const v = props[k]
+    const turned = typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? tintHex(v) : v
+    if (turned !== v) out = { ...out, [k]: turned }
+  }
+  const hover = props.hover
+  if (hover && typeof hover === 'object') out = { ...out, hover: tintProps(hover as Record<string, unknown>) }
+  return out
+}
+/** A part that draws with its props passed through `map` first; one wrapper per part and map. */
+function mapped(cache: WeakMap<object, Component>, Part: unknown, map: (props: Record<string, unknown>) => Record<string, unknown>): unknown {
+  if (typeof Part !== 'function') return Part
+  let wrap = cache.get(Part as object)
+  if (!wrap) {
+    const inner = Part as unknown as Component
+    wrap = props => inner(props && typeof props === 'object' ? map(props) : props)
+    cache.set(Part as object, wrap)
+  }
+  return wrap
+}
+const inkWrapped = new WeakMap<object, Component>()
+const wordWrapped = new WeakMap<object, Component>()
+const svgWordWrapped = new WeakMap<object, Component>()
+const svgWords = (props: Record<string, unknown>) => ({
+  ...props,
+  ...(typeof props.source === 'string' ? { source: trSvg(props.source) } : {}),
+  ...(typeof props.alt === 'string' ? { alt: tr(props.alt) } : {}),
+})
+
+/** The parts `$.ui.resolve` hands over, with the Svg in the theme, the Box, Text and Button turned light in a light app
+ * (or to the site's ink in the fxmind theme), and every word in the chosen language. Absent stays absent. */
 export function themedEls<T extends object>(els: T): T {
   const out: Record<string, unknown> = { ...els }
   if ('Svg' in els) out.Svg = themedSvg((els as { Svg: unknown }).Svg)
   if (light) for (const part of ['Box', 'Text', 'Button']) if (part in els) out[part] = lit((els as Record<string, unknown>)[part])
+  if (!light && current === 'mint') for (const part of ['Box', 'Text', 'Button']) if (part in els) out[part] = mapped(inkWrapped, out[part], tintProps)
+  if (getLanguage() !== 'en') {
+    for (const part of ['Text', 'Button', 'Input', 'Link', 'Select']) if (part in out) out[part] = mapped(wordWrapped, out[part], trProps)
+    if ('Svg' in out) out.Svg = mapped(svgWordWrapped, out.Svg, svgWords)
+  }
   return out as T
 }
