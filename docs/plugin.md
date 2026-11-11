@@ -54,6 +54,16 @@ A plugin installed from a bare Git checkout does not include `node_modules`. The
 
 Cursor hooks and gates remain project-scoped through `fxmind` CLI. Global hooks could activate task gates for unrelated questions; they are intentionally not bundled by this portable plugin.
 
+## Claude Code mod
+
+In Claude Code the bundle also loads a hooks module (`plugins/fxmind/hooks/register.tsx`) with three parts:
+
+- **fxmind pane** (`pane.tsx`, `/fxmind-panel`): memories, task gates, activity and actions.
+- **Prompt refiner** (`refine.tsx`, `/fxmind-refine`): a demand to build something is held back before it reaches the agent. Haiku reads it, asks its doubts above the prompt (answer there or in the prompt box), writes a prompt from the answers (goal, context, requirements, scope, done-when), clears the chat and sends that prompt in the demand's place. Questions, follow-ups and commands pass untouched. `/fxmind-refine <demand>` refines one on request; `/fxmind-refine auto | command | off` sets when it runs. Settings: `refine`, `refineWith` (haiku or the chat's model), `refineClear`, `refineSend` (send, or fill the prompt box to review first).
+- **Effort bar** (`effort.tsx`, `/fxmind-effort`): the reasoning effort picked per prompt by a judge (Haiku, or Jev with the key in `~/.fxmind/jev.env`), the prompt-cache countdown, context use, Compact and Handoff, limit alerts, a progress bar, an agent panel (`/fxmind-effort agents`), settings and stats. Ported from [effortless](https://github.com/HeyCubit/effortless) (MIT, see `plugins/fxmind/LICENSE-effortless`); disable the effortless plugin itself when this one is on, or both judge every prompt.
+
+Check it with `claude plugin validate plugins/fxmind` and `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude plugin test plugins/fxmind` (tests sit beside the code as `hooks/*.test.ts`), and try it with `claude --plugin-dir plugins/fxmind`.
+
 ## Development
 
 Run `npm ci` then `npm test`. `scripts/plugin.test.js` validates manifests, skill sync, target selection and launcher behavior. Smoke-test a fresh session in Codex, Cursor and Claude before public marketplace publication. Public local-stdio plugin submission can require provider approval.
