@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://i.postimg.cc/zG0KyWXS/image.png" alt="fxmind" width="100%" />
+  <img src="https://i.postimg.cc/x1bsnR29/image.png" alt="fxmind" width="100%" />
 </p>
 
 <p align="center"><b>One shared memory for every AI agent on your project.</b><br/>
