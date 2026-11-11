@@ -120,7 +120,7 @@ describe('refiner', () => {
   })
 
   test('a demand is held, its doubts asked in the band; the answers make the prompt, the chat is cleared and it goes in', async ($, on) => {
-    const { seen } = engine(on, TWO_QUESTIONS, REFINED, [{ role: 'user', text: 'a API usa Express' }])
+    const { seen, clock } = engine(on, TWO_QUESTIONS, REFINED, [{ role: 'user', text: 'a API usa Express' }])
     const result = await type($, DEMAND)
     expect(String(result.drop)).toContain('2 dúvidas')
     expect(seen.entered).toEqual([])
@@ -132,7 +132,10 @@ describe('refiner', () => {
     expect(await drawn(band)).toContain('dúvida 1 de 2')
     await band.press({ key: 'refine-option-0' })
     expect(await drawn(band)).toContain('Qual a validade do token?')
-    await band.input({ key: 'refine-answer-1', text: '15 minutos' })
+    // No second input in the band: an open answer goes in the prompt box.
+    expect(await band.find({ key: 'refine-answer-1' }).catch(() => undefined)).toBeUndefined()
+    await type($, '15 minutos')
+    await clock.advance(10)
 
     expect(seen.writer).toHaveLength(1)
     expect(seen.writer[0]).toContain('Answer: MySQL')
@@ -183,6 +186,7 @@ describe('refiner', () => {
     const { seen } = engine(on, TWO_QUESTIONS)
     await type($, DEMAND)
     const band = await $.ui.mount(BAND)
+    expect(await drawn(band)).toContain('✕')
     await band.press({ key: 'refine-cancel' })
     expect(seen.filled).toEqual([DEMAND])
     expect(seen.entered).toEqual([])

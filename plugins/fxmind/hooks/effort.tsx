@@ -9,6 +9,7 @@ import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFr
 import { MARK_SVG } from './brand-mark'
 import { statusStart, statusToolCall, statusTurnEnd } from './status'
 import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
+import type { RefineFrame } from './refine'
 import { accent, setLight, setTheme, themedEls, type ThemeName, THEMES, tintHex } from './theme'
 import { type Language, LANGUAGES, setLanguage, tr } from './i18n'
 import { PILL_H, stepsFromTodos, thinkingSvg, THINK_W, withTaskCreated, withTaskUpdated } from './progress'
@@ -2436,6 +2437,49 @@ function terminalPanel($: EngineInterface, e: RenderInput<'AbovePrompt'>, key: s
   )
 }
 
+/** The prompt refiner's band (./refine says what is in it): the setup and handoff bars' frame, the brand's still art on
+ * the right, the mark and title over a dim line, the rows, then the buttons on the right with the main one last. */
+async function refineFrame($: EngineInterface, e: RenderInput<'AbovePrompt'>, band: Parameters<RefineFrame>[0]) {
+  const els = themedEls($.ui.resolve(e))
+  const { Box, Text, Svg, Button } = els
+  const close = band.onClose ? <Button key="refine-cancel" plain role="dismiss" label="✕" onPress={band.onClose} /> : null
+  if (isPlain(e)) {
+    const words = (
+      <Box key="refine-words" flexDirection="column">
+        <Text dimColor wrap="truncate">{band.detail}</Text>
+        {band.rows.map((row, i) => (
+          <Box key={`refine-row-${i}`} flexDirection="row" flexWrap="wrap" columnGap={1}>{row}</Box>
+        ))}
+      </Box>
+    )
+    return terminalPanel($, e, 'refine', `✦ ${band.title}`, words, [...band.actions, close])
+  }
+  // Rows in the flow sit under the absolute art, where they take no clicks: an empty absolute child in each lifts it.
+  const row = (key: string, parts: unknown, extra: Record<string, unknown> = {}) => (
+    <Box key={key} position="relative" flexDirection="row" flexWrap="wrap" gap={1} alignItems="center" {...extra}>
+      <Box position="absolute" top={0} left={0} />
+      {parts}
+    </Box>
+  )
+  return (
+    <Box key="refine" position="relative" flexDirection="column" gap={1} paddingX={1} overflow="hidden"
+      backgroundColor={BRAND_BG} borderStyle="round" borderColor={BRAND_EDGE}>
+      <Box key="refine-art" position="absolute" top={-1} right={0} bottom={-1}>
+        <Svg source={BRAND_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+      </Box>
+      {introLayer(els, 'refine', await introShows($, 'refine'))}
+      {row('refine-head', [
+        markTitle(els, 'refine-title', ACCENT, band.title),
+        <Box key="refine-detail" flexShrink={1} minWidth={0}><Text dimColor wrap="truncate">{band.detail}</Text></Box>,
+        <Box key="refine-head-gap" flexGrow={1} />,
+        close,
+      ], { flexWrap: 'nowrap' })}
+      {band.rows.map((parts, i) => row(`refine-row-${i}`, parts))}
+      {band.actions.length ? row('refine-actions', band.actions, { justifyContent: 'flex-end' }) : null}
+    </Box>
+  )
+}
+
 type TerminalBand = { key: string; kind: ArtKind; color: string; bg: string; edge: string; title: string; detail: string; buttons: unknown[]; autoInBar?: boolean; word?: { text: string; color: string; rest: string } }
 
 /** An alert band on the terminal: title and buttons, the detail on a line of its own, art on the right, and the effort
@@ -4548,8 +4592,8 @@ Saved to ${out}.md and .json` }
   // Draws the bands and the settings panel. Counted and guarded so /fxmind-effort debug can say whether the app asks
   // for it at all and whether drawing failed: an error here otherwise only leaves the slot empty.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    // The prompt refiner's band takes the slot while it works on a demand (./refine).
-    const refining = await refineBand($, e)
+    // The prompt refiner's band takes the slot while it works on a demand (./refine), in the bar's own frame.
+    const refining = await refineBand($, e, band => refineFrame($, e, band))
     if (refining) return refining
     // Setup changes a reload cut off are saved from here: the reloaded plugin draws before anything else runs.
     void drainSetupSave($).catch(() => undefined)

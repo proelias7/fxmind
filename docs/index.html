@@ -112,10 +112,60 @@
   .pack.on { opacity: 1; border-top-color: var(--mint); }
   .pack h3 { margin: 0 0 10px; font-size: clamp(20px, 2vw, 26px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
   .pack p { margin: 0; color: var(--muted); font-size: 15.5px; }
+
+  /* review: a change stops at Gate V while the reviewer checks it; a trivial one rides straight through */
+  .packs.two { grid-template-columns: repeat(2, 1fr); }
+  .rv-spoke { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 1.6; stroke-dasharray: 3 6; }
+  .rv-pulse { fill: none; stroke: var(--mint); stroke-width: 2.6; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--t, 0)); filter: drop-shadow(0 0 5px rgba(126,224,180,.6)); }
+  .rv-node circle { fill: #131821; stroke: rgba(255,255,255,.2); stroke-width: 1.5; transition: fill .3s, stroke .3s; }
+  .rv-node path { fill: none; stroke: var(--faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
+  .rv-node text { fill: var(--faint); font: 600 17px var(--font); transition: fill .3s; }
+  .rv-node.on circle { fill: rgba(126,224,180,.14); stroke: var(--mint); }
+  .rv-node.on path { stroke: var(--mint); } .rv-node.on text { fill: var(--text); }
+  .rv-kind { fill: var(--text); font: 13px var(--mono); text-anchor: middle; }
+  #rvw.triv .k1, #rvw:not(.triv) .k2 { display: none; }
+
+  /* mod: a mock of Claude Code's prompt area; each tab plays one scene of the mod */
+  #mod .cmd { margin: 0; max-width: none; }
+  .mtabs { margin-top: 36px; }
+  .mdesc { margin: 22px 0 0; min-height: 3em; color: var(--muted); font-size: 15.5px; }
+  #mod .tchips { margin-top: 12px; min-height: 76px; }
+  .mock { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
+  .m-win { fill: #0f1418; stroke: var(--line-2); }
+  .m-box { fill: #131821; stroke: rgba(255,255,255,.12); }
+  .m-band { fill: #101c1a; stroke: rgba(126,224,180,.45); }
+  .m-hot { fill: #1a110c; stroke: #6a3418; }
+  .m-t { fill: var(--text); font-size: 13px; } .m-b { font-weight: 700; }
+  .m-mint { fill: var(--mint); } .m-amber { fill: var(--amber); } .m-ember { fill: #f08a3c; }
+  .m-dim { fill: var(--muted); } .m-faint { fill: var(--faint); }
+  .m-mono { font-family: var(--mono); font-size: 12px; }
+  .m-k { font: 600 10px var(--mono); letter-spacing: 1.4px; }
+  .m-end { text-anchor: end; } .m-mid { text-anchor: middle; }
+  .m-num { font-size: 34px; font-weight: 800; letter-spacing: -.04em; }
+  .m-chip { fill: #131821; stroke: rgba(255,255,255,.16); }
+  .m-chip.sel { fill: rgba(126,224,180,.14); stroke: var(--mint); }
+  .m-btn { fill: var(--text); } .m-btn-t { fill: var(--ink); font-size: 12px; font-weight: 700; text-anchor: middle; }
+  .m-line { fill: #2a3338; } .m-rule { stroke: var(--line); }
+  .m-track { stroke: rgba(255,255,255,.12); stroke-width: 2; stroke-linecap: round; }
+  .m-stop { fill: #2a3338; } .m-fill { fill: var(--mint); }
+  .scene { opacity: 0; visibility: hidden; transition: opacity .35s ease, visibility .35s; }
+  .scene.on { opacity: 1; visibility: visible; }
+  /* Entrances: the drawn state is the final one, so reduced motion simply shows it. */
+  .scene.on .a { animation: m-rise .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--dl, 0s); }
+  .scene.on .a-pick { animation: m-pick .3s ease both; animation-delay: var(--dl, 0s); }
+  .scene.on .a-knob { animation: m-knob .9s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--dl, 0s); }
+  .scene.on .a-grow { transform-box: fill-box; transform-origin: left; animation: m-grow .9s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--dl, 0s); }
+  .scene.on .a-pulse { animation: m-pulse 1.6s ease-in-out infinite; }
+  @keyframes m-rise { from { opacity: 0; transform: translateY(10px); } }
+  @keyframes m-pick { from { fill: #131821; stroke: rgba(255,255,255,.16); } }
+  @keyframes m-knob { from { transform: translateX(-100px); } }
+  @keyframes m-grow { from { transform: scaleX(0); } }
+  @keyframes m-pulse { 50% { opacity: .35; } }
   @media (max-width: 760px) {
-    .tools-grid { grid-template-columns: 1fr; gap: 24px; }
+    .tools-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
     .hub { max-width: 420px; margin: 0 auto; order: -1; }
     .packs { grid-template-columns: 1fr 1fr; gap: 28px 20px; }
+    .mock { max-width: 480px; margin: 0 auto; }
   }
 
   .big { margin: 0 0 44px; font-size: clamp(26px, 3.6vw, 40px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.15; max-width: 18em; }
@@ -284,6 +334,7 @@
     html { scroll-behavior: auto; } .btn { transition: none; }
     .hero h1, .hero .sub, .hero .ctas, .hero .steps, .brain, .hint .arrow { animation: none; }
     .neu.on .glow, .jev-node.on .glow { animation: none; }
+    .scene, .scene.on .a, .scene.on .a-pick, .scene.on .a-knob, .scene.on .a-grow, .scene.on .a-pulse { animation: none; transition: none; }
     .step, .neu .core, .neu .glow, .jev-node .glow { transition: none; }
   }
 </style>
@@ -296,6 +347,7 @@
     <a class="brand" href="#brain" aria-label="fxmind"><img src="assets/logo.png" alt="" width="34" height="34" />fxmind</a>
     <a class="opt" href="#tools" data-i18n="nav.how">Tools</a>
     <a class="opt" href="#packs" data-i18n="nav.specialties">Specialties</a>
+    <a class="opt" href="#mod" data-i18n="nav.mod">Claude mod</a>
     <a href="https://github.com/proelias7/fxmind">GitHub</a>
     <div class="lang" role="group" aria-label="Language">
       <button type="button" data-lang="en" aria-pressed="true">EN</button>
@@ -489,6 +541,164 @@
     </div>
   </section>
 
+  <section class="sec" id="review">
+    <div class="wrap">
+      <h2 data-i18n="review.t">Reviewed when the change calls for it.</h2>
+      <!-- gates A B V C: a change that needs it waits at V while the reviewer checks; a trivial one passes -->
+      <svg class="pipe" id="rvw" viewBox="0 0 1000 300" aria-hidden="true">
+        <line class="pipe-track" x1="40" y1="200" x2="960" y2="200"/>
+        <line class="pipe-fill" id="rvFill" x1="40" y1="200" x2="40" y2="200"/>
+        <path class="rv-spoke" d="M625 138L625 76"/>
+        <path class="rv-pulse" id="rvPulse" pathLength="1" d="M625 138L625 76"/>
+        <g class="rv-node" id="rvNode" transform="translate(625 46)">
+          <circle r="28"/>
+          <path d="M-13 0C-7 -9 7 -9 13 0C7 9 -7 9 -13 0Z"/><path d="M0 -3.5A3.5 3.5 0 1 0 0 3.5A3.5 3.5 0 1 0 0 -3.5Z"/>
+          <text x="42" y="6" data-i18n="review.who">Reviewer</text>
+        </g>
+        <g class="gate" transform="translate(125 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">A</text></g>
+        <g class="gate" transform="translate(375 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">B</text></g>
+        <g class="gate" transform="translate(625 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">V</text></g>
+        <g class="gate" transform="translate(875 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">C</text></g>
+        <g id="rvCard">
+          <rect class="pc-bg" x="-68" y="-38" width="136" height="76" rx="12"/>
+          <rect class="pc-add" x="-52" y="-22" width="58" height="6" rx="3"/>
+          <rect class="pc-del" x="-52" y="-8" width="84" height="6" rx="3"/>
+          <text class="rv-kind k1" y="22" data-i18n="review.k1">fix · 2 files</text>
+          <text class="rv-kind k2" y="22" data-i18n="review.k2">trivial</text>
+          <g class="pc-ok" transform="translate(56 -36)"><circle r="13"/><path d="M-6 0l4 4 8-8"/></g>
+        </g>
+      </svg>
+      <div class="packs two">
+        <div class="pack"><h3 data-i18n="review.yes.t">Goes to the reviewer</h3><p data-i18n="review.yes.d">Any Lua file, more than one file, or a fix, mechanic or create task.</p></div>
+        <div class="pack"><h3 data-i18n="review.no.t">Passes on its evidence</h3><p data-i18n="review.no.d">A trivial task, or a single non-Lua file.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="mod">
+    <div class="wrap tools-grid">
+      <div>
+        <h2 data-i18n="mod.t">A mod inside Claude Code.</h2>
+        <div class="cmd"><code id="modCmd">/plugin install fxmind --marketplace proelias7/fxmind</code><button class="copy" type="button" data-copy="modCmd" data-i18n="copy">Copy</button></div>
+        <p class="req"><span data-i18n="mod.install.d">Restart Claude Code to load it.</span> · <a href="https://github.com/proelias7/fxmind/blob/main/docs/plugin.md" data-i18n="mod.docs">Plugin docs</a></p>
+        <div class="tgroups mtabs" role="group" data-i18n-aria="mod.t" aria-label="Mod features">
+          <button type="button" aria-pressed="true" data-chips="/fxmind-refine &lt;demand&gt;~/fxmind-refine auto | command | off" data-chips-pt="/fxmind-refine &lt;demanda&gt;~/fxmind-refine auto | command | off"><span data-i18n="m.refine">Refiner</span></button>
+          <button type="button" aria-pressed="false" data-chips="/fxmind-effort settings~/fxmind-effort agents~/fxmind-effort stats"><span data-i18n="m.effort">Effort bar</span></button>
+          <button type="button" aria-pressed="false" data-chips="/fxmind init~/fxmind memory health~/fxmind learn"><span data-i18n="m.card">fxmind card</span></button>
+          <button type="button" aria-pressed="false" data-chips="A~B~V~C"><span data-i18n="m.status">Status line</span></button>
+          <button type="button" aria-pressed="false" data-chips="pt-BR~en~mint"><span data-i18n="m.theme">Theme</span></button>
+        </div>
+        <p class="mdesc" aria-live="polite">
+          <span data-i18n="m.refine.d">Holds a request to build, asks what is missing and sends a complete prompt.</span>
+          <span data-i18n="m.effort.d" hidden>Picks the effort for each message; shows cache, context and limits.</span>
+          <span data-i18n="m.card.d" hidden>The refiner's options and three project actions, in settings.</span>
+          <span data-i18n="m.status.d" hidden>Memories, what to review and the open task's gates.</span>
+          <span data-i18n="m.theme.d" hidden>Brazilian Portuguese by default, in the fxmind theme.</span>
+        </p>
+        <div class="tchips" id="modChips"></div>
+      </div>
+      <!-- mock: the prompt area of Claude Code with the mod's band above it; one scene per tab -->
+      <svg class="mock" id="modSvg" viewBox="0 0 480 360" aria-hidden="true">
+        <rect class="m-win" x=".5" y=".5" width="479" height="359" rx="18"/>
+        <circle cx="24" cy="24" r="4" fill="#2a3338"/><circle cx="38" cy="24" r="4" fill="#2a3338"/><circle cx="52" cy="24" r="4" fill="#2a3338"/>
+
+        <g class="scene on">
+          <g class="a" style="--dl:2.6s">
+            <rect class="m-band" x="16" y="50" width="448" height="114" rx="12"/>
+            <text class="m-k m-mint" x="32" y="74" data-i18n="mk.rp">REFINED PROMPT</text>
+            <text class="m-t m-dim m-end" x="448" y="74" style="font-size:11px" data-i18n="mk.sent">✓ sent</text>
+            <text class="m-t m-dim" x="32" y="98" style="font-size:12px" data-i18n="mk.g1">Goal</text><rect class="m-line" x="150" y="91" width="250" height="6" rx="3"/>
+            <text class="m-t m-dim" x="32" y="116" style="font-size:12px" data-i18n="mk.g2">Context</text><rect class="m-line" x="150" y="109" width="190" height="6" rx="3"/>
+            <text class="m-t m-dim" x="32" y="134" style="font-size:12px" data-i18n="mk.g3">Requirements</text><rect class="m-line" x="150" y="127" width="282" height="6" rx="3"/>
+            <text class="m-t m-dim" x="32" y="152" style="font-size:12px" data-i18n="mk.g4">Done when</text><rect class="m-line" x="150" y="145" width="150" height="6" rx="3"/>
+          </g>
+          <g class="a" style="--dl:.7s">
+            <rect class="m-band" x="16" y="178" width="448" height="106" rx="12"/>
+            <text class="m-t" x="32" y="202"><tspan class="m-mint m-b" data-i18n="mk.rt">✦ Prompt refiner</tspan><tspan class="m-dim" dx="10" data-i18n="mk.rq">question 1 of 2</tspan></text>
+            <text class="m-t m-b" x="32" y="228" style="font-size:14px" data-i18n="mk.q">Where do the users live?</text>
+            <rect class="m-chip sel a-pick" style="--dl:1.9s" x="32" y="242" width="72" height="28" rx="8"/><text class="m-t m-mid" x="68" y="261">MySQL</text>
+            <rect class="m-chip" x="112" y="242" width="84" height="28" rx="8"/><text class="m-t m-mid" x="154" y="261">Postgres</text>
+          </g>
+          <rect class="m-box" x="16" y="296" width="448" height="46" rx="14"/>
+          <text class="m-t a" x="34" y="324" data-i18n="mk.demand">Add JWT login to the API</text>
+        </g>
+
+        <g class="scene">
+          <g class="a" style="--dl:.2s">
+            <rect class="m-box" x="212" y="52" width="252" height="36" rx="12"/>
+            <text class="m-t m-end" x="448" y="75" data-i18n="mk.msg">Refactor the auth module</text>
+          </g>
+          <g class="a" style="--dl:2.2s">
+            <rect class="m-hot" x="16" y="104" width="448" height="38" rx="12"/>
+            <text class="m-t" x="32" y="128" style="font-size:12px"><tspan class="m-ember m-b" data-i18n="mk.hot">✦ Running hot</tspan><tspan class="m-dim" dx="8" data-i18n="mk.hotd">81% of your 5h limit</tspan></text>
+            <rect class="m-btn" x="350" y="111" width="102" height="24" rx="7"/><text class="m-btn-t" x="401" y="127" data-i18n="mk.save">Save mode</text>
+          </g>
+          <g class="a" style="--dl:.7s">
+            <rect class="m-band" x="16" y="156" width="448" height="128" rx="12"/>
+            <text class="m-t m-mint m-b" x="32" y="182" style="font-size:15px" data-i18n="mk.lvl">✦ High</text>
+            <text class="m-t m-dim m-mono m-end" x="448" y="182">cache 58m</text>
+            <text class="m-t m-dim" x="32" y="202" style="font-size:12px" data-i18n="mk.auto">Auto picks the effort for each message</text>
+            <line class="m-track" x1="38" y1="230" x2="238" y2="230"/>
+            <circle class="m-stop" cx="38" cy="230" r="4"/><circle class="m-stop" cx="88" cy="230" r="4"/><circle class="m-stop" cx="138" cy="230" r="4"/><circle class="m-stop" cx="188" cy="230" r="4"/><circle class="m-stop" cx="238" cy="230" r="4"/>
+            <circle class="m-fill a-knob" style="--dl:1.2s" cx="138" cy="230" r="8"/>
+            <text class="m-t m-dim m-end" x="448" y="226" style="font-size:12px" data-i18n="mk.ctx">Context 42%</text>
+            <rect class="m-line" x="330" y="234" width="118" height="5" rx="2.5"/><rect class="m-fill a-grow" style="--dl:1.2s" x="330" y="234" width="50" height="5" rx="2.5"/>
+            <rect class="m-chip" x="32" y="250" width="96" height="24" rx="7"/><text class="m-t m-mid" x="80" y="266" style="font-size:12px" data-i18n="mk.compact">Compact</text>
+            <rect class="m-chip" x="136" y="250" width="84" height="24" rx="7"/><text class="m-t m-mid" x="178" y="266" style="font-size:12px">Handoff</text>
+          </g>
+          <rect class="m-box" x="16" y="296" width="448" height="46" rx="14"/>
+        </g>
+
+        <g class="scene">
+          <rect class="m-band" x="16" y="50" width="448" height="234" rx="12"/>
+          <text class="m-t m-mint m-b" x="32" y="78" style="font-size:15px">✦ fxmind</text>
+          <line class="m-rule" x1="32" y1="92" x2="448" y2="92"/>
+          <g class="a" style="--dl:.3s"><text class="m-t m-dim" x="32" y="118" style="font-size:12px" data-i18n="mk.o1">Prompt refiner</text>
+            <text class="m-t" x="170" y="118" style="font-size:12px"><tspan class="m-mint m-b" data-i18n="mk.o1a">Automatic</tspan><tspan class="m-faint" dx="6">·</tspan><tspan class="m-dim" dx="6" data-i18n="mk.o1b">Command only</tspan><tspan class="m-faint" dx="6">·</tspan><tspan class="m-dim" dx="6" data-i18n="mk.o1c">Off</tspan></text></g>
+          <g class="a" style="--dl:.5s"><text class="m-t m-dim" x="32" y="144" style="font-size:12px" data-i18n="mk.o2">Refine with</text>
+            <text class="m-t" x="170" y="144" style="font-size:12px"><tspan class="m-mint m-b">Haiku 5.5</tspan><tspan class="m-faint" dx="6">·</tspan><tspan class="m-dim" dx="6" data-i18n="mk.o2b">Chat's model</tspan></text></g>
+          <g class="a" style="--dl:.7s"><text class="m-t m-dim" x="32" y="170" style="font-size:12px" data-i18n="mk.o3">Clear chat</text>
+            <text class="m-t" x="170" y="170" style="font-size:12px"><tspan class="m-mint m-b" data-i18n="mk.o3a">Yes</tspan><tspan class="m-faint" dx="6">·</tspan><tspan class="m-dim" dx="6" data-i18n="mk.o3b">No</tspan></text></g>
+          <g class="a" style="--dl:.9s"><text class="m-t m-dim" x="32" y="196" style="font-size:12px" data-i18n="mk.o4">Refined prompt</text>
+            <text class="m-t" x="170" y="196" style="font-size:12px"><tspan class="m-mint m-b" data-i18n="mk.o4a">Send</tspan><tspan class="m-faint" dx="6">·</tspan><tspan class="m-dim" dx="6" data-i18n="mk.o4b">Review first</tspan></text></g>
+          <line class="m-rule" x1="32" y1="214" x2="448" y2="214"/>
+          <g class="a" style="--dl:1.3s"><rect class="m-chip" x="32" y="232" width="130" height="32" rx="9"/><text class="m-t m-mid" x="97" y="252" style="font-size:12px" data-i18n="mk.a1">Map project</text></g>
+          <g class="a" style="--dl:1.45s"><rect class="m-chip" x="172" y="232" width="136" height="32" rx="9"/><text class="m-t m-mid" x="240" y="252" style="font-size:12px" data-i18n="mk.a2">Review memories</text></g>
+          <g class="a" style="--dl:1.6s"><rect class="m-chip" x="318" y="232" width="130" height="32" rx="9"/><text class="m-t m-mid" x="383" y="252" style="font-size:12px" data-i18n="mk.a3">Learn</text></g>
+          <rect class="m-box" x="16" y="296" width="448" height="46" rx="14"/>
+        </g>
+
+        <g class="scene">
+          <g class="a" style="--dl:.3s"><rect class="m-box" x="16" y="76" width="140" height="112" rx="12"/>
+            <text class="m-num m-mint" x="34" y="130">24</text><text class="m-t m-dim" x="34" y="160" data-i18n="mk.s1">memories</text></g>
+          <g class="a" style="--dl:.5s"><rect class="m-box" x="170" y="76" width="140" height="112" rx="12"/>
+            <text class="m-num m-amber" x="188" y="130">3</text><text class="m-t m-dim" x="188" y="160" data-i18n="mk.s2">to review</text></g>
+          <g class="a" style="--dl:.7s"><rect class="m-box" x="324" y="76" width="140" height="112" rx="12"/>
+            <circle class="m-fill" cx="350" cy="118" r="9"/><circle class="m-fill" cx="380" cy="118" r="9"/><circle class="m-fill a-pulse" cx="410" cy="118" r="9"/><circle class="m-stop" cx="440" cy="118" r="9"/>
+            <text class="m-k m-mid" x="350" y="121.5" fill="#08251a">A</text><text class="m-k m-mid" x="380" y="121.5" fill="#08251a">B</text><text class="m-k m-mid" x="410" y="121.5" fill="#08251a">V</text><text class="m-k m-mid m-dim" x="440" y="121.5">C</text>
+            <text class="m-t m-dim" x="342" y="160" data-i18n="mk.s3">open task</text></g>
+          <rect class="m-box" x="16" y="232" width="448" height="46" rx="14"/>
+          <g class="a" style="--dl:1.2s"><rect class="m-band" x="16" y="296" width="448" height="34" rx="10"/>
+            <text class="m-t m-mono" x="30" y="317" style="font-size:11.5px">fxmind · 24 memórias · 3 a rever · tarefa A✓ B✓ V· C·</text></g>
+        </g>
+
+        <g class="scene">
+          <rect class="m-band" x="16" y="50" width="448" height="234" rx="12"/>
+          <text class="m-t m-mint m-b" x="32" y="78" style="font-size:15px" data-i18n="mk.cz">✦ Customize</text>
+          <line class="m-rule" x1="32" y1="92" x2="448" y2="92"/>
+          <g class="a" style="--dl:.3s"><text class="m-t m-dim" x="32" y="122" style="font-size:12px" data-i18n="mk.lang">Language</text>
+            <text class="m-t" x="170" y="122" style="font-size:12px"><tspan class="m-mint m-b">Português (Brasil)</tspan><tspan class="m-faint" dx="6">·</tspan><tspan class="m-dim" dx="6">English</tspan></text></g>
+          <g class="a" style="--dl:.6s"><text class="m-t m-dim" x="32" y="158" style="font-size:12px" data-i18n="mk.theme">Theme</text></g>
+          <g class="a" style="--dl:.8s"><circle cx="84" cy="204" r="16" fill="#7ee0b4"/><circle class="a-pulse" cx="84" cy="204" r="22" fill="none" stroke="#7ee0b4" stroke-width="1.6"/><text class="m-t m-mid" x="84" y="250" style="font-size:11.5px">fxmind</text></g>
+          <g class="a" style="--dl:.95s"><circle cx="188" cy="204" r="16" fill="#a79cf7"/><text class="m-t m-dim m-mid" x="188" y="250" style="font-size:11.5px" data-i18n="mk.t2">Violet</text></g>
+          <g class="a" style="--dl:1.1s"><circle cx="292" cy="204" r="16" fill="#d97757"/><text class="m-t m-dim m-mid" x="292" y="250" style="font-size:11.5px" data-i18n="mk.t3">Claude orange</text></g>
+          <g class="a" style="--dl:1.25s"><circle cx="396" cy="204" r="16" fill="#f4a6c8"/><text class="m-t m-dim m-mid" x="396" y="250" style="font-size:11.5px" data-i18n="mk.t4">Cherry blossom</text></g>
+          <rect class="m-box" x="16" y="296" width="448" height="46" rx="14"/>
+        </g>
+      </svg>
+    </div>
+  </section>
+
 </main>
 
 <footer>
@@ -536,6 +746,33 @@
     "practice.security.t": "Segurança", "practice.security.d": "Validação de entradas, verificação de permissões e proteção dos dados em cada ponto de acesso.",
     "practice.perf.t": "Desempenho", "practice.perf.d": "Consultas eficientes, cache bem definido e menos processamento e transferência de dados desnecessários.",
     "practice.quality.t": "Qualidade de código", "practice.quality.d": "Código legível, tratamento de erros, acessibilidade e testes que evitam regressões.",
+    "nav.mod": "Mod do Claude",
+    "review.t": "Revisão quando a mudança pede.", "review.who": "Revisor",
+    "review.k1": "fix · 2 arquivos", "review.k2": "trivial",
+    "review.yes.t": "Vai para o revisor", "review.yes.d": "Qualquer arquivo Lua, mais de um arquivo ou uma tarefa de fix, mechanic ou create.",
+    "review.no.t": "Passa pela evidência", "review.no.d": "Uma tarefa trivial, ou um único arquivo que não é Lua.",
+    "mod.t": "Um mod dentro do Claude Code.",
+    "mod.install.d": "Reinicie o Claude Code para carregar.", "mod.docs": "Documentação do plugin",
+    "m.refine": "Refinador", "m.effort": "Barra de esforço", "m.card": "Cartão fxmind", "m.status": "Linha de status", "m.theme": "Tema",
+    "m.refine.d": "Segura o pedido, pergunta o que falta e envia um prompt completo.",
+    "m.effort.d": "Escolhe o esforço de cada mensagem; mostra cache, contexto e limites.",
+    "m.card.d": "As opções do refinador e três ações do projeto, nas configurações.",
+    "m.status.d": "Memórias, o que rever e os gates da tarefa aberta.",
+    "m.theme.d": "Português do Brasil por padrão, no tema do fxmind.",
+    "mk.rp": "PROMPT REFINADO", "mk.sent": "✓ enviado",
+    "mk.g1": "Objetivo", "mk.g2": "Contexto", "mk.g3": "Requisitos", "mk.g4": "Pronto quando",
+    "mk.rt": "✦ Refinador de prompt", "mk.rq": "dúvida 1 de 2", "mk.q": "Onde ficam os usuários?",
+    "mk.demand": "Adicione login JWT na API", "mk.msg": "Refatore o módulo de auth",
+    "mk.hot": "✦ Limite chegando", "mk.hotd": "81% do seu limite 5h", "mk.save": "Modo economia",
+    "mk.lvl": "✦ Alto", "mk.auto": "O Auto escolhe o esforço de cada mensagem", "mk.ctx": "Contexto 42%", "mk.compact": "Compactar",
+    "mk.o1": "Refinador de prompt", "mk.o1a": "Automático", "mk.o1b": "Só por comando", "mk.o1c": "Desligado",
+    "mk.o2": "Refinar com", "mk.o2b": "Modelo do chat",
+    "mk.o3": "Limpar o chat", "mk.o3a": "Sim", "mk.o3b": "Não",
+    "mk.o4": "Prompt refinado", "mk.o4a": "Enviar", "mk.o4b": "Revisar antes",
+    "mk.a1": "Mapear projeto", "mk.a2": "Rever memórias", "mk.a3": "Aprender",
+    "mk.s1": "memórias", "mk.s2": "a rever", "mk.s3": "tarefa aberta",
+    "mk.cz": "✦ Personalizar", "mk.lang": "Idioma", "mk.theme": "Tema",
+    "mk.t2": "Violeta", "mk.t3": "Laranja Claude", "mk.t4": "Flor de cerejeira",
     "install.update": "Para atualizar:",
     "install.req": "Node.js 20.9+.", "install.ref": "Referência completa",
     "it.prompt": "Prompt", "it.cmd": "Comando",
@@ -623,7 +860,7 @@
     const io = new IntersectionObserver((entries) => entries.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
     }), { threshold: 0.15, rootMargin: "0px 0px -8% 0px" });
-    document.querySelectorAll(".sec h2, .tgroups, .hub, .pipe").forEach((el) => {
+    document.querySelectorAll(".sec h2, .tgroups, .hub, .pipe, .mock").forEach((el) => {
       el.classList.add("rv");
       el.style.setProperty("--d", `${([...el.parentElement.children].indexOf(el) % 6) * 80}ms`);
       io.observe(el);
@@ -641,7 +878,7 @@
 
   // Tools hub: six groups around fxmind; the selected one sends packets in and lists its tools.
   const hub = document.getElementById("toolHub"), chips = document.getElementById("toolChips");
-  const groups = [...document.querySelectorAll(".tgroups button")];
+  const groups = [...document.querySelectorAll("#tools .tgroups button")];
   const hubNodes = groups.map((btn, i) => {
     const a = (-90 + i * 60) * Math.PI / 180, x = 260 + 165 * Math.cos(a), y = 220 + 165 * Math.sin(a);
     const spoke = mk("path", { id: `spoke${i}`, class: "spoke", d: `M${x} ${y}L260 220` }, hub.querySelector("#hubSpokes"));
@@ -669,7 +906,7 @@
 
   // Practices pipeline: a change rides the track and lights each gate as it passes.
   const pipe = document.getElementById("pipe"), pipeCard = pipe.querySelector("#pipeCard"), fill = pipe.querySelector("#pipeFill");
-  const gates = [...pipe.querySelectorAll(".gate")], packs = [...document.querySelectorAll(".pack")], GX = [125, 375, 625, 875];
+  const gates = [...pipe.querySelectorAll(".gate")], packs = [...document.querySelectorAll("#packs .pack")], GX = [125, 375, 625, 875];
   const drawPipe = (x, done) => {
     pipeCard.setAttribute("transform", `translate(${x} 100)`);
     fill.setAttribute("x2", x);
@@ -682,6 +919,55 @@
     const k = (t % CYCLE) / CYCLE, m = Math.min(1, k / 0.8), e = m < 0.5 ? 2 * m * m : 1 - (-2 * m + 2) ** 2 / 2;
     drawPipe(40 + 920 * e, k >= 0.8);
   });
+
+  // Review: a change that calls for it waits at Gate V while the reviewer checks; a trivial one rides straight through.
+  const rvw = document.getElementById("rvw"), rvCard = rvw.querySelector("#rvCard"), rvFill = rvw.querySelector("#rvFill");
+  const rvGates = [...rvw.querySelectorAll(".gate")], rvNode = rvw.querySelector("#rvNode"), rvPulse = rvw.querySelector("#rvPulse");
+  const rvPacks = [...document.querySelectorAll("#review .pack")];
+  const ease = (m) => (m < 0.5 ? 2 * m * m : 1 - (-2 * m + 2) ** 2 / 2);
+  const drawReview = (x, trivial, called, done) => {
+    rvCard.setAttribute("transform", `translate(${x} 200)`);
+    rvFill.setAttribute("x2", x);
+    rvGates.forEach((g, i) => g.classList.toggle("on", x >= GX[i]));
+    rvw.classList.toggle("triv", trivial); rvw.classList.toggle("done", done);
+    rvPulse.style.setProperty("--t", called.toFixed(3));
+    rvNode.classList.toggle("on", called >= 1);
+    rvPacks[0].classList.toggle("on", !trivial); rvPacks[1].classList.toggle("on", trivial);
+  };
+  const REVIEWED = 7000, TRIVIAL = 4500;
+  if (rm) drawReview(GX[2], false, 1, false);
+  else whileVisible(rvw, (t) => {
+    const at = t % (REVIEWED + TRIVIAL);
+    if (at >= REVIEWED) {
+      const k = (at - REVIEWED) / TRIVIAL;
+      return drawReview(40 + 920 * ease(Math.min(1, k / 0.8)), true, 0, k >= 0.8);
+    }
+    const k = at / REVIEWED;  // rides to V, waits for the reviewer, rides on
+    if (k < 0.3) drawReview(40 + (GX[2] - 40) * ease(k / 0.3), false, 0, false);
+    else if (k < 0.62) drawReview(GX[2], false, Math.min(1, (k - 0.3) / 0.16), false);
+    else drawReview(GX[2] + (960 - GX[2]) * ease(Math.min(1, (k - 0.62) / 0.26)), false, 1, k >= 0.88);
+  });
+
+  // Mod mock: each tab shows its scene (which replays its entrance), its one line and its commands.
+  const mtabs = [...document.querySelectorAll(".mtabs button")], scenes = [...document.querySelectorAll("#modSvg .scene")];
+  const mdescs = [...document.querySelectorAll(".mdesc span")], mchips = document.getElementById("modChips");
+  let scene = 0, scenePaused = false;
+  function showScene(i, byUser) {
+    scene = i; if (byUser) scenePaused = true;
+    mtabs.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+    scenes.forEach((s, j) => s.classList.toggle("on", j === i));
+    mdescs.forEach((d, j) => { d.hidden = j !== i; });
+    const list = ((lang === "pt" && mtabs[i].dataset.chipsPt) || mtabs[i].dataset.chips).split("~");
+    mchips.replaceChildren(...list.map((text, k) => {
+      const chip = document.createElement("code");
+      chip.style.setProperty("--i", k); chip.textContent = text;
+      return chip;
+    }));
+  }
+  mtabs.forEach((b, i) => b.addEventListener("click", () => showScene(i, true)));
+  document.querySelectorAll(".lang button").forEach((b) => b.addEventListener("click", () => showScene(scene)));
+  showScene(0);
+  if (!rm) setInterval(() => { if (!scenePaused && !document.hidden) showScene((scene + 1) % mtabs.length); }, 6500);
 
   // Brain story: neurons, synapses and the query path, driven by scroll progress.
   const NS = "http://www.w3.org/2000/svg", brain = document.getElementById("brainSvg"), story = document.getElementById("brain");

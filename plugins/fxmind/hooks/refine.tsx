@@ -3,6 +3,7 @@ import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Refine, RefineQuestion } from '../types'
 import { projectRoot } from './status'
+import { themedEls } from './theme'
 
 // The prompt refiner. A demand to build something is held back before it reaches the agent: Haiku reads it, asks the
 // person what a good engineer would need to know, writes the prompt the agent gets (goal, context, requirements,
@@ -270,54 +271,57 @@ export async function refineSubmit(
   }
 }
 
+/** What the band says and offers; the bar (./effort) draws it in its own frame, so every band above the prompt looks alike. */
+export type RefineFrame = (band: {
+  title: string
+  /** One dim line beside the title. */
+  detail: string
+  /** Rows under the title, each a list of parts laid side by side. */
+  rows: unknown[][]
+  /** The buttons, the main one last. */
+  actions: unknown[]
+  /** The ✕ in the corner, when the refinement can be dropped. */
+  onClose?: () => unknown
+}) => Promise<unknown> | unknown
+
 /** The refiner's band above the prompt while it works, or nothing when it is idle. */
-export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
+export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt'>, frame: RefineFrame) {
   const now = await read($, state)
   if (!now) return null
-  const { Box, Button, Input, Text } = $.ui.resolve(e)
-  const head = (what: string) => (
-    <Box key="refine-head" flexDirection="row" gap={1}>
-      <Text bold color="green">◆ fxmind</Text>
-      <Text bold>Refinador de prompt</Text>
-      <Text dimColor>{what}</Text>
-    </Box>
-  )
-  const demand = <Text key="refine-demand" dimColor>{now.demand.trim().replace(/\s+/g, ' ').slice(0, 160)}</Text>
+  const { Button, Text } = themedEls($.ui.resolve(e))
+  const title = 'Refinador de prompt'
 
   if (now.stage === 'reading' || now.stage === 'writing') {
-    return (
-      <Box key="refine" flexDirection="column" paddingX={1} borderStyle="round" borderColor="green">
-        {head(now.stage === 'reading' ? 'lendo a demanda…' : 'montando o prompt com as melhores práticas…')}
-        {demand}
-      </Box>
-    )
+    return frame({
+      title,
+      detail: now.stage === 'reading' ? 'lendo a demanda…' : 'montando o prompt…',
+      rows: [[<Text key="refine-demand" dimColor wrap="truncate">{now.demand.trim().replace(/\s+/g, ' ').slice(0, 160)}</Text>]],
+      actions: [],
+    })
   }
 
+  // An answer is a choice below or a line typed in the prompt box (refineSubmit): one place to type, not two.
   const question = now.questions[now.at]
-  return (
-    <Box key="refine" flexDirection="column" gap={1} paddingX={1} borderStyle="round" borderColor="green">
-      {head(question ? `dúvida ${now.at + 1} de ${now.questions.length}` : 'pronto para montar')}
-      {demand}
-      {now.error ? <Text key="refine-error" color="yellow">{now.error}</Text> : null}
-      {question ? <Text key="refine-question" bold>{question.text}</Text> : null}
-      {question?.options.length ? (
-        <Box key="refine-options" flexDirection="row" flexWrap="wrap" gap={1}>
-          {question.options.map((option, i) => (
-            <Button key={`refine-option-${i}`} label={option} onPress={() => answer($, option)} />
-          ))}
-        </Box>
-      ) : null}
-      {question ? (
-        <Input key={`refine-answer-${now.at}`} autoFocus placeholder="Sua resposta (ou digite no campo do chat)" submitLabel="responder" onSubmit={(value: string) => answer($, value)} />
-      ) : null}
-      <Box key="refine-actions" flexDirection="row" flexWrap="wrap" gap={1}>
-        {question ? <Button key="refine-skip" label="Pular" onPress={() => answer($, null)} /> : null}
-        <Button key="refine-write" variant="primary" label={question ? 'Montar agora' : now.error ? 'Tentar de novo' : 'Montar prompt'} onPress={() => write($)} />
-        <Button key="refine-raw" label="Enviar sem refinar" onPress={() => sendAsTyped($)} />
-        <Button key="refine-cancel" label="Cancelar" onPress={() => cancel($)} />
-      </Box>
-    </Box>
-  )
+  const rows: unknown[][] = []
+  if (now.error) rows.push([<Text key="refine-error" color="#e0a33a" wrap="truncate">{now.error}</Text>])
+  if (question) {
+    rows.push([<Text key="refine-question" bold>{question.text}</Text>])
+    if (question.options.length)
+      rows.push(question.options.map((option, i) => (
+        <Button key={`refine-option-${i}`} variant="secondary" label={option} onPress={() => answer($, option)} />
+      )))
+  }
+  return frame({
+    title,
+    detail: question ? `dúvida ${now.at + 1} de ${now.questions.length} · escolha ou responda no chat` : 'pronto para montar',
+    rows,
+    actions: [
+      ...(question ? [<Button key="refine-skip" plain dimColor label="Pular" onPress={() => answer($, null)} />] : []),
+      <Button key="refine-raw" plain dimColor label="Enviar sem refinar" onPress={() => sendAsTyped($)} />,
+      <Button key="refine-write" variant="primary" label={question ? 'Montar agora' : now.error ? 'Tentar de novo' : 'Montar prompt'} onPress={() => write($)} />,
+    ],
+    onClose: () => cancel($),
+  })
 }
 
 const MODE_SAID: Record<Mode, string> = {
