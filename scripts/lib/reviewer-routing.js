@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Gate V always requires a real independent reviewer.
+ * When Gate V asks for a review (independent-review.requiresIndependentReview), it must be a real independent reviewer.
  * Cursor's headless CLI may fail before reading FxMind (TLS, quota, or MCP
  * approval). Retry at most once on an authenticated Codex CLI, still read-only.
  * A failed or missing verdict NEVER makes the review successful.

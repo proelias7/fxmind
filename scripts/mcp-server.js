@@ -348,7 +348,7 @@ const TOOL_DEFS = [
   {
     name: "fxmind_record_gate",
     description:
-      "Persist a gate in A→B→V→C order. Gate V prioritizes lint/typecheck, code quality and focused tests, then automatically launches a fresh read-only reviewer. Only actual visual/interaction changes require browser evidence; set evidence.ui.changed with a diff-based reason. Fix review findings and retry without asking the user. C rejects stale verification after code changes.",
+      "Persist a gate in A→B→V→C order. Gate V prioritizes lint/typecheck, code quality and focused tests, then automatically launches a fresh read-only reviewer when the change calls for one (any Lua file, several files, or a fix/mechanic/create task; not a trivial task). Only actual visual/interaction changes require browser evidence; set evidence.ui.changed with a diff-based reason. Fix review findings and retry without asking the user. C rejects stale verification after code changes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -930,45 +930,49 @@ async function dispatchTool(name, args) {
           };
         }
 
-        const reviewRun = await runGateVReviewer(root, session, files, args.evidence || {});
-        if (!reviewRun?.ok) {
-          return {
-            ok: false,
-            error: "gate_v_reviewer_unavailable",
-            gate: "V",
-            complete: false,
-            message: reviewRun?.error || "Independent reviewer failed to run.",
-            action: "retry_gate_v_reviewer",
-            userReply: "Do not mark the task complete. Resolve reviewer availability and retry Gate V.",
-          };
-        }
+        // The same filter verification applies (assertVerifiedFresh): a trivial task, or one non-Lua file outside
+        // fix/mechanic/create, passes on its evidence and deterministic checks, without paying for a reviewer run.
+        if (independentReview.requiresIndependentReview(session, files)) {
+          const reviewRun = await runGateVReviewer(root, session, files, args.evidence || {});
+          if (!reviewRun?.ok) {
+            return {
+              ok: false,
+              error: "gate_v_reviewer_unavailable",
+              gate: "V",
+              complete: false,
+              message: reviewRun?.error || "Independent reviewer failed to run.",
+              action: "retry_gate_v_reviewer",
+              userReply: "Do not mark the task complete. Resolve reviewer availability and retry Gate V.",
+            };
+          }
 
-        const record = independentReview.recordReview(root, {
-          sessionId: session.sessionId,
-          session,
-          files,
-          evidence: args.evidence || {},
-          reviewer: {
-            agent: "reviewer",
-            cliId: reviewRun.cliId || null,
-            model: reviewRun.model || null,
-            effort: reviewRun.effort || null,
-          },
-          output: reviewRun.output || "",
-        });
-        if (record.verdict !== "verified") {
-          return {
-            ok: false,
-            error: "gate_v_review_failed",
-            gate: "V",
-            complete: false,
-            verdict: record.verdict,
-            reviewId: record.reviewId,
-            reviewer: record.reviewer,
-            findings: reviewRun.output || "",
-            action: "fix_findings_and_retry_gate_v",
-            userReply: "Do not ask the user. Apply the independent review findings surgically, rerun affected checks, then call Gate V again. Maximum 3 repair/review cycles before reporting blocked.",
-          };
+          const record = independentReview.recordReview(root, {
+            sessionId: session.sessionId,
+            session,
+            files,
+            evidence: args.evidence || {},
+            reviewer: {
+              agent: "reviewer",
+              cliId: reviewRun.cliId || null,
+              model: reviewRun.model || null,
+              effort: reviewRun.effort || null,
+            },
+            output: reviewRun.output || "",
+          });
+          if (record.verdict !== "verified") {
+            return {
+              ok: false,
+              error: "gate_v_review_failed",
+              gate: "V",
+              complete: false,
+              verdict: record.verdict,
+              reviewId: record.reviewId,
+              reviewer: record.reviewer,
+              findings: reviewRun.output || "",
+              action: "fix_findings_and_retry_gate_v",
+              userReply: "Do not ask the user. Apply the independent review findings surgically, rerun affected checks, then call Gate V again. Maximum 3 repair/review cycles before reporting blocked.",
+            };
+          }
         }
       }
 
