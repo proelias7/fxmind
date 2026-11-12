@@ -59,6 +59,8 @@ const PT: Record<string, string> = {
   Language: 'Idioma',
   'Prompt refiner': 'Refinador de prompt', Automatic: 'Automático', 'Command only': 'Só por comando',
   'Refine with': 'Refinar com', 'Clear chat': 'Limpar o chat', Yes: 'Sim', No: 'Não',
+  'Gate V review': 'Revisão do Gate V', 'Ask me': 'Perguntar', Review: 'Revisar',
+  'Review before closing?': 'Revisar antes de fechar?', Reviewer: 'Revisor',
   'Refined prompt': 'Prompt refinado', Send: 'Enviar', 'Review first': 'Revisar antes',
   'Map project': 'Mapear projeto', 'Review memories': 'Rever memórias', Learn: 'Aprender',
   'reading the demand…': 'lendo a demanda…', 'writing the prompt…': 'montando o prompt…', 'ready to write': 'pronto para montar',
@@ -208,6 +210,9 @@ const RULES: readonly [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^fxmind: Haiku could not compact \((.*)\)\. The chat's own model does it\.$/, m => `fxmind: o Haiku não conseguiu compactar (${m[1]}). O modelo do chat faz isso.`],
   [/^fxmind: Auto is off\. You picked (.+); turn Auto on to hand it back\.$/, m => `fxmind: Auto desligado. Você escolheu ${tr(m[1]!)}; ligue o Auto para devolver o controle.`],
   [/^fxmind: run (.+)$/, m => `fxmind: rode ${m[1]}`],
+  [/^Review with (.+)$/, m => `Revisar com ${m[1]}`],
+  [/^Review 1 file before closing\?$/, () => 'Revisar 1 arquivo antes de fechar?'],
+  [/^Review (\d+) files before closing\?$/, m => `Revisar ${m[1]} arquivos antes de fechar?`],
   [/^fxmind: report a bug at (.+)$/, m => `fxmind: reporte um bug em ${m[1]}`],
   [/^This needs the Claude Code CLI\. Install it with (.+), then reopen the app\.$/, m => `Isto precisa da CLI do Claude Code. Instale com ${m[1]} e reabra o app.`],
 ]

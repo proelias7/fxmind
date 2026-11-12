@@ -103,6 +103,7 @@ function parseVerdict(output) {
   if (/^VERDICT:\s*REFUTED$/i.test(finalLine)) return "refuted";
   if (/^VERDICT:\s*VERIFIED WITH CAVEATS$/i.test(finalLine)) return "verified_with_caveats";
   if (/^VERDICT:\s*VERIFIED$/i.test(finalLine)) return "verified";
+  if (/^VERDICT:\s*SKIPPED BY USER$/i.test(finalLine)) return "skipped";
   return "unverifiable";
 }
 
@@ -290,6 +291,16 @@ function recordReview(root, options) {
   return record;
 }
 
+/** The person chose, in the fxmind panel, to skip the independent review: recorded as theirs and bound to the same
+ * files, contents and task context as a review, so a later change still makes it stale. */
+function recordSkip(root, options) {
+  return recordReview(root, {
+    ...options,
+    reviewer: { agent: "reviewer", cliId: null, model: null, effort: null, skippedBy: "user" },
+    output: "VERDICT: SKIPPED BY USER",
+  });
+}
+
 function readReview(root, sessionId) {
   const file = reviewPath(root, sessionId);
   if (!fs.existsSync(file)) return null;
@@ -309,7 +320,8 @@ function assertVerifiedFresh(root, session, files, evidence = {}) {
   if (record.schemaVersion !== 2 || !record.reviewId || record.reviewer?.agent !== "reviewer") {
     throw new Error("Gate V independent review artifact is invalid; run Gate V again.");
   }
-  if (record.verdict !== "verified") {
+  const skipped = record.verdict === "skipped" && record.reviewer?.skippedBy === "user";
+  if (record.verdict !== "verified" && !skipped) {
     throw new Error("Gate V reviewer did not verify the change (verdict: " + record.verdict + "). Fix findings and run Gate V again.");
   }
   const normalized = [...new Set((files || []).map((file) => repoPath(root, file)))].sort();
@@ -348,4 +360,5 @@ module.exports = {
   recordReview,
   readReview,
   assertVerifiedFresh,
+  recordSkip,
 };

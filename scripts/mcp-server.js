@@ -37,6 +37,7 @@ const { readSource } = require("./lib/read-source");
 const { routeTool } = require("./lib/tool-router");
 const { formatQueryResult } = require("./lib/memory-retrieval");
 const independentReview = require("./lib/independent-review");
+const gateVAsk = require("./lib/gate-v-ask");
 const reviewerRouting = require("./lib/reviewer-routing");
 const verification = require("./lib/verification");
 const luaScope = require("./lib/lua-scope-check");
@@ -82,7 +83,7 @@ function callerCliId() {
   }[agent] || null;
 }
 
-async function runGateVReviewer(root, session, files, evidence) {
+async function runGateVReviewer(root, session, files, evidence, preferredCliId) {
   if (process.env.NODE_ENV === "test" && process.env.FXMIND_TEST_REVIEWER_RESULT) {
     const verdict = String(process.env.FXMIND_TEST_REVIEWER_RESULT).toLowerCase();
     const line =
@@ -92,7 +93,7 @@ async function runGateVReviewer(root, session, files, evidence) {
     return {
       ok: true,
       agent: "reviewer",
-      cliId: callerCliId() || "test-provider",
+      cliId: preferredCliId || callerCliId() || "test-provider",
       model: "test-reviewer",
       effort: "high",
       output: "Synthetic independent review for MCP contract test.\n" + line,
@@ -104,7 +105,7 @@ async function runGateVReviewer(root, session, files, evidence) {
     agent: "reviewer",
     prompt: independentReview.buildPrompt(root, session, files, evidence || {}),
     paths: files,
-    preferredCliId: callerCliId() || undefined,
+    preferredCliId: preferredCliId || callerCliId() || undefined,
   }, panelCli.runSubagentTask);
 }
 
@@ -943,7 +944,42 @@ async function dispatchTool(name, args) {
         // The same filter verification applies (assertVerifiedFresh): a trivial task, or one non-Lua file outside
         // fix/mechanic/create, passes on its evidence and deterministic checks, without paying for a reviewer run.
         if (independentReview.requiresIndependentReview(session, files)) {
-          const reviewRun = await runGateVReviewer(root, session, files, args.evidence || {});
+          // In Claude Code with the fxmind mod, the person decides first, in the panel: review, with which agent, or
+          // skip. The question waits in .fxmind/state; the next Gate V call reads the answer.
+          let chosenCliId = null;
+          if (gateVAsk.askEnabled(root, callerCliId())) {
+            const choice = gateVAsk.readChoice(root, session.sessionId);
+            if (!choice) {
+              const scan = process.env.NODE_ENV === "test" && process.env.FXMIND_TEST_REVIEWERS
+                ? JSON.parse(process.env.FXMIND_TEST_REVIEWERS)
+                : require("./lib/panel-cli").scanCli({ quick: true });
+              gateVAsk.writePending(root, {
+                sessionId: session.sessionId,
+                files,
+                reviewers: gateVAsk.reviewerChoices(scan),
+                suggested: callerCliId() || "claude",
+              });
+              return {
+                ok: false,
+                error: "gate_v_awaiting_user",
+                gate: "V",
+                complete: false,
+                action: "end_turn_and_wait",
+                userReply: "Gate V is asking the person in the fxmind panel whether to run the independent review and with which agent. Say so in one line and end your turn; a message will tell you to call Gate V again.",
+              };
+            }
+            gateVAsk.clearPending(root);
+            if (choice.decision === "skip") {
+              independentReview.recordSkip(root, { sessionId: session.sessionId, session, files, evidence: args.evidence || {} });
+              chosenCliId = "skip";
+            } else {
+              chosenCliId = choice.cliId || null;
+            }
+          }
+          if (chosenCliId === "skip") {
+            // The person chose to skip the independent review: recorded as theirs, the gate goes on.
+          } else {
+          const reviewRun = await runGateVReviewer(root, session, files, args.evidence || {}, chosenCliId);
           if (!reviewRun?.ok) {
             return {
               ok: false,
@@ -982,6 +1018,7 @@ async function dispatchTool(name, args) {
               action: "fix_findings_and_retry_gate_v",
               userReply: "Do not ask the user. Apply the independent review findings surgically, rerun affected checks, then call Gate V again. Maximum 3 repair/review cycles before reporting blocked.",
             };
+          }
           }
         }
       }

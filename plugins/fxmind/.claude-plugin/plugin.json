@@ -230,6 +230,16 @@
         "fill"
       ]
     },
+    "gateV": {
+      "type": "string",
+      "title": "Gate V review",
+      "description": "ask: when a task reaches Gate V, the band above the prompt asks whether to run the independent review and with which agent (or skip it). auto: the review runs at once, as before.",
+      "default": "ask",
+      "options": [
+        "ask",
+        "auto"
+      ]
+    },
     "language": {
       "type": "string",
       "title": "Language",
