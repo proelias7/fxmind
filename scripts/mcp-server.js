@@ -13,6 +13,10 @@
  *   fxmind_storage_status / fxmind_storage_upload_image / fxmind_image_resize
  *   fxmind_panel_wait / fxmind_panel_pending / fxmind_panel_reply / fxmind_panel_fail
  *   fxmind_subagent_run
+ *   Desktop agent (Windows, scripts/desktop-agent.js): view_screen / click_screen / type_text
+ *   scroll_screen / drag_screen / hotkey / press_key / hover_screen / double_click_screen
+ *   window_info / activate_window / desktop_observe / desktop_act
+ *   inspect_background_ui / execute_background_ui / gui_sequence
  *
  * Gates are session state — use fxmind_start_task + fxmind_record_gate only.
  * Never Write .fxmind/state/fxmind-gates.json from the agent.
@@ -36,6 +40,7 @@ const independentReview = require("./lib/independent-review");
 const reviewerRouting = require("./lib/reviewer-routing");
 const verification = require("./lib/verification");
 const luaScope = require("./lib/lua-scope-check");
+const desktopAgent = require("./desktop-agent");
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "fxmind", version: require("../package.json").version };
@@ -752,6 +757,8 @@ const TOOL_DEFS = [
       required: ["agent", "prompt"],
     },
   },
+  // Desktop agent (Windows): core tools, always listed.
+  ...desktopAgent.TOOL_DEFS,
 ];
 
 let activeHostThreadId = null;
@@ -822,6 +829,9 @@ async function playbookTool(root, args = {}) {
 async function dispatchTool(name, args) {
   const root = targetRoot();
   const dbOptions = { root, environment: args.environment, readOnly: isReadonly() };
+  if (desktopAgent.TOOL_NAMES.has(name)) {
+    return desktopAgent.dispatch(name, args);
+  }
   switch (name) {
     case "fxmind_route_tool":
       return routeTool(args.request || "", {
@@ -1348,7 +1358,10 @@ function handleMessage(msg) {
             jsonrpc: "2.0",
             id,
             result: {
-              content: [{ type: "text", text: formatToolResult(toolName, result) }],
+              // Tools may return MCP content blocks (view_screen sends an image).
+              content: Array.isArray(result?.mcpContent)
+                ? result.mcpContent
+                : [{ type: "text", text: formatToolResult(toolName, result) }],
               isError: result && result.ok === false,
             },
           });

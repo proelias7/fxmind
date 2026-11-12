@@ -83,6 +83,16 @@
     animation: pop .45s cubic-bezier(.2,.8,.2,1.2) both; animation-delay: calc(var(--i) * 70ms); }
   @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.9); } }
   .hub { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
+  /* feature table: what ships with fxmind, in numbers */
+  .ftable { width: 100%; margin-top: 64px; border-collapse: collapse; border: 1px solid var(--line-2); border-radius: 18px; overflow: hidden; border-style: hidden; box-shadow: 0 0 0 1px var(--line-2); }
+  .ftable th, .ftable td { padding: 20px 24px; text-align: left; vertical-align: middle; border-top: 1px solid var(--line-2); }
+  .ftable thead th { border-top: 0; font-size: 12.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: rgba(255,255,255,.02); }
+  .ftable tbody th { font-weight: 600; font-size: 16px; color: var(--text); white-space: nowrap; }
+  .ftable .fnum { font-size: 34px; font-weight: 700; line-height: 1; color: var(--mint); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ftable td:last-child { color: var(--muted); font-size: 15px; }
+  .ftable code { font-family: var(--mono); font-size: 13px; color: #cfd6d3; }
+  .ftable tbody tr { transition: background .2s ease; }
+  .ftable tbody tr:hover { background: rgba(126,224,180,.04); }
   .hub-orbit { fill: none; stroke: rgba(126,224,180,.12); stroke-dasharray: 2 8; }
   .hub-core { fill: #0f191a; stroke: rgba(126,224,180,.45); }
   .spoke { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 1.4; transition: stroke .3s; }
@@ -198,6 +208,14 @@
     .hub { max-width: 420px; margin: 0 auto; order: -1; }
     .packs { grid-template-columns: 1fr 1fr; gap: 28px 20px; }
     .mock { max-width: 480px; margin: 0 auto; }
+    .ftable { margin-top: 40px; }
+    .ftable thead { display: none; }
+    .ftable tbody tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: baseline; padding: 18px 16px; border-top: 1px solid var(--line-2); }
+    .ftable tbody tr:first-child { border-top: 0; }
+    .ftable th, .ftable td { padding: 0; border: 0; }
+    .ftable .fnum { font-size: 28px; grid-row: 1; grid-column: 1; }
+    .ftable tbody th { grid-row: 1; grid-column: 2; white-space: normal; }
+    .ftable td:last-child { grid-column: 1 / -1; }
   }
 
   .big { margin: 0 0 44px; font-size: clamp(26px, 3.6vw, 40px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.15; max-width: 18em; }
@@ -647,13 +665,14 @@
   <section class="sec" id="tools">
     <div class="wrap tools-grid">
       <div>
-        <h2 data-i18n="tools.t">40+ tools for your agents.</h2>
+        <h2 data-i18n="tools.t">56 tools for your agents.</h2>
         <div class="tgroups" role="group" data-i18n-aria="tools.t" aria-label="Tool groups">
           <button type="button" aria-pressed="true" data-tools="query search read_file graph list_memories validate_memories"><span data-i18n="g.mem">Memory</span></button>
           <button type="button" aria-pressed="false" data-tools="start_task record_gate independent_review gate_status playbook"><span data-i18n="g.gate">Verified work</span></button>
           <button type="button" aria-pressed="false" data-tools="claim_paths release_paths session_status subagent_run"><span data-i18n="g.team">Teamwork</span></button>
           <button type="button" aria-pressed="false" data-tools="record_correction list_corrections drift_check"><span data-i18n="g.learn">Learning</span></button>
           <button type="button" aria-pressed="false" data-tools="db_query db_schema db_sample db_explore"><span data-i18n="g.db">Database</span></button>
+          <button type="button" aria-pressed="false" data-tools="view_screen click_screen type_text scroll_screen drag_screen hotkey press_key hover_screen double_click_screen window_info activate_window desktop_observe desktop_act inspect_background_ui execute_background_ui gui_sequence"><span data-i18n="g.desktop">Desktop agent</span></button>
         </div>
         <div class="tchips" id="toolChips" aria-live="polite"></div>
       </div>
@@ -665,6 +684,17 @@
         <image href="assets/logo.png" x="214" y="174" width="92" height="92"/>
         <g id="hubNodes"></g>
       </svg>
+    </div>
+    <div class="wrap">
+      <table class="ftable">
+        <thead><tr><th scope="col" data-i18n="ft.h.n">Count</th><th scope="col" data-i18n="ft.h.f">Feature</th><th scope="col" data-i18n="ft.h.d">What ships</th></tr></thead>
+        <tbody>
+          <tr><td class="fnum">56</td><th scope="row" data-i18n="ft.tools.t">MCP tools</th><td data-i18n="ft.tools.d">Memory, verified work, teamwork, learning, database and Windows desktop control, for every agent.</td></tr>
+          <tr><td class="fnum">8</td><th scope="row" data-i18n="ft.skills.t">Skills</th><td data-i18n="ft.skills.d">fxmind and setup, plus three per pack: development, frontend and backend.</td></tr>
+          <tr><td class="fnum">2</td><th scope="row" data-i18n="ft.packs.t">Pre-installed packs</th><td><span data-i18n="ft.packs.d">Web and FiveM. Add more from any repository with</span> <code>fxmind pack add</code>.</td></tr>
+          <tr><td class="fnum">4</td><th scope="row" data-i18n="ft.prac.t">Best-practice pillars</th><td data-i18n="ft.prac.d">Architecture, security, performance and code quality, checked on every change.</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -804,7 +834,12 @@
     "speed.num": "10,8×", "speed.big": "buscas mais rápidas com o cache carregado.",
     "speed.before": "Antes do cache", "speed.after": "Com cache",
     "speed.aria": "Mediana por consulta com o cache carregado: antes da otimização, 783 milissegundos; depois, 73 milissegundos. Mesmas respostas e tokens em 150 perguntas.",
-    "g.mem": "Memória", "g.gate": "Trabalho verificado", "g.team": "Trabalho em equipe", "g.learn": "Aprendizado", "g.db": "Banco de dados","tools.t": "Mais de 40 tools para seus agentes.",
+    "g.mem": "Memória", "g.gate": "Trabalho verificado", "g.team": "Trabalho em equipe", "g.learn": "Aprendizado", "g.db": "Banco de dados", "g.desktop": "Agente de desktop", "tools.t": "56 tools para seus agentes.",
+    "ft.h.n": "Quantidade", "ft.h.f": "Recurso", "ft.h.d": "O que vem incluso",
+    "ft.tools.t": "Tools MCP", "ft.tools.d": "Memória, trabalho verificado, trabalho em equipe, aprendizado, banco de dados e controle do desktop Windows, para todos os agentes.",
+    "ft.skills.t": "Skills", "ft.skills.d": "fxmind e setup, mais três por pack: desenvolvimento, frontend e backend.",
+    "ft.packs.t": "Packs pré-instalados", "ft.packs.d": "Web e FiveM. Adicione outros de qualquer repositório com",
+    "ft.prac.t": "Pilares de boas práticas", "ft.prac.d": "Arquitetura, segurança, desempenho e qualidade de código, verificados em cada alteração.",
     "packs.t": "Boas práticas em cada especialidade.",
     "packs.intro": "Oriente cada alteração com boas práticas de programação e os aprendizados que o time já construiu.",
     "practice.arch.t": "Arquitetura", "practice.arch.d": "Responsabilidades claras, reaproveitamento de soluções e contratos consistentes entre componentes.",
@@ -927,7 +962,7 @@
     const io = new IntersectionObserver((entries) => entries.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
     }), { threshold: 0.15, rootMargin: "0px 0px -8% 0px" });
-    document.querySelectorAll(".sec h2, .tgroups, .hub, .pipe, .mock, .xp-foot").forEach((el) => {
+    document.querySelectorAll(".sec h2, .tgroups, .hub, .ftable, .pipe, .mock, .xp-foot").forEach((el) => {
       el.classList.add("rv");
       el.style.setProperty("--d", `${([...el.parentElement.children].indexOf(el) % 6) * 80}ms`);
       io.observe(el);
