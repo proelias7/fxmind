@@ -3,10 +3,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelForkResult, Register, RenderInput } from 'claude-code'
 
-import type { AgentRec, Effort, HandoffAfter, HandoffChoice, ModelKey, Pick, SettingsDraft, Spent } from '../types'
+import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, ModelKey, Pick, SettingsDraft, Spent } from '../types'
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
 import { MARK_SVG, TEXTURE_SVG, WATERMARK_SVG } from './brand-mark'
+import { projectRoot } from './project-root'
 import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
 import type { RefineFrame } from './refine'
 import { accent, setLight, setTheme, themedEls, type ThemeName, THEMES, tintHex } from './theme'
@@ -150,6 +151,9 @@ function compactFadeSvg(elapsedMs: number): string {
 const handoffStage = atom({ plugin: 'fxmind', key: 'handoffStage' } as const, null)
 // The handoff bar above the prompt, open with the choice shown in it, or null.
 const handoffPick = atom({ plugin: 'fxmind', key: 'handoffPick' } as const, null)
+// Gate V waiting on the person, and the reviewer picked in its band (scripts/lib/gate-v-ask.js says the exchange).
+const gateVAsk = atom({ plugin: 'fxmind', key: 'gateVAsk' } as const, null)
+const gateVPick = atom({ plugin: 'fxmind', key: 'gateVPick' } as const, null)
 // The context is swamped: tokens read per request, or null below the line. Drives the swamp band.
 const swamped = atom({ plugin: 'fxmind', key: 'swamped' } as const, null)
 // Why Haiku thinks a handoff would suit now, or null. It lights Handoff and says why; there is no percent threshold.
@@ -658,6 +662,9 @@ export type JudgeConfig = {
   refineWith: 'haiku' | 'sonnet' | 'opus' | 'session'
   refineClear: 'on' | 'off'
   refineSend: 'send' | 'fill'
+  /** ask: Gate V asks in the band above the prompt whether to run the independent review, and with which agent.
+   * auto: it runs at once, on the agent fxmind picks. */
+  gateV: 'ask' | 'auto'
   /** auto: light when Claude Code's own theme is light. dark and light fix it. */
   appearance: 'auto' | 'dark' | 'light'
 }
@@ -693,6 +700,7 @@ let config: JudgeConfig = {
   refineWith: 'haiku',
   refineClear: 'on',
   refineSend: 'send',
+  gateV: 'ask',
   appearance: 'auto',
 }
 
@@ -724,6 +732,7 @@ export function readConfig(options: unknown): JudgeConfig {
     refineWith: refiner.with,
     refineClear: refiner.clear ? 'on' : 'off',
     refineSend: refiner.send,
+    gateV: str(o.gateV) === 'auto' ? 'auto' : 'ask',
     appearance: (['dark', 'light'] as const).find(a => a === str(o.appearance)) ?? 'auto',
     // The judge's line is off until switched on; an empty string saved from the panel means everything shows.
     hide: (o.hide === undefined ? 'reason' : str(o.hide))
@@ -1861,6 +1870,7 @@ const SETTING_FIELDS = {
   refineWith: 'refineWith',
   refineClear: 'refineClear',
   refineSend: 'refineSend',
+  gateV: 'gateV',
 } as const
 
 async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELDS, value: string) {
@@ -1897,6 +1907,7 @@ async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELD
     refineWith: config.refineWith,
     refineClear: config.refineClear,
     refineSend: config.refineSend,
+    gateV: config.gateV,
     [SETTING_FIELDS[field]]: value,
   }
   config = { ...readConfig(raw), typesafeKey: config.typesafeKey }
@@ -1920,6 +1931,80 @@ function savedCardTree($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
 }
 
 /** Saves every change in the panel's draft, then closes the panel. Nothing changed applies before this. */
+// Gate V asks the person first (scripts/lib/gate-v-ask.js on the server side). The mod says it can ask with a marker
+// file, kept fresh at session start and after each turn; the server leaves its question in gate-v-pending.json, and the
+// answer goes to gate-v-choice.json, followed by a message that has the agent call Gate V again.
+const GATE_V_STATE = '.fxmind/state'
+
+/** The marker the server reads before it asks: on while the setting is "ask", off otherwise. Never throws. */
+async function markGateV($: EngineInterface) {
+  const root = await projectRoot($).catch(() => null)
+  if (!root) return
+  const at = new Date(await $.clock.now().catch(() => Date.now())).toISOString()
+  await $.fs.write(`${root}/${GATE_V_STATE}/gate-v-ask.json`, JSON.stringify({ ask: config.gateV === 'ask', at }) + '\n').catch(() => undefined)
+}
+
+async function readStateJson($: EngineInterface, root: string, name: string): Promise<Record<string, unknown> | null> {
+  try {
+    const raw = await $.fs.read(`${root}/${GATE_V_STATE}/${name}`)
+    const parsed = JSON.parse(String(raw ?? ''))
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+/** The server's question, unless already answered: shown in the band above the prompt. Never throws. */
+async function readGateVAsk($: EngineInterface) {
+  if (config.gateV !== 'ask') return
+  const root = await projectRoot($).catch(() => null)
+  if (!root) return
+  const pending = await readStateJson($, root, 'gate-v-pending.json')
+  const sessionId = typeof pending?.sessionId === 'string' ? pending.sessionId : ''
+  const answered = sessionId && (await readStateJson($, root, 'gate-v-choice.json'))?.sessionId === sessionId
+  const ask: GateVPending | null = sessionId && !answered
+    ? {
+        sessionId,
+        files: Array.isArray(pending?.files) ? (pending.files as unknown[]).map(String) : [],
+        reviewers: Array.isArray(pending?.reviewers)
+          ? (pending.reviewers as { id?: unknown; label?: unknown }[]).filter(r => typeof r?.id === 'string').map(r => ({ id: String(r.id), label: String(r.label ?? r.id) }))
+          : [],
+        suggested: typeof pending?.suggested === 'string' ? pending.suggested : undefined,
+      }
+    : null
+  const now = await read($, gateVAsk)
+  if ((now?.sessionId ?? null) !== (ask?.sessionId ?? null)) await update($, gateVAsk, () => ask)
+}
+
+/** The reviewer the band shows picked: the person's pick, else the one the server suggests, else the first. */
+export function gateVReviewer(ask: GateVPending, picked: string | null): string | null {
+  const ids = ask.reviewers.map(r => r.id)
+  if (picked && ids.includes(picked)) return picked
+  if (ask.suggested && ids.includes(ask.suggested)) return ask.suggested
+  return ids[0] ?? null
+}
+
+/** The message that sends the agent back to Gate V with the person's answer. */
+export function gateVMessage(decision: 'review' | 'skip', label?: string): string {
+  return decision === 'skip'
+    ? 'fxmind Gate V: I chose to skip the independent review for this task. Call fxmind_record_gate with gate V again to go on.'
+    : `fxmind Gate V: run the independent review with ${label ?? 'the suggested agent'}. Call fxmind_record_gate with gate V again.`
+}
+
+/** The person answered in the band: the choice goes to the server's file, the band closes, the agent is told. */
+async function answerGateV($: EngineInterface, decision: 'review' | 'skip') {
+  const ask = await read($, gateVAsk)
+  const root = await projectRoot($).catch(() => null)
+  if (!ask || !root) return
+  const cliId = decision === 'review' ? gateVReviewer(ask, await read($, gateVPick)) : null
+  const at = new Date(await $.clock.now().catch(() => Date.now())).toISOString()
+  await $.fs.write(`${root}/${GATE_V_STATE}/gate-v-choice.json`, JSON.stringify({ sessionId: ask.sessionId, decision, cliId, at }) + '\n')
+  await update($, gateVAsk, () => null)
+  await update($, gateVPick, () => null)
+  const label = ask.reviewers.find(r => r.id === cliId)?.label
+  await $.prompt.submit({ text: gateVMessage(decision, label), asUser: true })
+}
+
 async function saveDraft($: EngineInterface) {
   const draft = await read($, settingsDraft)
   const { key, ...rest } = draft
@@ -3922,6 +4007,8 @@ export const register: Register = (on, options) => {
     // The footer line this mod once wrote (memories, task gates) lives in the side panel now: clear any left behind.
     try { void Promise.resolve($.ui.status(undefined)).catch(() => undefined) } catch { /* no footer to clear */ }
     void refineStart($).catch(() => undefined)
+    // Gate V may ask the person in the band: the server waits on a fresh marker, and a question may already be waiting.
+    void markGateV($).then(() => readGateVAsk($)).catch(() => undefined)
     // Everything the first draw needs, asked for at once: one after the other they held the start (and with it the
     // band) for a second or more. What the draw does not need runs after, unawaited.
     const [sid, kept, kff, storedAuto, storedAutoModel, storedPick, setupDone] = await Promise.all([
@@ -3991,6 +4078,7 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.agentId) await agentEnded($, e.agentId, e.reason)
     if (!e.agentId) await setTurnBusy($, false)
+    if (!e.agentId) await markGateV($).then(() => readGateVAsk($)).catch(() => undefined)
     // A lower verdict for a message typed during the turn takes over now, if Auto is still on.
     if (!e.agentId && heldPick) {
       const held = heldPick
@@ -4539,6 +4627,8 @@ Saved to ${out}.md and .json` }
     const known = id !== undefined && (await read($, agentsState)).some(a => a.id === id)
     if (!touch && !known && !(id === undefined && isList)) {
       const plain = await next(e)
+      // Gate V may have left its question for the person: the band shows it as soon as the call returns.
+      if (/fxmind_record_gate$/.test(String(e.tool))) await readGateVAsk($).catch(() => undefined)
       return plain
     }
     if (known && id !== undefined) {
@@ -4694,6 +4784,7 @@ Saved to ${out}.md and .json` }
         refineWith: draft.refineWith ?? config.refineWith,
         refineClear: draft.refineClear ?? config.refineClear,
         refineSend: draft.refineSend ?? config.refineSend,
+        gateV: draft.gateV ?? config.gateV,
       }
       // The Helpers switch slides like Auto's: the time it flipped, seen by the draw after the click.
       const helpersNow = await $.clock.now()
@@ -4915,6 +5006,7 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-refine-with", label: "Refine with", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'sonnet', label: 'Sonnet 5.5' }, { value: 'opus', label: 'Opus 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
             pick({ key: "settings-refine-clear", label: "Clear chat", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
             pick({ key: "settings-refine-send", label: "Refined prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
+            pick({ key: "settings-gate-v", label: "Gate V review", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
             // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
             ...([['init', 'Map project'], ['memory health', 'Review memories'], ['learn', 'Learn']] as const).map(([args, label]) => (
               <Button key={`settings-fxmind-${args.split(' ')[0]}`} plain dimColor label={label} onPress={async () => {
@@ -5006,6 +5098,43 @@ Saved to ${out}.md and .json` }
               </Box>
             </Box>
           )}
+        </Box>
+      )
+    }
+    // Gate V asks the person: run the independent review, with the agent they pick, or skip it. The task waits on it.
+    const gateV = config.gateV === 'ask' ? await read($, gateVAsk) : null
+    if (gateV) {
+      const { Select } = themedEls($.ui.resolve(e))
+      const reviewer = gateVReviewer(gateV, await read($, gateVPick))
+      const files = gateV.files.length
+      const line = files === 1 ? 'Review 1 file before closing?' : files ? `Review ${files} files before closing?` : 'Review before closing?'
+      const controls = [
+        ...(gateV.reviewers.length > 1 && reviewer
+          ? [<Text key="gatev-by" dimColor>Reviewer</Text>, <Select key="gatev-reviewer" value={reviewer} options={gateV.reviewers.map(r => ({ value: r.id, label: r.label }))}
+              onSelect={v => update($, gateVPick, () => String(v))} />]
+          : []),
+        <Button key="gatev-skip" plain dimColor label="Skip" onPress={() => answerGateV($, 'skip')} />,
+        <Button key="gatev-review" variant="primary" autoFocus
+          label={gateV.reviewers.length === 1 ? `Review with ${gateV.reviewers[0]!.label}` : 'Review'}
+          onPress={() => answerGateV($, 'review')} />,
+      ]
+      if (isPlain(e)) return terminalPanel($, e, 'gatev', '✦ Gate V review', line, controls)
+      return (
+        <Box key="gatev" position="relative" flexDirection="row" alignItems="center" paddingX={1} overflow="hidden"
+          backgroundColor={BRAND_BG} borderStyle="round" borderColor={BRAND_EDGE}>
+          {textureLayer({ Box, Svg }, 'gatev-art')}
+          <Box key="gatev-art" position="absolute" top={-1} right={0} bottom={-1}>
+            <Svg source={BRAND_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+          </Box>
+          {introLayer({ Box, Svg }, 'gatev', await introShows($, 'gatev'))}
+          <Box key="gatev-words" position="relative" flexDirection="row" gap={1} flexShrink={1} minWidth={0}>
+            <Box flexShrink={0}>{markTitle({ Box, Text, Svg }, 'gatev-title', ACCENT, '✦ Gate V review')}</Box>
+            <Text key="gatev-what" dimColor wrap="truncate">{line}</Text>
+          </Box>
+          <Box flexGrow={1} minWidth={44} />
+          <Box key="gatev-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
+            {controls}
+          </Box>
         </Box>
       )
     }

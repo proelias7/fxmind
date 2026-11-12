@@ -1171,6 +1171,7 @@ describe('judge choice (plugin settings)', () => {
       refineWith: 'haiku',
       refineClear: 'on',
       refineSend: 'send',
+      gateV: 'ask',
       appearance: 'auto',
     })
     expect(readConfig({ swampAt: '20' })).toMatchObject({ swampAt: 20 })
@@ -4148,4 +4149,103 @@ describe('language and the fxmind theme', () => {
       await band.unmount()
     })
   }
+})
+
+describe('Gate V asks in the band', () => {
+  const start = async ($: Engine, on: On, surface: 'desktop' | 'terminal' = 'desktop') => {
+    on('session.start', (_$, e) => ({ cwd: e.cwd }) as never)
+    on('command.register', () => ({ value: undefined }) as never)
+    await $.session.start({ cwd: '/p', surface, isInteractive: true } as never)
+  }
+  /** A project with fxmind in it, its files kept in memory, and a Gate V question waiting when `pending` is given. */
+  const project = (on: On, pending?: Record<string, unknown>) => {
+    const files: Record<string, string> = pending ? { '/p/.fxmind/state/gate-v-pending.json': JSON.stringify(pending) } : {}
+    on('session.cwd', () => ({ value: '/p' }) as never)
+    on('fs.exists', (_$, e) => ({ value: e.path === '/p/.fxmind/packs.json' || e.path in files }) as never)
+    on('fs.read', (_$, e) => (e.path in files ? { value: files[e.path] } : { deny: 'ENOENT' }) as never)
+    on('fs.write', (_$, e) => {
+      files[e.path] = e.text
+      return { value: undefined } as never
+    })
+    return files
+  }
+  /** The engine() stand-ins, with the prompt's submits recorded, and a clock. */
+  const gateEngine = (on: On) => {
+    const texts: string[] = []
+    mock.store(on)
+    mock.env(on, { FXMIND_EFFORT_MODEL_UI: '1' })
+    mock.clock(on)
+    on('prompt.submit', (_$, e) => {
+      texts.push(e.text)
+      return { text: e.text }
+    })
+    on('ui.status', () => ({ value: undefined }))
+    on('session.messages', () => ({ value: [] }) as never)
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    on('command.list', () => ({ value: [{ name: 'model' }, { name: 'effort' }] as never }))
+    return texts
+  }
+  const closeSetup = async ($: Engine) => {
+    const guide = await $.ui.mount(DESK_BAND)
+    await guide.press({ key: 'setup-close' }).catch(() => undefined)
+    await guide.unmount()
+  }
+  const PENDING = {
+    sessionId: 'task-1', files: ['a.lua', 'b.lua'], suggested: 'claude',
+    reviewers: [{ id: 'codex', label: 'Codex' }, { id: 'claude', label: 'Claude Code' }],
+  }
+
+  test('the session marks that it can ask; Gate V\'s question shows, and Review sends the picked agent', async ($, on) => {
+    const texts = gateEngine(on)
+    const files = project(on, PENDING)
+    await start($, on)
+    await closeSetup($)
+    expect(JSON.parse(files['/p/.fxmind/state/gate-v-ask.json']!).ask).toBe(true)
+    const band = await $.ui.mount(DESK_BAND)
+    expect(await band.find({ key: 'gatev-title' })).toBeDefined()
+    expect(await drawn(band)).toContain('Review 2 files before closing?')
+    // The suggested agent is picked; the person picks another.
+    expect(await drawn(band)).toContain('"value":"claude"')
+    await band.select({ key: 'gatev-reviewer', value: 'codex' })
+    await band.press({ key: 'gatev-review' })
+    expect(JSON.parse(files['/p/.fxmind/state/gate-v-choice.json']!)).toMatchObject({ sessionId: 'task-1', decision: 'review', cliId: 'codex' })
+    expect(texts.at(-1)).toContain('run the independent review with Codex')
+    expect(await band.find({ key: 'gatev-title' })).toBeUndefined()
+    await band.unmount()
+  })
+
+  test('Skip records the skip and tells the agent to go on', async ($, on) => {
+    const texts = gateEngine(on)
+    const files = project(on, PENDING)
+    await start($, on)
+    await closeSetup($)
+    const band = await $.ui.mount(DESK_BAND)
+    await band.press({ key: 'gatev-skip' })
+    expect(JSON.parse(files['/p/.fxmind/state/gate-v-choice.json']!)).toMatchObject({ sessionId: 'task-1', decision: 'skip', cliId: null })
+    expect(texts.at(-1)).toContain('skip the independent review')
+    await band.unmount()
+  })
+
+  test('an answered question, or Gate V set to automatic, shows no band', { options: { gateV: 'auto' } } as never, async ($, on) => {
+    gateEngine(on)
+    const files = project(on, PENDING)
+    await start($, on)
+    await closeSetup($)
+    expect(JSON.parse(files['/p/.fxmind/state/gate-v-ask.json']!).ask).toBe(false)
+    const band = await $.ui.mount(DESK_BAND)
+    expect(await band.find({ key: 'gatev-title' })).toBeUndefined()
+    await band.unmount()
+  })
+
+  test('in pt-BR the band speaks Portuguese', { options: { language: 'pt-BR' } } as never, async ($, on) => {
+    gateEngine(on)
+    project(on, PENDING)
+    await start($, on)
+    await closeSetup($)
+    const band = await $.ui.mount(DESK_BAND)
+    expect(await drawn(band)).toContain('Revisar 2 arquivos antes de fechar?')
+    expect(await drawn(band)).toContain('Revisar')
+    expect(await drawn(band)).toContain('Pular')
+    await band.unmount()
+  })
 })

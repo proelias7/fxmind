@@ -7,11 +7,11 @@ const readline = require("readline");
 const { spawn, execFileSync } = require("child_process");
 
 /** Runs `use(call, root)` against a real MCP server over stdio, its reviewer answering `reviewer`. */
-async function withServer(reviewer, use) {
+async function withServer(reviewer, use, env = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmcp-verify-"));
   fs.writeFileSync(path.join(root, "server.js"), "module.exports = 'save';");
   const child = spawn(process.execPath, [path.join(__dirname, "mcp-server.js")], {
-    cwd: root, env: { ...process.env, NODE_ENV: "test", FXMIND_TARGET: root, FXMIND_SESSION_ID: "", FXMIND_AGENT_ID: "codex", FXMIND_TEST_REVIEWER_RESULT: reviewer },
+    cwd: root, env: { ...process.env, NODE_ENV: "test", FXMIND_TARGET: root, FXMIND_SESSION_ID: "", FXMIND_AGENT_ID: "codex", FXMIND_TEST_REVIEWER_RESULT: reviewer, ...env },
     stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
   });
   const lines = readline.createInterface({ input: child.stdout });
@@ -87,5 +87,65 @@ it("Gate V still asks the reviewer for a fix, and a refuted review blocks it", a
     await call("fxmind_record_gate", { gate: "B", sessionId });
     const blocked = await call("fxmind_record_gate", { gate: "V", sessionId, evidence });
     assert.match(blocked.content[0].text, /gate_v_review_failed/);
+  });
+});
+
+// With the fxmind mod's marker, Gate V asks the person in the panel first; the answer holds for the task.
+const askEnv = { FXMIND_AGENT_ID: "claude", FXMIND_TEST_REVIEWERS: JSON.stringify([
+  { id: "codex", name: "Codex", installed: true }, { id: "claude", name: "Claude Code", installed: true }, { id: "hermes", name: "Hermes", installed: false },
+]) };
+const state = (root, name) => path.join(root, ".fxmind", "state", name);
+const startFix = async (call) => {
+  const { sessionId } = text(await call("fxmind_start_task", { kind: "fix" }));
+  await call("fxmind_record_gate", { gate: "A", sessionId, note: "One server file, no interface impact." });
+  await call("fxmind_record_gate", { gate: "B", sessionId });
+  return sessionId;
+};
+
+it("Gate V waits for the person's choice in the panel, then reviews with the agent they picked", async () => {
+  await withServer("verified", async (call, root) => {
+    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
+    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: new Date().toISOString() }));
+    const sessionId = await startFix(call);
+    const waiting = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
+    assert.equal(waiting.error, "gate_v_awaiting_user");
+    const pending = JSON.parse(fs.readFileSync(state(root, "gate-v-pending.json"), "utf8"));
+    assert.equal(pending.sessionId, sessionId);
+    assert.deepEqual(pending.reviewers.map((r) => r.id), ["codex", "claude"]);
+    fs.writeFileSync(state(root, "gate-v-choice.json"), JSON.stringify({ sessionId, decision: "review", cliId: "codex" }));
+    const verified = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
+    assert.equal(verified.gates.V.complete, true);
+    assert.equal(fs.existsSync(state(root, "gate-v-pending.json")), false);
+    const review = JSON.parse(fs.readFileSync(path.join(root, ".fxmind", "state", "reviews", `${sessionId.replace(/[^A-Za-z0-9._-]/g, "_")}.json`), "utf8"));
+    assert.equal(review.reviewer.cliId, "codex");
+  }, askEnv);
+});
+
+it("Gate V skipped by the person passes on to Gate C, and goes stale when the code changes", async () => {
+  await withServer("refuted", async (call, root) => {
+    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
+    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: new Date().toISOString() }));
+    const sessionId = await startFix(call);
+    fs.writeFileSync(state(root, "gate-v-choice.json"), JSON.stringify({ sessionId, decision: "skip" }));
+    const passed = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
+    assert.equal(passed.gates.V.complete, true);
+    fs.writeFileSync(path.join(root, "server.js"), "module.exports = 'changed';");
+    assert.equal((await call("fxmind_record_gate", { gate: "C", sessionId })).isError, true);
+  }, askEnv);
+});
+
+it("Gate V asks nobody without a fresh marker, or for another client", async () => {
+  await withServer("verified", async (call, root) => {
+    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
+    const old = new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString();
+    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: old }));
+    const sessionId = await startFix(call);
+    assert.equal(text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence })).gates.V.complete, true);
+  }, askEnv);
+  await withServer("verified", async (call, root) => {
+    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
+    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: new Date().toISOString() }));
+    const sessionId = await startFix(call);
+    assert.equal(text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence })).gates.V.complete, true);
   });
 });
