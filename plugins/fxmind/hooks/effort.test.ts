@@ -1368,9 +1368,10 @@ describe('setup guide', () => {
     expect(await band.find({ key: 'setup-custom' })).toBeUndefined()
     expect(await band.find({ key: 'setup-back' })).toBeUndefined()
     await clickable(band, 'setup-actions')
-    // Branded: the name in the footer's purple, the step counter beside it.
+    // Branded: the fxmind mark where the ✦ stood, the name in the footer's purple, the step counter beside it.
     expect(await drawn(band)).toContain('"color":"#a79cf7"')
-    expect(await drawn(band)).toContain('✦ fxmind setup  1/4')
+    expect(await band.find({ key: 'setup-title' })).toBeDefined()
+    expect(await drawn(band)).toContain('fxmind setup  1/4')
     expect(await drawn(band)).toContain('Just Haiku (no key)')
     // The right side: a still SVG (every click redraws the band, and a redrawn animation flickers) with the gradient.
     const first = await drawn(band)
@@ -3083,7 +3084,8 @@ describe('dashboard', () => {
     await band.press({ key: 'dash-handoff' })
     expect(await drawn(band)).toContain('compact-bar')
     await band.press({ key: 'compact-to-handoff' })
-    expect(await drawn(band)).toContain('⇥ Handoff')
+    // The handoff bar, titled with the fxmind mark.
+    expect(await band.find({ key: 'handoff-title' })).toBeDefined()
     await band.unmount()
     await nothingDrawn($, FOOTER)
   })
