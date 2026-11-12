@@ -344,26 +344,32 @@ const ICON_PATHS: Record<string, string> = {
   memory: '<path d="M3 3.5c0-.8.7-1.5 1.5-1.5H13v11H4.5C3.7 13 3 12.3 3 11.5zM3 11.5C3 10.7 3.7 10 4.5 10H13"/>',
   key: '<circle cx="5.5" cy="10.5" r="2.5"/><path d="M7.3 8.700L13 3M11 5l1.5 1.5"/>',
 }
+/** The icons that say it all on their own; every other action shows its word beside the icon. */
+const ICON_ONLY = new Set(['close', 'back', 'next'])
 const iconSvg = (name: string, color = '#ffffff') =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[name] ?? ''}</svg>`
-/** A card's action as an icon: a blank button laid over the icon takes the clicks, so its hover veil covers the whole
- * chip. Where no image is drawn (the terminal) it stays a plain labelled button. */
+/** A card's action as an icon and its word (the icon alone only where it says it all: close, back, next). A blank
+ * button laid over both takes the clicks, so its hover veil covers the whole chip. Where no image is drawn (the
+ * terminal) it stays a plain labelled button. */
 function iconBtn(
-  els: { Box: unknown; Button: unknown; Svg?: unknown },
+  els: { Box: unknown; Text?: unknown; Button: unknown; Svg?: unknown },
   key: string,
   icon: string,
   alt: string,
   onPress: () => unknown,
-  o: { primary?: boolean; color?: string; autoFocus?: boolean; hotkey?: string; label?: string; dim?: boolean } = {},
+  o: { primary?: boolean; color?: string; autoFocus?: boolean; hotkey?: string; label?: string; dim?: boolean; text?: string } = {},
 ) {
-  const { Box: B, Button: Bt, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Button: (p: Record<string, unknown>) => unknown; Svg?: (p: Record<string, unknown>) => unknown }
+  const { Box: B, Text: T, Button: Bt, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Text?: (p: Record<string, unknown>) => unknown; Button: (p: Record<string, unknown>) => unknown; Svg?: (p: Record<string, unknown>) => unknown }
+  const word = ICON_ONLY.has(icon) ? '' : (o.text ?? alt)
   if (!S) return <Bt key={key} variant={o.primary ? 'primary' : undefined} plain={!o.primary} dimColor={o.dim} autoFocus={o.autoFocus} hotkey={o.hotkey} label={o.label ?? alt} onPress={onPress} />
   return (
-    <B key={`${key}-icon`} position="relative" flexShrink={0} flexDirection="row" alignItems="center" justifyContent="center" paddingX={1}
+    <B key={`${key}-icon`} position="relative" flexShrink={0} flexDirection="row" alignItems="center" justifyContent="center" paddingX={1} gap={1}
       backgroundColor={o.primary ? '#ffffff26' : undefined}>
-      <S source={iconSvg(icon, o.color)} alt={alt} width={16} height={16} />
+      <S source={iconSvg(icon, o.color ?? (o.dim ? '#a0a0a8' : '#ffffff'))} alt={alt} width={16} height={16} />
+      {word && T ? <T color={o.dim ? '#a0a0a8' : '#ffffff'}>{word}</T> : null}
       <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-        <Bt key={key} plain autoFocus={o.autoFocus} hover={{ backgroundColor: '#ffffff1f' }} label={' '.repeat(4)} onPress={onPress} />
+        {/* Wide enough for the word in a longer language too. */}
+        <Bt key={key} plain autoFocus={o.autoFocus} hover={{ backgroundColor: '#ffffff1f' }} label={' '.repeat(word ? Math.ceil(word.length * 1.35) + 5 : 4)} onPress={onPress} />
       </B>
     </B>
   )
@@ -3089,39 +3095,38 @@ function updateCardTree($: EngineInterface, e: RenderInput<'AbovePrompt'>, card:
   const controls =
     card.stage === 'offer'
       ? [
-          own('update-go-box', iconBtn({ Box, Button, Svg }, 'update-go', 'download', 'Update', () => runUpdate($, card), { primary: true })),
-          own('update-later-box', iconBtn({ Box, Button, Svg }, 'update-later', 'clock', 'Later', hide)),
+          own('update-go-box', iconBtn({ Box, Text, Button, Svg }, 'update-go', 'download', 'Update', () => runUpdate($, card), { primary: true })),
+          own('update-later-box', iconBtn({ Box, Text, Button, Svg }, 'update-later', 'clock', 'Later', hide)),
         ]
       : card.stage === 'failed'
         ? [
             // No CLI: the install line can be cut off on a narrow card, so it is a press away whole.
             ...(installLine
-              ? [own('update-copy-box', iconBtn({ Box, Button, Svg }, 'update-copy', 'copy', 'Copy install command', async () => {
+              ? [own('update-copy-box', iconBtn({ Box, Text, Button, Svg }, 'update-copy', 'copy', 'Copy install command', async () => {
                   const r = await $.ui.copy({ text: installLine, surface: e.surface }).catch(() => ({ isCopied: false as const }))
                   $.ui.toast(tr(r.isCopied ? 'Install command copied. Paste it in PowerShell or Terminal, then reopen the app.' : `fxmind: run ${installLine}`))
                 }))]
               : []),
-            own('update-go-box', iconBtn({ Box, Button, Svg }, 'update-go', 'retry', 'Try again', () => runUpdate($, card), { primary: true })),
-            own('update-close-box', iconBtn({ Box, Button, Svg }, 'update-close', 'close', 'Close', hide, { label: '✕' })),
+            own('update-go-box', iconBtn({ Box, Text, Button, Svg }, 'update-go', 'retry', 'Try again', () => runUpdate($, card), { primary: true })),
+            own('update-close-box', iconBtn({ Box, Text, Button, Svg }, 'update-close', 'close', 'Close', hide, { label: '✕' })),
           ]
         : landed
           ? [
               own('update-link-box', (
                 <Box key="update-link" flexDirection="row" alignItems="center" gap={1}>
-                  <Svg source={iconSvg('spark')} alt="What's new" width={14} height={14} />
-                  <Link href={WHATS_NEW_URL} label="↗" />
+                  <Text color="#ffffff" bold><Link href={WHATS_NEW_URL} label="What's new →" /></Text>
                 </Box>
               )),
               divider('update-div-1'),
-              own('update-share-box', iconBtn({ Box, Button, Svg }, 'update-share-go', 'share', 'Share', share)),
+              own('update-share-box', iconBtn({ Box, Text, Button, Svg }, 'update-share-go', 'share', 'Share', share)),
               divider('update-div-2'),
               own('update-star-box', (
                 <Box key="update-star" flexDirection="row" alignItems="center" gap={1}>
                   <Svg source={GITHUB_MARK_SVG} alt="GitHub" width={14} height={14} />
-                  <Link href={REPO_URL} label="★" />
+                  <Link href={REPO_URL} label="Star on GitHub" />
                 </Box>
               )),
-              own('update-close-box', iconBtn({ Box, Button, Svg }, 'update-close', 'close', 'Close', hide, { label: '✕' })),
+              own('update-close-box', iconBtn({ Box, Text, Button, Svg }, 'update-close', 'close', 'Close', hide, { label: '✕' })),
             ]
           : []
   return (
@@ -3452,7 +3457,7 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
     // Once the slot is Handoff (advised, or the setting says always), Compact stays beside it as quiet text, so both are
     // a press away. Desktop only, where there is room for it; the terminal compacts in one press from its own rows.
     ...(!isPlain(e) && 'Svg' in els && !config.hide.includes('handoff') && handoffSlot() && (typeof e.props.bodyColumns !== 'number' || e.props.bodyColumns >= COMPACT_BUTTON_MIN_COLUMNS)
-      ? [iconBtn({ Box, Button, Svg: (els as { Svg?: unknown }).Svg }, 'dash-compact', 'compact', 'Compact', () => openCompact($, e), { dim: true })]
+      ? [iconBtn({ Box, Text, Button, Svg: (els as { Svg?: unknown }).Svg }, 'dash-compact', 'compact', 'Compact', () => openCompact($, e), { dim: true })]
       : []),
     ...(config.hide.includes('handoff')
       ? []
@@ -3491,11 +3496,7 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
                   <els.Svg source={handoffPillSvg(handoffLevel(), true)} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
                 </Box>
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                  <els.Svg source={iconSvg(handoffSlot() ? 'handoff' : 'compact', handoffLook(handoffLevel()).label)} alt={handoffSlot() ? 'Handoff' : 'Compact'} width={16} height={16} />
-                </Box>
-                <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center"
-                  display="none" hover={{ scope: 'handoff', display: 'flex' }}>
-                  <els.Svg source={iconSvg(handoffSlot() ? 'handoff' : 'compact', handoffLook(handoffLevel(), true).label)} alt="" width={16} height={16} />
+                  <Text color={handoffLook(handoffLevel()).label} hover={{ scope: 'handoff', color: handoffLook(handoffLevel(), true).label }}>{handoffSlot() ? 'Handoff' : 'Compact'}</Text>
                 </Box>
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
                   <Button key="dash-handoff" plain label={' '.repeat(14)} hover={{ scope: 'handoff', backgroundColor: '#00000000' }} onPress={() => (handoffSlot() ? openHandoffBar($) : openCompact($, e))} />
@@ -4838,14 +4839,14 @@ Saved to ${out}.md and .json` }
         ) : checking === 'newest' ? (
           <Text key="settings-newest" dimColor>✓ Up to date</Text>
         ) : checking.startsWith('found ') && (!ownVersion || isNewer(checking.slice(6), ownVersion)) ? (
-          iconBtn({ Box, Button, Svg }, 'settings-update', 'download', `Update to ${checking.slice(6)}`, async () => {
+          iconBtn({ Box, Text, Button, Svg }, 'settings-update', 'download', `Update to ${checking.slice(6)}`, async () => {
             const card = await read($, updateCard)
             await update($, updateCheck, () => 'idle')
             if (card) void runUpdate($, card)
             await close()
           }, { primary: true })
         ) : (
-          iconBtn({ Box, Button, Svg }, 'settings-check-update', 'retry', 'Check for updates', () => void checkUpdateNow($), { dim: true })
+          iconBtn({ Box, Text, Button, Svg }, 'settings-check-update', 'retry', 'Check for updates', () => void checkUpdateNow($), { dim: true })
         ),
         // A terminal without link support prints the whole address after the label, so there it copies instead.
         term ? (
@@ -4856,7 +4857,7 @@ Saved to ${out}.md and .json` }
         ) : (
           <Box key="settings-bug-link" flexDirection="row" alignItems="center" gap={1}>
             {Svg ? <Svg source={iconSvg('bug', '#9a9aa3')} alt="Report a bug" width={14} height={14} /> : null}
-            <Text color="#9a9aa3"><Link href={bugUrl} label={Svg ? '↗' : 'Report a bug'} /></Text>
+            <Text color="#9a9aa3"><Link href={bugUrl} label="Report a bug" /></Text>
           </Box>
         ),
       ]
@@ -4900,15 +4901,15 @@ Saved to ${out}.md and .json` }
             ) : (
               <Box key="settings-trail" flexDirection="row" alignItems="center" gap={1}>
                 {/* A real button: a dim "Settings" in a trail did not read as a way back. */}
-                {iconBtn({ Box, Button, Svg }, 'settings-back', 'back', '← Back', openCard(null))}
+                {iconBtn({ Box, Text, Button, Svg }, 'settings-back', 'back', '← Back', openCard(null))}
                 <Text color={DASH_TEXT} bold>{CARDS.find(c => c.id === card)?.title}</Text>
               </Box>
             )}
           </Box>,
           <Box key="settings-actions" {...(term ? { flexShrink: 1, flexWrap: 'wrap', columnGap: 2 } : { position: 'absolute', top: 0, right: 2, height: 2.5, gap: 2 })} flexDirection="row" alignItems="center">
             {/* Save shows once something changed: until then there is nothing to save, and nothing to read. */}
-            {dirty ? iconBtn({ Box, Button, Svg }, 'settings-save', 'check', 'Save', () => saveDraft($), { primary: true, hotkey: term ? 's' : undefined }) : null}
-            {iconBtn({ Box, Button, Svg }, 'settings-close', 'close', 'Close', close, { label: '✕' })}
+            {dirty ? iconBtn({ Box, Text, Button, Svg }, 'settings-save', 'check', 'Save', () => saveDraft($), { primary: true, hotkey: term ? 's' : undefined }) : null}
+            {iconBtn({ Box, Text, Button, Svg }, 'settings-close', 'close', 'Close', close, { label: '✕' })}
           </Box>,
           ])}
           {term ? null : <Box key="settings-spacer" height={roomy ? 2 : 1} />}
@@ -4962,7 +4963,7 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-refine-send", label: "Refined prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
             // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
             ...([['init', 'Map project', 'map'], ['memory health', 'Review memories', 'memory'], ['learn', 'Learn', 'spark']] as const).map(([args, label, icon]) => (
-              iconBtn({ Box, Button, Svg }, `settings-fxmind-${args.split(' ')[0]}`, icon, label, async () => {
+              iconBtn({ Box, Text, Button, Svg }, `settings-fxmind-${args.split(' ')[0]}`, icon, label, async () => {
                 await close()
                 await $.command.run({ command: 'fxmind', args })
               }, { dim: true })
@@ -5005,7 +5006,7 @@ Saved to ${out}.md and .json` }
               ? [field('key-field', <Input key="settings-key" placeholder={hasKey ? 'Key saved. Paste to replace' : 'Paste TypeSafe key'}
                   value={draft.key ?? ''} submitLabel="ok" onInput={set('key')} onSubmit={set('key')} />, 30)]
               : []),
-            iconBtn({ Box, Button, Svg }, 'settings-judge-test', tested?.ok === null ? 'clock' : 'play', tested?.ok === null ? 'Testing…' : 'Test',
+            iconBtn({ Box, Text, Button, Svg }, 'settings-judge-test', tested?.ok === null ? 'clock' : 'play', tested?.ok === null ? 'Testing…' : 'Test',
               async () => {
                 if (tested?.ok === null) return
                 await update($, judgeTest, () => ({ ok: null, text: '' }))
@@ -5082,7 +5083,7 @@ Saved to ${out}.md and .json` }
             {markTitle({ Box, Text, Svg }, 'compact-title', ACCENT, '✦ Compact')}
             <Box key="compact-switch-box" position="relative" flexShrink={0} marginLeft={1}>
               <Box position="absolute" top={0} left={0} />
-              {iconBtn({ Box, Button, Svg }, 'compact-to-handoff', 'handoff', 'Handoff instead', async () => { await update($, compactAsk, () => false); await openHandoffBar($) }, { dim: true })}
+              {iconBtn({ Box, Text, Button, Svg }, 'compact-to-handoff', 'handoff', 'Handoff instead', async () => { await update($, compactAsk, () => false); await openHandoffBar($) }, { dim: true, text: 'Handoff' })}
             </Box>
           </Box>
           <Box key="compact-controls" position="relative" flexGrow={1} flexShrink={1} minWidth={0} flexDirection="row" justifyContent="flex-end" alignItems="center" gap={1}>
@@ -5110,7 +5111,7 @@ Saved to ${out}.md and .json` }
                 <Svg source={goPillSvg()} alt="Compact" width={GO_W} height={20} />
               </Box>
               <Box position="absolute" top={0} bottom={0} left={0} right={0} flexDirection="row" alignItems="center" justifyContent="center" gap={1}>
-                <Svg source={iconSvg('compact', '#141416')} alt="Compact" width={16} height={16} />
+                <Text color="#141416">Compact</Text>
                 <Svg source={enterSvg('#141416')} alt="Enter" width={14} height={14} />
               </Box>
               <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
@@ -5119,7 +5120,7 @@ Saved to ${out}.md and .json` }
             </Box>
             <Box key="compact-close-box" position="relative" flexShrink={0}>
               <Box position="absolute" top={0} left={0} />
-              {iconBtn({ Box, Button, Svg }, 'compact-close', 'close', 'Close', () => update($, compactAsk, () => false), { label: '✕' })}
+              {iconBtn({ Box, Text, Button, Svg }, 'compact-close', 'close', 'Close', () => update($, compactAsk, () => false), { label: '✕' })}
             </Box>
           </Box>
         </Box>
@@ -5180,8 +5181,8 @@ Saved to ${out}.md and .json` }
             { value: 'copy', label: 'Keep chat & copy' },
           ]}
           onSelect={v => setBar({ after: v as HandoffAfter })()} />,
-        iconBtn({ Box, Button, Svg }, 'handoff-go', 'check', 'Go', () => goHandoff($, choice), { primary: true, autoFocus: true }),
-        iconBtn({ Box, Button, Svg }, 'handoff-close', 'close', 'Close', () => closeHandoffBar($), { label: '✕' }),
+        iconBtn({ Box, Text, Button, Svg }, 'handoff-go', 'check', 'Go', () => goHandoff($, choice), { primary: true, autoFocus: true }),
+        iconBtn({ Box, Text, Button, Svg }, 'handoff-close', 'close', 'Close', () => closeHandoffBar($), { label: '✕' }),
       ]
       // The terminal says all of it; the desktop bar only what the picked kind does: the dropdown beside it already
       // says what happens after.
@@ -5209,7 +5210,7 @@ Saved to ${out}.md and .json` }
           </Box>
           <Box flexGrow={1} minWidth={48} />
           <Box key="handoff-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
-            {!term ? iconBtn({ Box, Button, Svg }, 'handoff-to-compact', 'compact', 'Compact instead', async () => { await closeHandoffBar($); await openCompact($, e) }, { dim: true }) : null}
+            {!term ? iconBtn({ Box, Text, Button, Svg }, 'handoff-to-compact', 'compact', 'Compact instead', async () => { await closeHandoffBar($); await openCompact($, e) }, { dim: true, text: 'Compact' }) : null}
             {controls}
           </Box>
         </Box>
@@ -5228,11 +5229,11 @@ Saved to ${out}.md and .json` }
       const counter = setupCounter(step)
       // The ✕ closes the guide without picking: until a judge is picked the footer keeps offering "Setup".
       const nav = (forward: unknown) => [
-        ...(back ? [iconBtn({ Box, Button, Svg }, 'setup-back', 'back', 'Back', go(back), { dim: true })] : []),
+        ...(back ? [iconBtn({ Box, Text, Button, Svg }, 'setup-back', 'back', 'Back', go(back), { dim: true })] : []),
         forward,
-        iconBtn({ Box, Button, Svg }, 'setup-close', 'close', 'Close', () => closeSetup($), { label: '✕' }),
+        iconBtn({ Box, Text, Button, Svg }, 'setup-close', 'close', 'Close', () => closeSetup($), { label: '✕' }),
       ]
-      const nextButton = iconBtn({ Box, Button, Svg }, 'setup-next', 'next', 'Next', go(setupNext(step)), { primary: true })
+      const nextButton = iconBtn({ Box, Text, Button, Svg }, 'setup-next', 'next', 'Next', go(setupNext(step)), { primary: true })
       // The title over one line of words on the left, the controls on the right. The controls are their own absolute
       // layer, drawn last: the app draws anything in the flow under the absolute art, where it takes no clicks
       // (position="relative" does not lift it). The spacer keeps the words clear of them; room is their width in
@@ -5269,7 +5270,7 @@ Saved to ${out}.md and .json` }
             <Button key="setup-jev" variant="secondary" label="+ Jev" onPress={() => pickJudge($, 'jev')} />
           </Box>,
           ...nav(
-            iconBtn({ Box, Button, Svg }, 'setup-skip', 'skip', 'Skip', async () => {
+            iconBtn({ Box, Text, Button, Svg }, 'setup-skip', 'skip', 'Skip', async () => {
               await markSetupDone($)
               await goSetup($, 'lean')
             }, { dim: true }),
@@ -5287,7 +5288,7 @@ Saved to ${out}.md and .json` }
                 await goSetup($, 'lean')
               }} />
           </Box>,
-          ...nav(iconBtn({ Box, Button, Svg }, 'setup-skip', 'skip', 'Skip', go('lean'))),
+          ...nav(iconBtn({ Box, Text, Button, Svg }, 'setup-skip', 'skip', 'Skip', go('lean'))),
         ])
       if (step === 'lean') {
         // Five stops, the marker on the one picked. The track is lit in purple from the middle out to the marker, so it
@@ -5343,7 +5344,7 @@ Saved to ${out}.md and .json` }
         ])
       }
       return band('⏻ Auto on or off. ⚙ all settings. Auto pauses on Fable.', 24, [
-        ...nav(iconBtn({ Box, Button, Svg }, 'setup-done', 'check', 'Done', () => finishSetup($), { primary: true, autoFocus: true })),
+        ...nav(iconBtn({ Box, Text, Button, Svg }, 'setup-done', 'check', 'Done', () => finishSetup($), { primary: true, autoFocus: true })),
       ])
     }
     // The judge the person picked is failing: Haiku stands in until it works again.
@@ -5372,8 +5373,8 @@ Saved to ${out}.md and .json` }
           <Text wrap="truncate">{`${downReason}. Haiku stands in.`}</Text>
           <Box flexGrow={1} minWidth={30} />
           <Box key="down-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
-            {iconBtn({ Box, Button, Svg }, 'down-settings', 'settings', 'Open settings', () => openPluginSettings($), { primary: true })}
-            {iconBtn({ Box, Button, Svg }, 'down-close', 'close', 'Close', () => update($, judgeDownHidden, () => downReason))}
+            {iconBtn({ Box, Text, Button, Svg }, 'down-settings', 'settings', 'Open settings', () => openPluginSettings($), { primary: true })}
+            {iconBtn({ Box, Text, Button, Svg }, 'down-close', 'close', 'Close', () => update($, judgeDownHidden, () => downReason))}
           </Box>
         </Box>
       )
@@ -5408,10 +5409,10 @@ Saved to ${out}.md and .json` }
           <Text wrap="truncate">{`${Math.round(heat.percent)}% of your ${window} limit used${resets ? ` · resets ${resets}` : ''}`}</Text>
           <Box flexGrow={1} minWidth={30} />
           <Box key="hot-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
-{iconBtn({ Box, Button, Svg }, 'hot-save', 'leaf', saving ? 'Save mode on' : 'Save mode', async () => {
+{iconBtn({ Box, Text, Button, Svg }, 'hot-save', 'leaf', saving ? 'Save mode on' : 'Save mode', async () => {
               $.ui.toast(tr(`fxmind: ${await toggleSave($)}`))
             }, { primary: true })}
-            {iconBtn({ Box, Button, Svg }, 'hot-close', 'close', 'Close', () => closeHot($, heat))}
+            {iconBtn({ Box, Text, Button, Svg }, 'hot-close', 'close', 'Close', () => closeHot($, heat))}
           </Box>
         </Box>
       )
@@ -5481,9 +5482,9 @@ Saved to ${out}.md and .json` }
           {/* Room for the buttons, which sit in their own layer after the frost so they are drawn on top of it. */}
           <Box flexGrow={1} minWidth={34} />
           <Box key="cold-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
-{iconBtn({ Box, Button, Svg }, 'cold-hide', 'clock', 'Not now', () => update($, isColdHidden, () => true))}
-            {iconBtn({ Box, Button, Svg }, 'cold-compact', 'compact', 'Compact', () => openCompact($, e))}
-            {iconBtn({ Box, Button, Svg }, 'cold-handoff', 'handoff', 'Handoff', () => openHandoffBar($), { primary: true })}
+{iconBtn({ Box, Text, Button, Svg }, 'cold-hide', 'clock', 'Not now', () => update($, isColdHidden, () => true))}
+            {iconBtn({ Box, Text, Button, Svg }, 'cold-compact', 'compact', 'Compact', () => openCompact($, e))}
+            {iconBtn({ Box, Text, Button, Svg }, 'cold-handoff', 'handoff', 'Handoff', () => openHandoffBar($), { primary: true })}
           </Box>
         </Box>
       )
@@ -5536,9 +5537,9 @@ Saved to ${out}.md and .json` }
           </Text>
           <Box flexGrow={1} minWidth={34} />
           <Box key="swamp-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
-{iconBtn({ Box, Button, Svg }, 'swamp-compact', 'compact', 'Compact', () => openCompact($, e), { primary: true })}
-            {iconBtn({ Box, Button, Svg }, 'swamp-handoff', 'handoff', handing ? 'Handing off…' : 'Handoff', () => openHandoffBar($))}
-            {iconBtn({ Box, Button, Svg }, 'swamp-close', 'close', 'Close', () => update($, swampHiddenAt, () => swampTokens))}
+{iconBtn({ Box, Text, Button, Svg }, 'swamp-compact', 'compact', 'Compact', () => openCompact($, e), { primary: true })}
+            {iconBtn({ Box, Text, Button, Svg }, 'swamp-handoff', 'handoff', handing ? 'Handing off…' : 'Handoff', () => openHandoffBar($))}
+            {iconBtn({ Box, Text, Button, Svg }, 'swamp-close', 'close', 'Close', () => update($, swampHiddenAt, () => swampTokens))}
           </Box>
         </Box>
       )
