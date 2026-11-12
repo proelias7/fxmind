@@ -1166,7 +1166,7 @@ describe('judge choice (plugin settings)', () => {
       modelAuto: 'off',
       helpers: 'off',
       theme: 'mint',
-      language: 'pt-BR',
+      language: 'en',
       refine: 'auto',
       refineWith: 'haiku',
       refineClear: 'on',

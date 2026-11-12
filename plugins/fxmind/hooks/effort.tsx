@@ -639,7 +639,7 @@ export type JudgeConfig = {
   language: Language
   /** The prompt refiner (./refine): when it runs, who writes, whether the chat is cleared, sent at once or to review. */
   refine: 'auto' | 'command' | 'off'
-  refineWith: 'haiku' | 'session'
+  refineWith: 'haiku' | 'sonnet' | 'opus' | 'session'
   refineClear: 'on' | 'off'
   refineSend: 'send' | 'fill'
   /** auto: light when Claude Code's own theme is light. dark and light fix it. */
@@ -672,7 +672,7 @@ let config: JudgeConfig = {
   modelAuto: 'off',
   helpers: 'off',
   theme: 'mint',
-  language: 'pt-BR',
+  language: 'en',
   refine: 'auto',
   refineWith: 'haiku',
   refineClear: 'on',
@@ -703,7 +703,7 @@ export function readConfig(options: unknown): JudgeConfig {
     modelAuto: str(o.modelAuto) === 'on' ? 'on' : 'off',
     helpers: str(o.helpers) === 'on' ? 'on' : 'off',
     theme: THEMES.find(t => t === str(o.theme)) ?? 'mint',
-    language: LANGUAGES.find(l => l === str(o.language)) ?? 'pt-BR',
+    language: LANGUAGES.find(l => l === str(o.language)) ?? 'en',
     refine: refiner.mode,
     refineWith: refiner.with,
     refineClear: refiner.clear ? 'on' : 'off',
@@ -4889,7 +4889,7 @@ Saved to ${out}.md and .json` }
               <Box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
                 {card === 'fxmind' ? (bare ? [] : [
             pick({ key: "settings-refine", label: "Prompt refiner", value: shown.refine, options: [{ value: 'auto', label: 'Automatic' }, { value: 'command', label: 'Command only' }, { value: 'off', label: 'Off' }], onSelect: set('refine') }),
-            pick({ key: "settings-refine-with", label: "Refine with", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
+            pick({ key: "settings-refine-with", label: "Refine with", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'sonnet', label: 'Sonnet 5.5' }, { value: 'opus', label: 'Opus 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
             pick({ key: "settings-refine-clear", label: "Clear chat", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
             pick({ key: "settings-refine-send", label: "Refined prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
             // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
@@ -4975,7 +4975,7 @@ Saved to ${out}.md and .json` }
                   pick({ key: "settings-layout", label: "Look", value: shown.layout, options: [{ value: 'default', label: 'Dashboard' }, { value: 'minimal', label: 'Minimal' }], onSelect: set('layout') }),
                   pick({ key: "settings-appearance", label: "Appearance", value: shown.appearance, options: [{ value: 'auto', label: 'Match Claude Code' }, { value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }], onSelect: set('appearance') }),
                   pick({ key: "settings-theme", label: "Theme", value: shown.theme, options: [{ value: 'mint', label: 'fxmind' }, { value: 'violet', label: 'Violet' }, { value: 'orange', label: 'Claude orange' }, { value: 'rose', label: 'Cherry blossom' }], onSelect: set('theme') }),
-                  pick({ key: "settings-language", label: "Language", value: shown.language, options: [{ value: 'pt-BR', label: 'Português (Brasil)' }, { value: 'en', label: 'English' }], onSelect: set('language') }),
+                  pick({ key: "settings-language", label: "Language", value: shown.language, options: [{ value: 'en', label: 'English' }, { value: 'pt-BR', label: 'Português (Brasil)' }], onSelect: set('language') }),
                 ]),
             ...toggles,
             ...(bare ? [] : [...upkeep, uninstallButton($, themedEls($.ui.resolve(e)))]),

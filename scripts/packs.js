@@ -1,34 +1,56 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 const PACKAGE_ROOT = path.join(__dirname, "..");
 const PACKS_DIR = path.join(PACKAGE_ROOT, "packs");
 
+/** Packs installed from other repositories with `fxmind pack add` (~/.fxmind/packs/<id>/). */
+function externalPacksDir() {
+  return process.env.FXMIND_PACKS_DIR || path.join(os.homedir(), ".fxmind", "packs");
+}
+
+function packIdsIn(dir) {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .map((entry) => entry.name)
+    .filter((id) => fs.existsSync(path.join(dir, id, "pack.json")));
+}
+
+/** Where a pack lives: the packs shipped with fxmind first, then the external ones. */
+function packDirOf(packId) {
+  for (const dir of [PACKS_DIR, externalPacksDir()]) {
+    if (fs.existsSync(path.join(dir, packId, "pack.json"))) return path.join(dir, packId);
+  }
+  return null;
+}
+
 function loadPackManifest(packId) {
-  const manifestPath = path.join(PACKS_DIR, packId, "pack.json");
-  if (!fs.existsSync(manifestPath)) {
+  const packDir = packDirOf(packId);
+  if (!packDir) {
     throw new Error(`Unknown knowledge pack: ${packId}`);
   }
 
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(packDir, "pack.json"), "utf8"));
   return {
     ...manifest,
     id: packId,
-    templatesDir: path.join(PACKS_DIR, packId, "templates"),
+    source: path.dirname(packDir) === PACKS_DIR ? "bundled" : "external",
+    templatesDir: path.join(packDir, "templates"),
   };
 }
 
 function listPackIds() {
-  if (!fs.existsSync(PACKS_DIR)) {
-    return [];
-  }
+  return [...new Set([...packIdsIn(PACKS_DIR), ...packIdsIn(externalPacksDir())])].sort();
+}
 
-  return fs
-    .readdirSync(PACKS_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .filter((id) => fs.existsSync(path.join(PACKS_DIR, id, "pack.json")))
-    .sort();
+/** Ids of the packs shipped with fxmind: an external pack may not take one. */
+function bundledPackIds() {
+  return packIdsIn(PACKS_DIR).sort();
 }
 
 function listPacks() {
@@ -109,6 +131,9 @@ function validatePackIds(packIds) {
 module.exports = {
   PACKAGE_ROOT,
   PACKS_DIR,
+  externalPacksDir,
+  bundledPackIds,
+  packDirOf,
   listPackIds,
   listPacks,
   getPack,

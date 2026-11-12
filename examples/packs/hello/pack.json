@@ -1,0 +1,20 @@
+{
+  "id": "hello",
+  "label": "Hello",
+  "description": "A minimal fxmind knowledge pack: one skill, one binding policy and its routing.",
+  "skills": {
+    "localPath": "skills"
+  },
+  "defaultSkills": ["hello-basics"],
+  "detect": {
+    "files": ["hello.config"]
+  },
+  "templateFiles": [
+    { "src": "hello-principles.md", "dest": "policy/hello-principles.md" },
+    { "src": "domain-routing.md", "dest": "policy/domain-routing.md" }
+  ],
+  "review": {
+    "policy": ["policy/hello-principles.md"],
+    "always": [{ "file": "skills/hello-basics/SKILL.md", "max": 1600 }]
+  }
+}

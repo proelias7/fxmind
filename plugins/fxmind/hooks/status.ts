@@ -1,5 +1,7 @@
 import type { EngineInterface } from 'claude-code'
 
+import { tr } from './i18n'
+
 // The fxmind runtime (MCP + project hooks) does the work; the mod says where it stands in one status line: memories,
 // what the last edits may have made stale, and the open task's gates. The bar above the prompt (./effort) is the one
 // panel the mod draws.
@@ -66,12 +68,12 @@ async function load($: EngineInterface): Promise<Snapshot | null> {
   return { isTaskActive: Boolean(session?.taskActive) && !gates.C, gates, memories, stale }
 }
 
-/** The status line's words: "fxmind · 24 memórias · 3 a rever · tarefa A✓ B✓ V· C·". */
+/** The status line's words: "fxmind · 24 memories · 3 to review · task A✓ B✓ V· C·", in the chosen language. */
 export function statusText(snap: Snapshot): string {
-  const parts = [`fxmind · ${snap.memories} memórias`]
-  if (snap.stale) parts.push(`${snap.stale} a rever`)
-  if (snap.isTaskActive) parts.push(`tarefa ${GATES.map((gate) => `${gate}${snap.gates[gate] ? '✓' : '·'}`).join(' ')}`)
-  return parts.join(' · ')
+  const parts = [`fxmind · ${snap.memories} memories`]
+  if (snap.stale) parts.push(`${snap.stale} to review`)
+  if (snap.isTaskActive) parts.push(`task ${GATES.map((gate) => `${gate}${snap.gates[gate] ? '✓' : '·'}`).join(' ')}`)
+  return tr(parts.join(' · '))
 }
 
 /** Never throws: a display problem must not touch the tool call or turn it rode on. */

@@ -201,10 +201,12 @@
     "refineWith": {
       "type": "string",
       "title": "Refine with",
-      "description": "haiku: Haiku 5.5 writes the refined prompt (fast, cheap). session: the chat's own model writes it.",
+      "description": "The model that reads the demand and writes the refined prompt. haiku: Haiku 5.5 (fast, cheap). sonnet: Sonnet 5.5. opus: Opus 5.5 (smartest, slower). session: the chat's own model.",
       "default": "haiku",
       "options": [
         "haiku",
+        "sonnet",
+        "opus",
         "session"
       ]
     },
@@ -231,11 +233,11 @@
     "language": {
       "type": "string",
       "title": "Language",
-      "description": "The language of the effort bar, its settings and alerts. pt-BR: Portuguese (Brazil). en: English.",
-      "default": "pt-BR",
+      "description": "The language of the effort bar, its settings and alerts. en: English. pt-BR: Portuguese (Brazil).",
+      "default": "en",
       "options": [
-        "pt-BR",
-        "en"
+        "en",
+        "pt-BR"
       ]
     }
   }

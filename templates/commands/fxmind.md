@@ -1,6 +1,6 @@
 ---
-description: "fxmind — shared project memory — task, refine, create, refactor, judge, init, audit, learn, teach, memory health, graph, painel, query, path, explain, update"
-argument-hint: "task <implementation> | refine <demand> | create <resource> | refactor <resource> | judge [target] | init [scope] | audit [scope] | learn <topic> | teach <playbook> | memory health [fix] [topic] | graph | painel | query \"<question>\" [--dfs] [--budget N] | path <a> <b> | explain <topic> | update | <question>"
+description: "fxmind — shared project memory — task, refine, create, refactor, judge, init, audit, learn, teach, memory health, pack, graph, painel, query, path, explain, update"
+argument-hint: "task <implementation> | refine <demand> | create <resource> | refactor <resource> | judge [target] | init [scope] | audit [scope] | learn <topic> | teach <playbook> | memory health [fix] [topic] | pack add <source> | pack list | pack remove <id> | graph | painel | query \"<question>\" [--dfs] [--budget N] | path <a> <b> | explain <topic> | update | <question>"
 ---
 
 # fxmind
@@ -24,6 +24,7 @@ Parse `$ARGUMENTS` (trim, case-insensitive). **Prefer Task for any code/config c
 | `learn` or `learn <topic>` / `learn list` | `.fxmind/modes/learn.md` |
 | `teach <name>` | `.fxmind/modes/teach.md` — turn a task that worked into a playbook (surgical steps for repeated requests) |
 | `memory health [fix] [topic]` | `.fxmind/modes/memory-health.md` |
+| `pack add <source>` / `pack list` / `pack remove <id>` | `.fxmind/modes/pack.md` — knowledge packs from other repositories (runs the `fxmind pack` CLI) |
 | `graph` | `.fxmind/modes/graph.md` — **just run `fxmind graph`** |
 | `painel` or `panel` | `.fxmind/modes/painel.md` — run `fxmind painel`, **stay in this chat** as host (no API key) |
 | `query "<question>"` [--dfs] [--budget N] | `.fxmind/modes/query.md` |

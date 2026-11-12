@@ -1,0 +1,11 @@
+description = "Install, list or remove fxmind knowledge packs from other repositories"
+
+prompt = """
+Manage fxmind knowledge packs.
+
+**Args:** {{args}}
+
+Read `.fxmind/modes/pack.md` and follow it. It runs the `fxmind pack` CLI (`add <source>`, `list`, `remove <id>`); never add `--force` without an explicit yes from the user.
+
+Reply in the user's language.
+"""

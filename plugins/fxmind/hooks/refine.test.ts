@@ -23,7 +23,7 @@ const REFINED = '# Objetivo\nCriar o endpoint de login com JWT.'
 
 /** What sits beneath the mod: the models answer by role (reader, writer, effort judge), and what goes on is recorded. */
 function engine(on: On, reading: string, refined: string | null = REFINED, said: { role: string; text: string }[] = []) {
-  const seen = { entered: [] as string[], ran: [] as string[], filled: [] as string[], reader: [] as string[], writer: [] as string[] }
+  const seen = { entered: [] as string[], ran: [] as string[], filled: [] as string[], reader: [] as string[], writer: [] as string[], models: [] as string[] }
   mock.store(on)
   mock.env(on, {})
   const clock = mock.clock(on)
@@ -49,10 +49,12 @@ function engine(on: On, reading: string, refined: string | null = REFINED, said:
   on('model.complete', (_$, e) => {
     const system = String(e.system ?? '')
     if (system.startsWith('You prepare the work')) {
+      seen.models.push(`reader:${e.model}`)
       seen.reader.push(String(e.prompt))
       return { value: { isAnswered: true as const, text: reading, usage: USAGE } }
     }
     if (system.startsWith('You write the prompt')) {
+      seen.models.push(`writer:${e.model}`)
       seen.writer.push(String(e.prompt))
       return refined === null
         ? ({ value: { isAnswered: false as const, reason: 'api-error', usage: USAGE } } as never)
@@ -99,6 +101,8 @@ describe('refiner rules', () => {
     expect(readRefineConfig(undefined)).toEqual({ mode: 'auto', with: 'haiku', clear: true, send: 'send' })
     expect(readRefineConfig({ refine: 'command', refineWith: 'session', refineClear: 'off', refineSend: 'fill' })).toEqual({ mode: 'command', with: 'session', clear: false, send: 'fill' })
     expect(readRefineConfig({ refine: 'sometimes' }).mode).toBe('auto')
+    expect(readRefineConfig({ refineWith: 'opus' }).with).toBe('opus')
+    expect(readRefineConfig({ refineWith: 'gpt' }).with).toBe('haiku')
   })
 })
 
@@ -122,14 +126,14 @@ describe('refiner', () => {
   test('a demand is held, its doubts asked in the band; the answers make the prompt, the chat is cleared and it goes in', async ($, on) => {
     const { seen, clock } = engine(on, TWO_QUESTIONS, REFINED, [{ role: 'user', text: 'a API usa Express' }])
     const result = await type($, DEMAND)
-    expect(String(result.drop)).toContain('2 dúvidas')
+    expect(String(result.drop)).toContain('2 questions')
     expect(seen.entered).toEqual([])
     expect(seen.reader[0]).toContain(DEMAND)
     expect(seen.reader[0]).toContain('a API usa Express')
 
     const band = await $.ui.mount(BAND)
     expect(await drawn(band)).toContain('Onde ficam os usuários?')
-    expect(await drawn(band)).toContain('dúvida 1 de 2')
+    expect(await drawn(band)).toContain('question 1 of 2')
     await band.press({ key: 'refine-option-0' })
     expect(await drawn(band)).toContain('Qual a validade do token?')
     // No second input in the band: an open answer goes in the prompt box.
@@ -147,14 +151,14 @@ describe('refiner', () => {
     await band.unmount()
     // Idle again: the refiner's band is gone.
     const after = await $.ui.mount(BAND).catch(() => null)
-    if (after) expect(await drawn(after)).not.toContain('Refinador de prompt')
+    if (after) expect(await drawn(after)).not.toContain('Prompt refiner')
   })
 
   test('an answer typed in the prompt box counts; the last one starts the writing', async ($, on) => {
     const { seen, clock } = engine(on, TWO_QUESTIONS)
     await type($, DEMAND)
-    expect(String((await type($, 'MySQL')).drop)).toContain('resposta 1 de 2')
-    expect(String((await type($, '15 minutos')).drop)).toContain('montando o prompt')
+    expect(String((await type($, 'MySQL')).drop)).toContain('answer 1 of 2')
+    expect(String((await type($, '15 minutos')).drop)).toContain('writing the prompt')
     await clock.advance(10)
     expect(seen.writer[0]).toContain('Answer: MySQL')
     expect(seen.writer[0]).toContain('Answer: 15 minutos')
@@ -163,7 +167,7 @@ describe('refiner', () => {
 
   test('a clear demand has no questions: it is written at once', async ($, on) => {
     const { seen, clock } = engine(on, '{"implement":true,"questions":[]}')
-    expect(String((await type($, DEMAND)).drop)).toContain('demanda clara')
+    expect(String((await type($, DEMAND)).drop)).toContain('the demand is clear')
     await clock.advance(10)
     expect(seen.ran).toEqual(['/clear'])
     expect(seen.entered).toEqual([REFINED])
@@ -174,7 +178,7 @@ describe('refiner', () => {
     await type($, DEMAND)
     const band = await $.ui.mount(BAND)
     await band.press({ key: 'refine-skip' })
-    expect(await drawn(band)).toContain('dúvida 2 de 2')
+    expect(await drawn(band)).toContain('question 2 of 2')
     await band.press({ key: 'refine-raw' })
     expect(seen.writer).toEqual([])
     expect(seen.ran).toEqual([])
@@ -204,12 +208,63 @@ describe('refiner', () => {
     await band.unmount()
   })
 
+  test('the prompt left in the box to review goes on as sent, not refined again', { options: { refineClear: 'off', refineSend: 'fill' } } as never, async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS)
+    await type($, DEMAND)
+    const band = await $.ui.mount(BAND)
+    await band.press({ key: 'refine-write' })
+    await band.unmount()
+    expect(seen.filled).toEqual([REFINED])
+    const readers = seen.reader.length
+    expect((await type($, `${REFINED}
+implemente também o refresh token`)).drop).toBeUndefined()
+    expect(seen.reader).toHaveLength(readers)
+    expect(seen.entered.at(-1)).toContain('refresh token')
+    // Only that one send: the next demand is refined again.
+    expect(String((await type($, DEMAND)).drop)).toContain('2 questions')
+  })
+
+  test('the demand put back by ✕ goes on as sent', async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS)
+    await type($, DEMAND)
+    const band = await $.ui.mount(BAND)
+    await band.press({ key: 'refine-cancel' })
+    await band.unmount()
+    expect((await type($, DEMAND)).drop).toBeUndefined()
+    expect(seen.entered).toEqual([DEMAND])
+  })
+
+  test('Haiku 5.5 reads and writes by default', async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS)
+    await type($, DEMAND)
+    const band = await $.ui.mount(BAND)
+    await band.press({ key: 'refine-write' })
+    await band.unmount()
+    expect(seen.models).toEqual(['reader:claude-haiku-5-5', 'writer:claude-haiku-5-5'])
+  })
+
+  test('Opus 5.5, when picked, reads the demand and writes the prompt', { options: { refineWith: 'opus' } } as never, async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS)
+    await type($, DEMAND)
+    const band = await $.ui.mount(BAND)
+    await band.press({ key: 'refine-write' })
+    await band.unmount()
+    expect(seen.models).toEqual(['reader:claude-opus-5-5', 'writer:claude-opus-5-5'])
+    expect(seen.entered).toEqual([REFINED])
+  })
+
+  test("the chat's model, when picked, is the session's", { options: { refineWith: 'session' } } as never, async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS)
+    await type($, DEMAND)
+    expect(seen.models).toEqual(['reader:claude-opus-5-5'])
+  })
+
   test('a writer that fails says so in the band and nothing is cleared or sent', async ($, on) => {
     const { seen } = engine(on, TWO_QUESTIONS, null)
     await type($, DEMAND)
     const band = await $.ui.mount(BAND)
     await band.press({ key: 'refine-write' })
-    expect(await drawn(band)).toContain('Não consegui montar o prompt')
+    expect(await drawn(band)).toContain('Could not write the prompt')
     expect(await band.find({ key: 'refine-raw' })).toBeDefined()
     expect(seen.ran).toEqual([])
     expect(seen.entered).toEqual([])
@@ -233,8 +288,21 @@ describe('refiner', () => {
   test('/fxmind-refine off switches it off', async ($, on) => {
     const { seen } = engine(on, TWO_QUESTIONS)
     const reply = await $.command.run({ command: 'fxmind-refine', args: 'off' } as never)
-    expect(String(reply.text)).toContain('desligado')
+    expect(String(reply.text)).toContain('off')
     expect((await type($, DEMAND)).drop).toBeUndefined()
     expect(seen.entered).toEqual([DEMAND])
+  })
+  test('in pt-BR the band, the drops and the command speak Portuguese', { options: { language: 'pt-BR' } } as never, async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS)
+    expect(String((await type($, DEMAND)).drop)).toContain('2 dúvidas antes de implementar')
+    const band = await $.ui.mount(BAND)
+    expect(await drawn(band)).toContain('Refinador de prompt')
+    expect(await drawn(band)).toContain('dúvida 1 de 2')
+    expect(await drawn(band)).toContain('Enviar sem refinar')
+    await band.press({ key: 'refine-cancel' })
+    expect(seen.filled).toEqual([DEMAND])
+    await band.unmount()
+    const reply = await $.command.run({ command: 'fxmind-refine', args: 'off' } as never)
+    expect(String(reply.text)).toBe('Refinador de prompt: desligado.')
   })
 })

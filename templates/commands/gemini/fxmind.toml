@@ -18,6 +18,7 @@ You are a senior engineer for this project's stack (see `.fxmind/policy/domain-r
 | Rewrite/optimize bad code | `/fxmind:refactor <scope>` |
 | Code audit (read-only diagnosis) | `/fxmind:audit [scope]` |
 | Learn main modules and map the project | `/fxmind:init` |
+| Install, list or remove knowledge packs from other repositories | `/fxmind:pack add <source>` |
 | Knowledge graph | `/fxmind:graph` |
 | Web panel (inbox + agent chat) | `/fxmind:painel` |
 | Graph retrieval | `/fxmind:query "<question>"` |

@@ -8,7 +8,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const { PACKAGE_ROOT, PACKS_DIR, listPackIds } = require("./packs");
+const { PACKAGE_ROOT, PACKS_DIR, listPackIds, getPack, externalPacksDir } = require("./packs");
+const { runPackAdd, runPackRemove, readSources } = require("./pack-add");
 
 function slugify(id) {
   return String(id)
@@ -73,9 +74,16 @@ function printPackHelp() {
   console.log(`fxmind pack — manage knowledge packs.
 
 Usage:
+  fxmind pack add <source> [options]      Install a pack from owner/repo, a git URL or a local folder
+  fxmind pack remove <id> [--force]       Remove a pack installed with pack add
+  fxmind pack list                         List available packs and where they come from
   fxmind pack new <id> [options]          Scaffold a new pack under packs/<id>/
-  fxmind pack list                         List available packs
   fxmind pack -h                           This help
+
+Options for \`pack add\`:
+  --ref <branch|tag>        Clone that branch or tag
+  --path <folder>           The pack sits in this folder of the repository
+  --force                   Overwrite an installed pack with the same id without asking
 
 Options for \`pack new\`:
   --label <text>            Pack label (default: id)
@@ -85,7 +93,9 @@ Options for \`pack new\`:
   --default-skills <list>   Comma-separated default skill names
   --force                   Overwrite templates if pack exists (keeps pack.json unless missing)
 
-Example:
+Examples:
+  fxmind pack add my-org/fxmind-pack-laravel
+  fxmind pack add https://gitlab.com/my-org/packs.git --path laravel --ref v1.2.0
   fxmind pack new qbox --label Qbox --repo https://github.com/org/qbox-skill.git --default-skills qbox-framework`);
 }
 
@@ -137,13 +147,20 @@ function runPackCli(argv = []) {
     return sub ? 1 : 0;
   }
 
+  if (sub === "add") return runPackAdd(argv.slice(1));
+  if (sub === "remove" || sub === "rm") return runPackRemove(argv.slice(1));
+
   if (sub === "list") {
     const ids = listPackIds();
     if (ids.length === 0) {
       console.log("No packs found.");
     } else {
+      const sources = readSources(externalPacksDir());
       console.log("Available packs:");
-      for (const id of ids) console.log(`  - ${id}`);
+      for (const id of ids) {
+        const pack = getPack(id);
+        console.log(`  - ${id}${pack.source === "external" ? `  (from ${sources[id]?.source || externalPacksDir()})` : ""}`);
+      }
     }
     return 0;
   }

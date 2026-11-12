@@ -2,7 +2,7 @@
 
 **fxmind** installs shared project memory (`.fxmind/`), a `/fxmind` command workflow, and optional domain **knowledge packs** into your repo. Works with **Cursor**, **Claude Code**, **Codex**, **Gemini CLI**, **OpenCode**, and **VS Code Copilot**.
 
-Two packs ship today: **FiveM** (vRP, QBCore, Qbox, ESX, NUI) and **Web** (React/Next/Vue/Svelte/Angular frontends, Node/Python/PHP backends, databases, security, tests, accessibility). `fxmind -y` picks the pack from the project (`fxmanifest.lua` → FiveM, `package.json`/`composer.json`/`pyproject.toml` → Web). More domains can be added under `packs/`.
+Two packs ship today: **FiveM** (vRP, QBCore, Qbox, ESX, NUI) and **Web** (React/Next/Vue/Svelte/Angular frontends, Node/Python/PHP backends, databases, security, tests, accessibility). `fxmind -y` picks the pack from the project (`fxmanifest.lua` → FiveM, `package.json`/`composer.json`/`pyproject.toml` → Web). More domains can be added under `packs/`, or installed from any repository with `fxmind pack add <owner/repo>`: see [Knowledge packs](packs.md) to write one.
 
 **Built for teams of agents:** every agent (Cursor, Claude Code, Codex, Gemini, OpenCode, Copilot) and every teammate reads and writes the same project memory. Learned facts live in `.fxmind/memory/` and are committed with the code, writes from parallel agents are serialized with a file lock, and parallel tasks claim their paths before editing.
 

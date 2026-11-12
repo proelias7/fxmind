@@ -2,9 +2,9 @@
 // here as it is drawn (theme.ts wraps the elements), said in a toast or answered by a command. English is the identity.
 
 export type Language = 'en' | 'pt-BR'
-export const LANGUAGES: readonly Language[] = ['pt-BR', 'en']
+export const LANGUAGES: readonly Language[] = ['en', 'pt-BR']
 
-let language: Language = 'pt-BR'
+let language: Language = 'en'
 export const setLanguage = (to: Language) => {
   language = to
 }
@@ -61,6 +61,16 @@ const PT: Record<string, string> = {
   'Refine with': 'Refinar com', 'Clear chat': 'Limpar o chat', Yes: 'Sim', No: 'Não',
   'Refined prompt': 'Prompt refinado', Send: 'Enviar', 'Review first': 'Revisar antes',
   'Map project': 'Mapear projeto', 'Review memories': 'Rever memórias', Learn: 'Aprender',
+  'reading the demand…': 'lendo a demanda…', 'writing the prompt…': 'montando o prompt…', 'ready to write': 'pronto para montar',
+  'pick or answer in the chat': 'escolha ou responda no chat', 'Send as typed': 'Enviar sem refinar', 'Write now': 'Montar agora',
+  'Write prompt': 'Montar prompt', 'the model did not answer': 'o modelo não respondeu',
+  'fxmind: answer saved, writing the prompt…': 'fxmind: resposta registrada, montando o prompt…',
+  'fxmind: choose above the prompt: Write prompt, Send as typed or ✕': 'fxmind: escolha acima do prompt: Montar prompt, Enviar sem refinar ou ✕',
+  'fxmind: wait, the refiner is still on the previous demand (above the prompt)': 'fxmind: aguarde, o refinador está trabalhando na demanda anterior (acima do prompt)',
+  'fxmind: the demand is clear, writing the refined prompt…': 'fxmind: demanda clara, montando o prompt refinado…',
+  'fxmind: the refined prompt is in the prompt box. Review it and send.': 'fxmind: prompt refinado no campo de texto. Revise e envie.',
+  'The refiner is already working on a demand (above the prompt).': 'O refinador já está trabalhando em uma demanda (acima do prompt).',
+  'Refining the demand above the prompt.': 'Refinando a demanda acima do prompt.',
   'Cache timer': 'Timer do cache', 'Judge line': 'Linha do juiz', 'Context alert': 'Alerta de contexto',
   'Running low alert': 'Alerta de limite', 'Cold cache alert': 'Alerta de cache frio',
 
@@ -162,6 +172,15 @@ const RULES: readonly [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^Prompt cache cold: the next message reads the whole chat again at full price\.$/, () => 'Cache de prompt frio: a próxima mensagem relê o chat inteiro a preço cheio.'],
   [/^Compact first to save\.$/, () => 'Compacte antes para economizar.'],
   [/^Prompt cache warm for (.+) more: the next message reads the chat from cache, cheap and fast\.$/, m => `Cache de prompt quente por mais ${m[1]}: a próxima mensagem lê o chat do cache, barato e rápido.`],
+  [/^question (\d+) of (\d+)$/, m => `dúvida ${m[1]} de ${m[2]}`],
+  [/^Could not write the prompt: (.*)$/, m => `Não consegui montar o prompt: ${tr(m[1]!)}`],
+  [/^fxmind: answer (\d+) of (\d+) saved$/, m => `fxmind: resposta ${m[1]} de ${m[2]} registrada`],
+  [/^fxmind: (\d+) questions? before building\. Answer above the prompt\.$/, m => `fxmind: ${m[1]} ${m[1] === '1' ? 'dúvida' : 'dúvidas'} antes de implementar. Responda acima do prompt.`],
+  [/^Prompt refiner: (automatic|command only|off)(.*?)\. Use \/fxmind-refine <demand>, or auto, command, off\.$/, m => `Refinador de prompt: ${({ automatic: 'automático', 'command only': 'só por comando', off: 'desligado' } as Record<string, string>)[m[1]!]}${m[2]}. Use /fxmind-refine <demanda>, ou auto, command, off.`],
+  [/^Prompt refiner: (.+)$/, m => `Refinador de prompt: ${({ 'automatic: implementation demands are refined before they reach the agent.': 'automático: demandas de implementação são refinadas antes de chegar ao agente.', 'command only: /fxmind-refine <demand>.': 'só por comando: /fxmind-refine <demanda>.', 'off.': 'desligado.' } as Record<string, string>)[m[1]!] ?? m[1]}`],
+  [/^(\d+) memories$/, m => `${m[1]} memórias`],
+  [/^(\d+) to review$/, m => `${m[1]} a rever`],
+  [/^task ([ABVC][✓·] [ABVC][✓·] [ABVC][✓·] [ABVC][✓·])$/, m => `tarefa ${m[1]}`],
   [/^Step (\d+) of (\d+)$/, m => `Passo ${m[1]} de ${m[2]}`],
   [/^Paused at step (\d+) of (\d+)$/, m => `Pausado no passo ${m[1]} de ${m[2]}`],
   [/^Waiting for your answer$/, () => 'Aguardando sua resposta'],

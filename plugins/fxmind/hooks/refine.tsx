@@ -3,6 +3,7 @@ import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Refine, RefineQuestion } from '../types'
 import { projectRoot } from './status'
+import { tr } from './i18n'
 import { themedEls } from './theme'
 
 // The prompt refiner. A demand to build something is held back before it reaches the agent: Haiku reads it, asks the
@@ -14,15 +15,24 @@ type Mode = 'auto' | 'command' | 'off'
 
 const state = atom({ plugin: 'fxmind', key: 'refine' } as const, null)
 
-const MODEL = 'claude-haiku-5-5'
+type RefineWith = 'haiku' | 'sonnet' | 'opus' | 'session'
+const WITH: readonly RefineWith[] = ['haiku', 'sonnet', 'opus', 'session']
+/** Each model by its id, then the alias a build that does not know the id answers to. */
+const MODELS: Record<Exclude<RefineWith, 'session'>, readonly [string, string]> = {
+  haiku: ['claude-haiku-5-5', 'haiku'],
+  sonnet: ['claude-sonnet-5-5', 'sonnet'],
+  opus: ['claude-opus-5-5', 'opus'],
+}
+/** Haiku reads a demand in a few seconds; a larger model is given longer before the prompt goes on as typed. */
 const READ_TIMEOUT_MS = 12_000
+const READ_TIMEOUT_LARGE_MS = 40_000
 const WRITE_TIMEOUT_MS = 90_000
 const MAX_QUESTIONS = 4
 /** How much of the chat the writer is shown: the refined prompt must stand without it, since the chat is cleared. */
 const CHAT_MESSAGES = 12
 const CHAT_MESSAGE_CHARS = 1500
 
-export type RefineConfig = { mode: Mode; with: 'haiku' | 'session'; clear: boolean; send: 'send' | 'fill' }
+export type RefineConfig = { mode: Mode; with: RefineWith; clear: boolean; send: 'send' | 'fill' }
 const DEFAULTS: RefineConfig = { mode: 'auto', with: 'haiku', clear: true, send: 'send' }
 let config: RefineConfig = DEFAULTS
 
@@ -34,7 +44,7 @@ export const setRefineMode = (mode: string) => {
 }
 /** The refiner's other settings as the settings panel saved them; the mode is left as it is (see setRefineMode). */
 export const applyRefineOptions = (o: { with: string; clear: string; send: string }) => {
-  config = { ...config, with: o.with === 'session' ? 'session' : 'haiku', clear: o.clear !== 'off', send: o.send === 'fill' ? 'fill' : 'send' }
+  config = { ...config, with: WITH.includes(o.with as RefineWith) ? (o.with as RefineWith) : 'haiku', clear: o.clear !== 'off', send: o.send === 'fill' ? 'fill' : 'send' }
 }
 
 /** The refiner's settings as the plugin's options give them (strings); anything else is the default. */
@@ -44,7 +54,7 @@ export function readRefineConfig(options: unknown): RefineConfig {
     allowed.includes(value as T) ? (value as T) : fallback
   return {
     mode: one(o.refine, ['auto', 'command', 'off'] as const, DEFAULTS.mode),
-    with: one(o.refineWith, ['haiku', 'session'] as const, DEFAULTS.with),
+    with: one(o.refineWith, WITH, DEFAULTS.with),
     clear: one(o.refineClear, ['on', 'off'] as const, 'on') === 'on',
     send: one(o.refineSend, ['send', 'fill'] as const, DEFAULTS.send),
   }
@@ -78,6 +88,8 @@ const WRITE_SYSTEM = `You write the prompt a coding agent (Claude Code) receives
 - How to work: read the code involved before changing it, follow the project's own patterns, keep the change as small as the goal allows, and ask before anything destructive or hard to undo. Add what the project facts call for.
 - Done when: how the result is accepted and checked (tests to run or write, a manual check), and what to report at the end.
 - Assumptions: where a question went unanswered and it still matters, the assumption you made, so the agent can question it.
+
+You have not read the repository. Never state what the code has or lacks, what exists or does not exist, or how something works today, unless the chat or the project facts say so: tell the agent to find out by reading the code, and let a premise you cannot check be an assumption.
 
 Keep it as short as the work allows. No filler, no praise, no "You are an expert" preamble, no restating of these instructions. Reply with the prompt only.`
 
@@ -139,12 +151,16 @@ async function chatSoFar($: EngineInterface): Promise<string> {
   return chatDigest(await $.session.messages().catch(() => []))
 }
 
-/** Haiku 5.5 by name, the alias where a build does not know it; the chat's own model when the person chose that. */
-async function ask($: EngineInterface, system: string, prompt: string, maxTokens: number, timeoutMs: number, own: boolean) {
-  const model = own ? await $.session.model().catch(() => MODEL) : MODEL
-  let r = await $.model.complete({ model, system, prompt, maxTokens, timeoutMs })
-  if (!r.isAnswered && !own) r = await $.model.complete({ model: 'haiku', system, prompt, maxTokens, timeoutMs })
-  return r.isAnswered ? r.text : undefined
+/** The model the person picked (Haiku 5.5 by default, Sonnet 5.5, Opus 5.5 or the chat's own), by its id, then its alias
+ * where a build does not know the id. It both reads the demand and writes the prompt. */
+async function ask($: EngineInterface, system: string, prompt: string, maxTokens: number, timeoutMs: number) {
+  const timeout = timeoutMs === READ_TIMEOUT_MS && config.with !== 'haiku' ? READ_TIMEOUT_LARGE_MS : timeoutMs
+  const tries = config.with === 'session' ? [await $.session.model().catch(() => MODELS.haiku[0])] : MODELS[config.with]
+  for (const model of tries) {
+    const r = await $.model.complete({ model, system, prompt, maxTokens, timeoutMs: timeout })
+    if (r.isAnswered) return r.text
+  }
+  return undefined
 }
 
 // A declaration, as every function here that takes $: past an import the engine follows $ only into those.
@@ -164,12 +180,20 @@ async function send($: EngineInterface, text: string) {
   await $.prompt.submit({ text, asUser: true })
 }
 
+/** Set when the refiner leaves text in the prompt box (the refined prompt to review, or the demand put back by ✕): the
+ * person's next send is that text, edited or not, and goes on as typed instead of being refined again. */
+let passNext = false
+async function fill($: EngineInterface, text: string) {
+  passNext = true
+  await $.prompt.fill({ text, mode: 'replace' })
+}
+
 /** The refined prompt goes in: the chat is cleared first (unless switched off), then it is sent, or left in the prompt box to read. */
 async function inject($: EngineInterface, text: string) {
   if (config.clear) await $.command.run({ command: 'clear', args: '' })
   if (config.send === 'fill') {
-    await $.prompt.fill({ text, mode: 'replace' })
-    $.ui.toast('fxmind: prompt refinado no campo de texto. Revise e envie.')
+    await fill($, text)
+    $.ui.toast(tr('fxmind: the refined prompt is in the prompt box. Review it and send.'))
     return
   }
   await send($, text)
@@ -182,13 +206,13 @@ async function write($: EngineInterface) {
   await set($, { ...now, stage: 'writing', error: undefined })
   try {
     const prompt = writerPrompt(now.demand, now.questions, await chatSoFar($), await projectFacts($))
-    const text = (await ask($, WRITE_SYSTEM, prompt, 4000, WRITE_TIMEOUT_MS, config.with === 'session'))?.trim()
-    if (!text) throw new Error('o modelo não respondeu')
+    const text = (await ask($, WRITE_SYSTEM, prompt, 4000, WRITE_TIMEOUT_MS))?.trim()
+    if (!text) throw new Error('the model did not answer')
     await set($, null)
     await inject($, text)
   } catch (error) {
     const why = (error instanceof Error ? error.message : String(error)).slice(0, 140)
-    await set($, { ...now, stage: 'asking', at: now.questions.length, error: `Não consegui montar o prompt: ${why}` })
+    await set($, { ...now, stage: 'asking', at: now.questions.length, error: `Could not write the prompt: ${why}` })
   }
 }
 
@@ -215,13 +239,13 @@ async function cancel($: EngineInterface) {
   const now = await read($, state)
   if (!now) return
   await set($, null)
-  await $.prompt.fill({ text: now.demand, mode: 'replace' }).catch(() => undefined)
+  await fill($, now.demand).catch(() => undefined)
 }
 
 /** Reads a demand the person asked to refine (/fxmind-refine): asks its questions, or writes at once when it has none. */
 async function readDemand($: EngineInterface, demand: string) {
   await set($, { stage: 'reading', demand, questions: [], at: 0 })
-  const reply = await ask($, READ_SYSTEM, readerPrompt(demand, await chatSoFar($), await projectFacts($)), 700, READ_TIMEOUT_MS, false).catch(() => undefined)
+  const reply = await ask($, READ_SYSTEM, readerPrompt(demand, await chatSoFar($), await projectFacts($)), 700, READ_TIMEOUT_MS).catch(() => undefined)
   const questions = (reply && parseReading(reply)?.questions) || []
   await set($, { stage: 'asking', demand, questions, at: 0 })
   if (!questions.length) await write($)
@@ -250,22 +274,27 @@ export async function refineSubmit(
       const last = now.at + 1 >= now.questions.length
       // The last answer starts the writing, which clears the chat and sends: not inside the hook the prompt waits on.
       void answer($, said).catch(() => undefined)
-      return { drop: last ? 'fxmind: resposta registrada, montando o prompt…' : `fxmind: resposta ${now.at + 1} de ${now.questions.length} registrada` }
+      return { drop: tr(last ? 'fxmind: answer saved, writing the prompt…' : `fxmind: answer ${now.at + 1} of ${now.questions.length} saved`) }
     }
-    if (now?.stage === 'asking') return { drop: 'fxmind: escolha acima do prompt: Montar prompt, Enviar sem refinar ou Cancelar' }
-    if (now) return { drop: 'fxmind: aguarde, o refinador está trabalhando na demanda anterior (acima do prompt)' }
+    if (now?.stage === 'asking') return { drop: tr('fxmind: choose above the prompt: Write prompt, Send as typed or ✕') }
+    if (now) return { drop: tr('fxmind: wait, the refiner is still on the previous demand (above the prompt)') }
+    // The text the refiner left in the box, sent now: the person has read it, so it goes on as typed.
+    if (passNext) {
+      passNext = false
+      return undefined
+    }
     // Typed over a running turn it steers that work; with an image the demand is not text alone.
     if (config.mode !== 'auto' || e.turnId !== undefined || e.attachments?.length || !looksLikeDemand(said)) return undefined
-    const reply = await ask($, READ_SYSTEM, readerPrompt(said, await chatSoFar($), await projectFacts($)), 700, READ_TIMEOUT_MS, false)
+    const reply = await ask($, READ_SYSTEM, readerPrompt(said, await chatSoFar($), await projectFacts($)), 700, READ_TIMEOUT_MS)
     const reading = reply ? parseReading(reply) : undefined
     // Not a demand, or the reader failed: the prompt goes on as typed.
     if (!reading?.implement) return undefined
     await set($, { stage: 'asking', demand: e.text, questions: reading.questions, at: 0 })
     if (!reading.questions.length) {
       void write($).catch(() => undefined)
-      return { drop: 'fxmind: demanda clara, montando o prompt refinado…' }
+      return { drop: tr('fxmind: the demand is clear, writing the refined prompt…') }
     }
-    return { drop: `fxmind: ${reading.questions.length === 1 ? '1 dúvida' : `${reading.questions.length} dúvidas`} antes de implementar. Responda acima do prompt.` }
+    return { drop: tr(`fxmind: ${reading.questions.length} ${reading.questions.length === 1 ? 'question' : 'questions'} before building. Answer above the prompt.`) }
   } catch {
     return undefined
   }
@@ -289,12 +318,12 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
   const now = await read($, state)
   if (!now) return null
   const { Button, Text } = themedEls($.ui.resolve(e))
-  const title = 'Refinador de prompt'
+  const title = 'Prompt refiner'
 
   if (now.stage === 'reading' || now.stage === 'writing') {
     return frame({
       title,
-      detail: now.stage === 'reading' ? 'lendo a demanda…' : 'montando o prompt…',
+      detail: now.stage === 'reading' ? 'reading the demand…' : 'writing the prompt…',
       rows: [[<Text key="refine-demand" dimColor wrap="truncate">{now.demand.trim().replace(/\s+/g, ' ').slice(0, 160)}</Text>]],
       actions: [],
     })
@@ -313,27 +342,27 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
   }
   return frame({
     title,
-    detail: question ? `dúvida ${now.at + 1} de ${now.questions.length} · escolha ou responda no chat` : 'pronto para montar',
+    detail: question ? `question ${now.at + 1} of ${now.questions.length} · pick or answer in the chat` : 'ready to write',
     rows,
     actions: [
-      ...(question ? [<Button key="refine-skip" plain dimColor label="Pular" onPress={() => answer($, null)} />] : []),
-      <Button key="refine-raw" plain dimColor label="Enviar sem refinar" onPress={() => sendAsTyped($)} />,
-      <Button key="refine-write" variant="primary" label={question ? 'Montar agora' : now.error ? 'Tentar de novo' : 'Montar prompt'} onPress={() => write($)} />,
+      ...(question ? [<Button key="refine-skip" plain dimColor label="Skip" onPress={() => answer($, null)} />] : []),
+      <Button key="refine-raw" plain dimColor label="Send as typed" onPress={() => sendAsTyped($)} />,
+      <Button key="refine-write" variant="primary" label={question ? 'Write now' : now.error ? 'Try again' : 'Write prompt'} onPress={() => write($)} />,
     ],
     onClose: () => cancel($),
   })
 }
 
 const MODE_SAID: Record<Mode, string> = {
-  auto: 'automático: demandas de implementação são refinadas antes de chegar ao agente',
-  command: 'só por comando: /fxmind-refine <demanda>',
-  off: 'desligado',
+  auto: 'automatic: implementation demands are refined before they reach the agent',
+  command: 'command only: /fxmind-refine <demand>',
+  off: 'off',
 }
 
 /** At session start: the command. */
 export async function refineStart($: EngineInterface) {
   await $.command
-    .register({ name: 'fxmind-refine', description: 'Refina uma demanda antes de enviá-la ao agente: /fxmind-refine <demanda> | auto | command | off' })
+    .register({ name: 'fxmind-refine', description: 'Refines a demand before it reaches the agent: /fxmind-refine <demand> | auto | command | off' })
     .catch(() => undefined)
 }
 
@@ -351,6 +380,7 @@ async function keepMode($: EngineInterface, mode: Mode) {
 export function registerRefine(on: On, options: unknown) {
   config = readRefineConfig(options)
   injected = null
+  passNext = false
 
   on('command.run', { command: 'fxmind-refine' }, async ($, e) => {
     const arg = e.args.trim()
@@ -358,11 +388,11 @@ export function registerRefine(on: On, options: unknown) {
       config = { ...config, mode: arg }
       await keepMode($, arg)
       if (arg === 'off') await set($, null)
-      return { text: `Refinador de prompt: ${MODE_SAID[arg]}.` }
+      return { text: tr(`Prompt refiner: ${MODE_SAID[arg]}.`) }
     }
-    if (!arg) return { text: `Refinador de prompt: ${MODE_SAID[config.mode]}. Use /fxmind-refine <demanda>, ou auto, command, off.` }
-    if (await read($, state)) return { text: 'O refinador já está trabalhando em uma demanda (acima do prompt).' }
+    if (!arg) return { text: tr(`Prompt refiner: ${MODE_SAID[config.mode]}. Use /fxmind-refine <demand>, or auto, command, off.`) }
+    if (await read($, state)) return { text: tr('The refiner is already working on a demand (above the prompt).') }
     void readDemand($, arg).catch(() => set($, null))
-    return { text: 'Refinando a demanda acima do prompt.' }
+    return { text: tr('Refining the demand above the prompt.') }
   })
 }

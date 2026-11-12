@@ -205,7 +205,9 @@ async function main() {
   }
 
   if (argv[0] === "pack") {
-    process.exit(runPackCli(argv.slice(1)));
+    process.exitCode = 0;
+    Promise.resolve(runPackCli(argv.slice(1))).then((code) => process.exit(code));
+    return;
   }
 
   if (argv[0] === "migrate") {
