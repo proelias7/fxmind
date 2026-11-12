@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
-import { chatDigest, looksLikeDemand, parseReading, readRefineConfig, writerPrompt } from './refine'
+import { chatDigest, looksLikeDemand, parseReading, readRefineConfig, worthReading, writerPrompt } from './refine'
 
 const USAGE = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 const BAND = {
@@ -106,12 +106,35 @@ describe('refiner rules', () => {
   })
 })
 
+describe('what the refiner holds', () => {
+  const chat = [{ role: 'user', text: 'crie a página' }, { role: 'assistant', text: 'Pronto, a página foi criada.' }]
+  test('a short instruction is never held, in a new chat or mid-chat', () => {
+    expect(worthReading('tem que atualizar a pagina web', [])).toBe(false)
+    expect(worthReading('faça o push', chat)).toBe(false)
+    expect(worthReading('corrija essa falha de ficar refinando todo prompt', chat)).toBe(false)
+  })
+  test('a full demand is read in a new chat; mid-chat only a long new piece of work is', () => {
+    const demand = 'implemente um endpoint de login com JWT na API'
+    expect(worthReading(demand, [])).toBe(true)
+    expect(worthReading(demand, chat)).toBe(false)
+    const long = 'crie uma documentação para criar packs no fxmind e um comando para instalar packs de outros repositórios, com validação do manifesto, testes e um exemplo completo que instale'
+    expect(worthReading(long, chat)).toBe(true)
+  })
+})
+
 describe('refiner', () => {
   test('a question goes on as typed, and no reader is asked', async ($, on) => {
     const { seen } = engine(on, TWO_QUESTIONS)
     const result = await type($, 'como funciona o cache de prompt?')
     expect(result.drop).toBeUndefined()
     expect(seen.entered).toEqual(['como funciona o cache de prompt?'])
+    expect(seen.reader).toEqual([])
+  })
+
+  test('a follow-up once the agent has answered goes on as typed, and no reader is asked', async ($, on) => {
+    const { seen } = engine(on, TWO_QUESTIONS, REFINED, [{ role: 'user', text: 'crie a página' }, { role: 'assistant', text: 'Pronto.' }])
+    expect((await type($, 'tem que atualizar a pagina web com as novidades')).drop).toBeUndefined()
+    expect((await type($, DEMAND)).drop).toBeUndefined()
     expect(seen.reader).toEqual([])
   })
 

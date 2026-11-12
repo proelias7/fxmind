@@ -125,6 +125,24 @@
   .rv-kind { fill: var(--text); font: 13px var(--mono); text-anchor: middle; }
   #rvw.triv .k1, #rvw:not(.triv) .k2 { display: none; }
 
+  /* external packs: files ride from a repository through the check into ~/.fxmind/packs, then into the project */
+  .xp-st rect { fill: #131821; stroke: rgba(255,255,255,.14); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
+  .xp-st.on rect { stroke: var(--mint); fill: rgba(126,224,180,.08); }
+  .xp-st path { fill: none; stroke: var(--faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
+  .xp-st.on path { stroke: var(--mint); }
+  .xp-name { fill: var(--muted); font: 13px var(--mono); text-anchor: middle; transition: fill .3s; }
+  .xp-st.on .xp-name { fill: var(--text); }
+  .xp-lab { fill: var(--faint); font: 600 15px var(--font); text-anchor: middle; }
+  .xp-file rect { fill: #131c20; stroke: rgba(255,255,255,.22); transition: fill .25s, stroke .25s; }
+  .xp-file text { fill: #cfd6d3; font: 12px var(--mono); text-anchor: middle; }
+  .xp-file.ok rect { stroke: var(--mint); fill: rgba(126,224,180,.12); }
+  .xp-file.bad rect { stroke: #ff7b8a; fill: rgba(255,123,138,.12); }
+  .xp-file.bad text { fill: #ff9aa6; text-decoration: line-through; }
+  .xp-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .xp-foot code { font-family: var(--mono); font-size: 13.5px; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(126,224,180,.4); color: #cfd6d3; background: rgba(126,224,180,.06); }
+  .xp-foot a { margin-left: 6px; color: var(--mint); font-weight: 600; text-decoration: none; }
+  .xp-foot a:hover { text-decoration: underline; }
+
   /* mod section: Claude's mark and its orange as the highlight; the mock keeps the mod's own mint theme */
   #mod { --claude: #d97757; --claude-hi: #e58a6c; }
   #mod .claude { color: var(--claude); white-space: nowrap; }
@@ -509,14 +527,14 @@
         <div class="cmd"><code id="modCmd">/plugin install fxmind --marketplace proelias7/fxmind</code><button class="copy" type="button" data-copy="modCmd" data-i18n="copy">Copy</button></div>
         <p class="req"><span data-i18n="mod.install.d">Restart Claude Code to load it.</span> · <a href="https://github.com/proelias7/fxmind/blob/main/docs/plugin.md" data-i18n="mod.docs">Plugin docs</a></p>
         <div class="tgroups mtabs" role="group" data-i18n-aria="mod.t" aria-label="Mod features">
-          <button type="button" aria-pressed="true" data-chips="/fxmind-refine &lt;demand&gt;~/fxmind-refine auto | command | off" data-chips-pt="/fxmind-refine &lt;demanda&gt;~/fxmind-refine auto | command | off"><span data-i18n="m.refine">Refiner</span></button>
+          <button type="button" aria-pressed="true" data-chips="/fxmind-refine &lt;demand&gt;~Haiku · Sonnet · Opus~/fxmind refine &lt;demand&gt;" data-chips-pt="/fxmind-refine &lt;demanda&gt;~Haiku · Sonnet · Opus~/fxmind refine &lt;demanda&gt;"><span data-i18n="m.refine">Refiner</span></button>
           <button type="button" aria-pressed="false" data-chips="/fxmind-effort settings~/fxmind-effort agents~/fxmind-effort stats"><span data-i18n="m.effort">Effort bar</span></button>
           <button type="button" aria-pressed="false" data-chips="/fxmind init~/fxmind memory health~/fxmind learn"><span data-i18n="m.card">fxmind card</span></button>
           <button type="button" aria-pressed="false" data-chips="A~B~V~C"><span data-i18n="m.status">Status line</span></button>
           <button type="button" aria-pressed="false" data-chips="en~pt-BR~mint"><span data-i18n="m.theme">Theme</span></button>
         </div>
         <p class="mdesc" aria-live="polite">
-          <span data-i18n="m.refine.d">Holds a request to build, asks what is missing and sends a complete prompt.</span>
+          <span data-i18n="m.refine.d">Holds a new request, asks what is missing and sends a complete prompt. Also /fxmind refine in every agent.</span>
           <span data-i18n="m.effort.d" hidden>Picks the effort for each message; shows cache, context and limits.</span>
           <span data-i18n="m.card.d" hidden>The refiner's options and three project actions, in settings.</span>
           <span data-i18n="m.status.d" hidden>Memories, what to review and the open task's gates.</span>
@@ -679,6 +697,40 @@
     </div>
   </section>
 
+  <section class="sec" id="ext">
+    <div class="wrap">
+      <h2 data-i18n="ext.t">Packs from any repository.</h2>
+      <!-- a pack's files ride from its repository through the check: only pack.json and Markdown get through -->
+      <svg class="pipe" id="xp" viewBox="0 60 1000 190" aria-hidden="true">
+        <line class="pipe-track" x1="110" y1="160" x2="890" y2="160"/>
+        <line class="pipe-fill" id="xpFill" x1="110" y1="160" x2="110" y2="160"/>
+        <g class="xp-st" id="xpRepo" transform="translate(110 160)"><rect x="-62" y="-42" width="124" height="84" rx="18"/>
+          <path transform="translate(0 -10) scale(.72)" d="M-10 -18v26M10 -6v14M-10 -6c12 0 20 0 20 10M-10 -26a4 4 0 1 0 0.01 0M10 12a4 4 0 1 0 0.01 0M-10 12a4 4 0 1 0 0.01 0"/>
+          <text class="xp-name" y="28">owner/repo</text></g>
+        <g class="xp-st" id="xpGate" transform="translate(400 160)"><rect x="-44" y="-42" width="88" height="84" rx="22"/>
+          <path d="M0 -24l18 7v12c0 12-8 20-18 24c-10-4-18-12-18-24v-12z M-7 -2l5 5l10-10"/></g>
+        <g class="xp-st" id="xpHome" transform="translate(660 160)"><rect x="-82" y="-42" width="164" height="84" rx="18"/>
+          <path d="M-20 -24h12l6 6h22v24h-40z"/>
+          <text class="xp-name" y="28">~/.fxmind/packs</text></g>
+        <g class="xp-st" id="xpProj" transform="translate(890 160)"><rect x="-62" y="-42" width="124" height="84" rx="18"/>
+          <path d="M-16 -24h32v30h-32z M-9 -15h18M-9 -8h12M-9 -1h16"/>
+          <text class="xp-name" y="28">.fxmind/</text></g>
+        <text class="xp-lab" x="110" y="232" data-i18n="ext.l1">Repository</text>
+        <text class="xp-lab" x="400" y="232" data-i18n="ext.l2">Checked</text>
+        <text class="xp-lab" x="660" y="232" data-i18n="ext.l3">Installed</text>
+        <text class="xp-lab" x="890" y="232" data-i18n="ext.l4">Your project</text>
+        <g class="xp-file"><rect x="-58" y="-14" width="116" height="28" rx="8"/><text y="4">pack.json</text></g>
+        <g class="xp-file"><rect x="-58" y="-14" width="116" height="28" rx="8"/><text y="4">SKILL.md</text></g>
+        <g class="xp-file" data-bad="1"><rect x="-58" y="-14" width="116" height="28" rx="8"/><text y="4">install.sh</text></g>
+        <g class="xp-file"><rect x="-58" y="-14" width="116" height="28" rx="8"/><text y="4">principles.md</text></g>
+      </svg>
+      <div class="xp-foot">
+        <code>fxmind pack add owner/repo</code><code>fxmind --pack &lt;id&gt; -y</code><code>/fxmind pack add</code>
+        <a href="https://github.com/proelias7/fxmind/blob/main/docs/packs.md" data-i18n="ext.docs">Write a pack →</a>
+      </div>
+    </div>
+  </section>
+
   <section class="sec" id="review">
     <div class="wrap">
       <h2 data-i18n="review.t">Reviewed when the change calls for it.</h2>
@@ -761,6 +813,7 @@
     "practice.perf.t": "Desempenho", "practice.perf.d": "Consultas eficientes, cache bem definido e menos processamento e transferência de dados desnecessários.",
     "practice.quality.t": "Qualidade de código", "practice.quality.d": "Código legível, tratamento de erros, acessibilidade e testes que evitam regressões.",
     "nav.mod": "Mod do Claude",
+    "ext.t": "Packs de qualquer repositório.", "ext.l1": "Repositório", "ext.l2": "Conferido", "ext.l3": "Instalado", "ext.l4": "Seu projeto", "ext.docs": "Criar um pack →",
     "review.t": "Revisão quando a mudança pede.", "review.who": "Revisor",
     "review.k1": "fix · 2 arquivos", "review.k2": "trivial",
     "review.yes.t": "Vai para o revisor", "review.yes.d": "Qualquer arquivo Lua, mais de um arquivo ou uma tarefa de fix, mechanic ou create.",
@@ -768,7 +821,7 @@
     "mod.t": "Um mod dentro do Claude Code.", "mod.t1": "Um mod dentro do",
     "mod.install.d": "Reinicie o Claude Code para carregar.", "mod.docs": "Documentação do plugin",
     "m.refine": "Refinador", "m.effort": "Barra de esforço", "m.card": "Cartão fxmind", "m.status": "Linha de status", "m.theme": "Tema",
-    "m.refine.d": "Segura o pedido, pergunta o que falta e envia um prompt completo.",
+    "m.refine.d": "Segura um pedido novo, pergunta o que falta e envia um prompt completo. Também /fxmind refine em todos os agentes.",
     "m.effort.d": "Escolhe o esforço de cada mensagem; mostra cache, contexto e limites.",
     "m.card.d": "As opções do refinador e três ações do projeto, nas configurações.",
     "m.status.d": "Memórias, o que rever e os gates da tarefa aberta.",
@@ -875,7 +928,7 @@
     const io = new IntersectionObserver((entries) => entries.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
     }), { threshold: 0.15, rootMargin: "0px 0px -8% 0px" });
-    document.querySelectorAll(".sec h2, .tgroups, .hub, .pipe, .mock").forEach((el) => {
+    document.querySelectorAll(".sec h2, .tgroups, .hub, .pipe, .mock, .xp-foot").forEach((el) => {
       el.classList.add("rv");
       el.style.setProperty("--d", `${([...el.parentElement.children].indexOf(el) % 6) * 80}ms`);
       io.observe(el);
@@ -962,6 +1015,33 @@
     else if (k < 0.62) drawReview(GX[2], false, Math.min(1, (k - 0.3) / 0.16), false);
     else drawReview(GX[2] + (960 - GX[2]) * ease(Math.min(1, (k - 0.62) / 0.26)), false, 1, k >= 0.88);
   });
+
+  // External packs: the files leave the repository in turn; at the check pack.json and Markdown go on to
+  // ~/.fxmind/packs and anything else is turned away; then the installed pack reaches the project.
+  const xp = document.getElementById("xp"), xpFill = xp.querySelector("#xpFill"), xpFiles = [...xp.querySelectorAll(".xp-file")];
+  const xpSt = (id) => xp.querySelector(id), XP = 9000, XX = [110, 400, 660, 890], XY = 92;
+  const drawXp = (k) => {
+    let arrived = 0;
+    xpFiles.forEach((f, i) => {
+      const bad = f.dataset.bad === "1", t = Math.max(0, Math.min(1, (k - i * 0.1) / 0.3));
+      const a = ease(Math.min(1, t / 0.5)), b = ease(Math.max(0, (t - 0.5) / 0.5));
+      const x = t <= 0.5 || bad ? XX[0] + (XX[1] - XX[0]) * a : XX[1] + (XX[2] - XX[1]) * b;
+      const y = bad && t > 0.5 ? XY - 40 * b : XY;
+      f.setAttribute("transform", `translate(${x} ${y})`);
+      f.style.opacity = t <= 0 || t >= 1 ? 0 : bad && t > 0.5 ? 1 - b : 1;
+      f.classList.toggle("ok", !bad && t >= 0.5);
+      f.classList.toggle("bad", bad && t >= 0.5);
+      if (!bad && t >= 1) arrived += 1;
+    });
+    const reach = ease(Math.max(0, Math.min(1, (k - 0.66) / 0.14)));
+    xpFill.setAttribute("x2", k < 0.66 ? XX[0] + (XX[2] - XX[0]) * Math.min(1, k / 0.6) : XX[2] + (XX[3] - XX[2]) * reach);
+    xpSt("#xpRepo").classList.toggle("on", k < 0.6);
+    xpSt("#xpGate").classList.toggle("on", k > 0.12 && k < 0.66);
+    xpSt("#xpHome").classList.toggle("on", arrived > 0);
+    xpSt("#xpProj").classList.toggle("on", reach >= 1);
+  };
+  if (rm) drawXp(0.99);
+  else whileVisible(xp, (t) => drawXp((t % XP) / XP));
 
   // Mod mock: each tab shows its scene (which replays its entrance), its one line and its commands.
   const mtabs = [...document.querySelectorAll(".mtabs button")], scenes = [...document.querySelectorAll("#modSvg .scene")];

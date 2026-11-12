@@ -68,12 +68,26 @@ const BUILD_WORDS =
 /** Whether a typed message could be a demand to build: long enough to be one, not a command, with a verb of work. */
 export function looksLikeDemand(text: string): boolean {
   const said = text.trim()
-  return said.length >= 20 && !said.startsWith('/') && BUILD_WORDS.test(said)
+  return words(said) >= MIN_WORDS && !said.startsWith('/') && BUILD_WORDS.test(said)
+}
+
+const words = (text: string) => text.split(/\s+/).filter(Boolean).length
+/** Fewer words than this is an instruction ("faça o push", "atualize a página"), never a demand worth questions. */
+const MIN_WORDS = 8
+/** Once the agent has answered in this chat, a message shorter than this follows that work: it goes on as typed. A
+ * new piece of work arriving mid-chat is said at length, or refined on purpose with /fxmind-refine. */
+const MIN_WORDS_MID_CHAT = 25
+
+/** Whether a message is held for the reader: a demand by its words, and long enough for the chat it lands in. */
+export function worthReading(text: string, chat: readonly { role: string; text: string }[]): boolean {
+  if (!looksLikeDemand(text)) return false
+  const underWay = chat.some(m => m.role === 'assistant' && m.text.trim())
+  return !underWay || words(text) >= MIN_WORDS_MID_CHAT
 }
 
 const READ_SYSTEM = `You prepare the work of a coding agent (Claude Code). You are shown the message a person is about to send it, the end of their chat so far, and facts about the project. Decide two things.
 
-1. Is the message an implementation demand: a request to build, change, fix, refactor or configure something in the project? A question, a request to explain or review, running one command, a go-ahead to a plan and an answer to the agent's own question are not. Neither is a message that continues or corrects work already under way in the chat (a follow-up, a tweak to what was just built): the chat would be cleared, so only a demand that starts new work counts.
+1. Is the message an implementation demand: a request to build, change, fix, refactor or configure something in the project? A question, a request to explain or review, running one command, a go-ahead to a plan and an answer to the agent's own question are not. Neither is a message that continues or corrects work already under way in the chat (a follow-up, a tweak to what was just built): the chat would be cleared, so only a demand that starts new work counts. A short instruction ("update the page", "push it") is never one. When unsure, answer false: a demand left unrefined costs little, a follow-up held back interrupts the person.
 
 2. If it is, what must the person answer before a careful engineer could build it right? Ask only what changes what gets built and cannot be found by reading the code: scope, behaviour in the cases the message leaves open, a choice between real alternatives, how it will be accepted. Never ask what the agent can find in the repository, and never ask to confirm what the message already says. At most ${MAX_QUESTIONS} questions; fewer is better, and none when the demand is already clear. Each question is one short sentence in the person's language. Give 2 to 4 short options when the answer is a choice between known alternatives, otherwise none.
 
@@ -285,7 +299,9 @@ export async function refineSubmit(
     }
     // Typed over a running turn it steers that work; with an image the demand is not text alone.
     if (config.mode !== 'auto' || e.turnId !== undefined || e.attachments?.length || !looksLikeDemand(said)) return undefined
-    const reply = await ask($, READ_SYSTEM, readerPrompt(said, await chatSoFar($), await projectFacts($)), 700, READ_TIMEOUT_MS)
+    const messages = await $.session.messages().catch(() => [])
+    if (!worthReading(said, messages)) return undefined
+    const reply = await ask($, READ_SYSTEM, readerPrompt(said, chatDigest(messages), await projectFacts($)), 700, READ_TIMEOUT_MS)
     const reading = reply ? parseReading(reply) : undefined
     // Not a demand, or the reader failed: the prompt goes on as typed.
     if (!reading?.implement) return undefined
