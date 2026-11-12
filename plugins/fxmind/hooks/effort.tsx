@@ -330,16 +330,20 @@ const ICON_PATHS: Record<string, string> = {
   skip: '<path d="M3.5 3l4.5 5-4.5 5M8.5 3l4.5 5-4.5 5"/>',
   clock: '<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/>',
   settings: '<path d="M2 5h6M12 5h2M2 11h2M8 11h6"/><circle cx="10" cy="5" r="1.7"/><circle cx="6" cy="11" r="1.7"/>',
-  leaf: '<path d="M3 13c0-6 3.5-9 10-9 0 6.500-3.500 9.500-9 9.500M3 13l5-5"/>',
-  compact: '<path d="M8 2v4M5.500 4L8 6.500 10.500 4M8 14v-4M5.500 12L8 9.500 10.500 12"/>',
+  leaf: '<path d="M3 13c0-6 3.5-9 10-9 0 6.5-3.5 9.5-9 9.500M3 13l5-5"/>',
+  compact: '<path d="M8 2v4M5.5 4L8 6.5 10.5 4M8 14v-4M5.5 12L8 9.5 10.5 12"/>',
   handoff: '<path d="M2 8h8M7 5l3 3-3 3M13 3v10"/>',
   download: '<path d="M8 2v8M5 7l3 3 3-3M3 13h10"/>',
-  retry: '<path d="M13 8a5 5 0 1 1-1.500-3.500M13 2.500V5h-2.500"/>',
-  copy: '<rect x="5.500" y="5.500" width="8" height="8" rx="1.500"/><path d="M10.500 5.500v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
-  share: '<path d="M8 10V1.800M4.800 4.800L8 1.600l3.200 3.200M2.500 8.500v4.800c0 .4.3.7.7.7h9.600c.4 0 .7-.3.7-.7V8.500"/>',
-  spark: '<path d="M8 2l1.500 4.500L14 8l-4.500 1.500L8 14l-1.500-4.500L2 8l4.500-1.500z"/>',
-  star: '<path d="M8 2l1.800 3.700 4 .6-2.900 2.800.7 4L8 11.200 4.400 13.100l.7-4L2.200 6.300l4-.6z"/>',
-  key: '<circle cx="5.500" cy="10.500" r="2.500"/><path d="M7.300 8.700L13 3M11 5l1.500 1.500"/>',
+  retry: '<path d="M13 8a5 5 0 1 1-1.5-3.500M13 2.500V5h-2.5"/>',
+  copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.500v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
+  share: '<path d="M8 10V1.800M4.8 4.800L8 1.600l3.2 3.200M2.5 8.500v4.800c0 .4.3.7.7.7h9.600c.4 0 .7-.3.7-.7V8.5"/>',
+  spark: '<path d="M8 2l1.5 4.500L14 8l-4.5 1.500L8 14l-1.5-4.500L2 8l4.5-1.500z"/>',
+  star: '<path d="M8 2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.2 4.4 13.100l.7-4L2.2 6.300l4-.6z"/>',
+  play: '<path d="M5 3l8 5-8 5z"/>',
+  bug: '<path d="M8 5a3 3 0 0 1 3 3v2a3 3 0 0 1-6 0V8a3 3 0 0 1 3-3zM5 8H2.5M11 8h2.5M5 11.5l-2 1.5M11 11.5l2 1.5M6 3.5L5 2M10 3.5L11 2"/>',
+  map: '<path d="M8 14s4.5-4 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 10 8 14 8 14z"/><circle cx="8" cy="6.5" r="1.5"/>',
+  memory: '<path d="M3 3.5c0-.8.7-1.5 1.5-1.5H13v11H4.5C3.7 13 3 12.3 3 11.5zM3 11.5C3 10.7 3.7 10 4.5 10H13"/>',
+  key: '<circle cx="5.5" cy="10.5" r="2.5"/><path d="M7.3 8.700L13 3M11 5l1.5 1.5"/>',
 }
 const iconSvg = (name: string, color = '#ffffff') =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[name] ?? ''}</svg>`
@@ -3449,7 +3453,7 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
     // Once the slot is Handoff (advised, or the setting says always), Compact stays beside it as quiet text, so both are
     // a press away. Desktop only, where there is room for it; the terminal compacts in one press from its own rows.
     ...(!isPlain(e) && 'Svg' in els && !config.hide.includes('handoff') && handoffSlot() && (typeof e.props.bodyColumns !== 'number' || e.props.bodyColumns >= COMPACT_BUTTON_MIN_COLUMNS)
-      ? [<Button key="dash-compact" plain dimColor label="Compact" onPress={() => openCompact($, e)} />]
+      ? [iconBtn({ Box, Button, Svg: (els as { Svg?: unknown }).Svg }, 'dash-compact', 'compact', 'Compact', () => openCompact($, e), { dim: true })]
       : []),
     ...(config.hide.includes('handoff')
       ? []
@@ -3488,7 +3492,11 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
                   <els.Svg source={handoffPillSvg(handoffLevel(), true)} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
                 </Box>
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                  <Text color={handoffLook(handoffLevel()).label} hover={{ scope: 'handoff', color: handoffLook(handoffLevel(), true).label }}>{handoffSlot() ? 'Handoff' : 'Compact'}</Text>
+                  <els.Svg source={iconSvg(handoffSlot() ? 'handoff' : 'compact', handoffLook(handoffLevel()).label)} alt={handoffSlot() ? 'Handoff' : 'Compact'} width={16} height={16} />
+                </Box>
+                <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center"
+                  display="none" hover={{ scope: 'handoff', display: 'flex' }}>
+                  <els.Svg source={iconSvg(handoffSlot() ? 'handoff' : 'compact', handoffLook(handoffLevel(), true).label)} alt="" width={16} height={16} />
                 </Box>
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
                   <Button key="dash-handoff" plain label={' '.repeat(14)} hover={{ scope: 'handoff', backgroundColor: '#00000000' }} onPress={() => (handoffSlot() ? openHandoffBar($) : openCompact($, e))} />
@@ -4834,14 +4842,14 @@ Saved to ${out}.md and .json` }
         ) : checking === 'newest' ? (
           <Text key="settings-newest" dimColor>✓ Up to date</Text>
         ) : checking.startsWith('found ') && (!ownVersion || isNewer(checking.slice(6), ownVersion)) ? (
-          <Button key="settings-update" variant="primary" label={`Update to ${checking.slice(6)}`} onPress={async () => {
+          iconBtn({ Box, Button, Svg }, 'settings-update', 'download', `Update to ${checking.slice(6)}`, async () => {
             const card = await read($, updateCard)
             await update($, updateCheck, () => 'idle')
             if (card) void runUpdate($, card)
             await close()
-          }} />
+          }, { primary: true })
         ) : (
-          <Button key="settings-check-update" plain dimColor label="Check for updates" onPress={() => void checkUpdateNow($)} />
+          iconBtn({ Box, Button, Svg }, 'settings-check-update', 'retry', 'Check for updates', () => void checkUpdateNow($), { dim: true })
         ),
         // A terminal without link support prints the whole address after the label, so there it copies instead.
         term ? (
@@ -4850,7 +4858,10 @@ Saved to ${out}.md and .json` }
             $.ui.toast(tr(r.isCopied ? `Bug report link copied: ${bugUrl}` : `fxmind: report a bug at ${bugUrl}`))
           }} />
         ) : (
-          <Text key="settings-bug-link" color="#9a9aa3"><Link href={bugUrl} label="Report a bug" /></Text>
+          <Box key="settings-bug-link" flexDirection="row" alignItems="center" gap={1}>
+            {Svg ? <Svg source={iconSvg('bug', '#9a9aa3')} alt="Report a bug" width={14} height={14} /> : null}
+            <Text color="#9a9aa3"><Link href={bugUrl} label={Svg ? '↗' : 'Report a bug'} /></Text>
+          </Box>
         ),
       ]
       return (
@@ -4893,15 +4904,15 @@ Saved to ${out}.md and .json` }
             ) : (
               <Box key="settings-trail" flexDirection="row" alignItems="center" gap={1}>
                 {/* A real button: a dim "Settings" in a trail did not read as a way back. */}
-                <Button key="settings-back" variant="secondary" label="← Back" onPress={openCard(null)} />
+                {iconBtn({ Box, Button, Svg }, 'settings-back', 'back', '← Back', openCard(null))}
                 <Text color={DASH_TEXT} bold>{CARDS.find(c => c.id === card)?.title}</Text>
               </Box>
             )}
           </Box>,
           <Box key="settings-actions" {...(term ? { flexShrink: 1, flexWrap: 'wrap', columnGap: 2 } : { position: 'absolute', top: 0, right: 2, height: 2.5, gap: 2 })} flexDirection="row" alignItems="center">
             {/* Save shows once something changed: until then there is nothing to save, and nothing to read. */}
-            {dirty ? <Button key="settings-save" variant="primary" hotkey="s" label="Save" onPress={() => saveDraft($)} /> : null}
-            <Button key="settings-close" plain label="✕" onPress={close} />
+            {dirty ? iconBtn({ Box, Button, Svg }, 'settings-save', 'check', 'Save', () => saveDraft($), { primary: true, hotkey: term ? 's' : undefined }) : null}
+            {iconBtn({ Box, Button, Svg }, 'settings-close', 'close', 'Close', close, { label: '✕' })}
           </Box>,
           ])}
           {term ? null : <Box key="settings-spacer" height={roomy ? 2 : 1} />}
@@ -4954,11 +4965,11 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-refine-clear", label: "Clear chat", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
             pick({ key: "settings-refine-send", label: "Refined prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
             // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
-            ...([['init', 'Map project'], ['memory health', 'Review memories'], ['learn', 'Learn']] as const).map(([args, label]) => (
-              <Button key={`settings-fxmind-${args.split(' ')[0]}`} plain dimColor label={label} onPress={async () => {
+            ...([['init', 'Map project', 'map'], ['memory health', 'Review memories', 'memory'], ['learn', 'Learn', 'spark']] as const).map(([args, label, icon]) => (
+              iconBtn({ Box, Button, Svg }, `settings-fxmind-${args.split(' ')[0]}`, icon, label, async () => {
                 await close()
                 await $.command.run({ command: 'fxmind', args })
-              }} />
+              }, { dim: true })
             )),
 ]) : card === 'effort' ? [
             <Text key="cheap" dimColor>Cheaper</Text>,
@@ -4998,15 +5009,15 @@ Saved to ${out}.md and .json` }
               ? [field('key-field', <Input key="settings-key" placeholder={hasKey ? 'Key saved. Paste to replace' : 'Paste TypeSafe key'}
                   value={draft.key ?? ''} submitLabel="ok" onInput={set('key')} onSubmit={set('key')} />, 30)]
               : []),
-            <Button key="settings-judge-test" variant="secondary" dimColor={tested?.ok === null} label={tested?.ok === null ? 'Testing…' : 'Test'}
-              onPress={async () => {
+            iconBtn({ Box, Button, Svg }, 'settings-judge-test', tested?.ok === null ? 'clock' : 'play', tested?.ok === null ? 'Testing…' : 'Test',
+              async () => {
                 if (tested?.ok === null) return
                 await update($, judgeTest, () => ({ ok: null, text: '' }))
                 $.ui.invalidate('ui.render')
                 const result = await testJudge($, shown.judge, draft.key ?? '')
                 await update($, judgeTest, () => result)
                 $.ui.invalidate('ui.render')
-              }} />,
+              }, { dim: tested?.ok === null }),
             ...(tested && tested.ok !== null
               ? [<Text key="settings-judge-result" color={tested.ok ? '#7fd49b' : '#ff8a80'}>{`${tested.ok ? '✓' : '✗'} ${tested.text}`}</Text>]
               : []),
