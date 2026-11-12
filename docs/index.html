@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>fxmind — shared memory for AI agents</title>
-<meta name="description" content="What one agent learns, every agent knows. Shared project memory for Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode." />
+<meta name="description" content="Multi-agent tools for Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode: shared memory, verified tasks and parallel work." />
 <meta property="og:title" content="fxmind — shared memory for AI agents" />
-<meta property="og:description" content="What one agent learns, every agent knows." />
+<meta property="og:description" content="Multi-agent tools for coding agents." />
 <meta property="og:image" content="https://proelias7.github.io/fxmind/assets/logo.png" />
 <meta name="theme-color" content="#0d0f14" />
 <link rel="icon" type="image/png" href="assets/favicon.png" />
@@ -481,7 +481,7 @@
 
       <div class="story-copy">
       <h1>fxmind</h1>
-      <p class="sub" data-i18n="sub">What one agent learns, every agent knows.</p>
+      <p class="sub" data-i18n="sub">Multi-agent tools for coding agents.</p>
       <div class="ctas">
         <button class="btn primary" type="button" id="installBtn" aria-haspopup="dialog" aria-controls="installBox" data-i18n="cta.install">Install</button>
         <a class="btn" href="https://github.com/proelias7/fxmind">
@@ -529,7 +529,7 @@
         <div class="tgroups mtabs" role="group" data-i18n-aria="mod.t" aria-label="Mod features">
           <button type="button" aria-pressed="true" data-chips="/fxmind-refine &lt;demand&gt;~Haiku · Sonnet · Opus~/fxmind refine &lt;demand&gt;" data-chips-pt="/fxmind-refine &lt;demanda&gt;~Haiku · Sonnet · Opus~/fxmind refine &lt;demanda&gt;"><span data-i18n="m.refine">Refiner</span></button>
           <button type="button" aria-pressed="false" data-chips="/fxmind-effort settings~/fxmind-effort agents~/fxmind-effort stats"><span data-i18n="m.effort">Effort bar</span></button>
-          <button type="button" aria-pressed="false" data-chips="/fxmind init~/fxmind memory health~/fxmind learn"><span data-i18n="m.card">fxmind card</span></button>
+          <button type="button" aria-pressed="false" data-chips="/fxmind init~/fxmind memory health~/fxmind learn"><span data-i18n="m.card">Memories</span></button>
           <button type="button" aria-pressed="false" data-chips="A~B~V~C"><span data-i18n="m.status">Status line</span></button>
           <button type="button" aria-pressed="false" data-chips="en~pt-BR~mint"><span data-i18n="m.theme">Theme</span></button>
         </div>
@@ -654,7 +654,6 @@
           <button type="button" aria-pressed="false" data-tools="claim_paths release_paths session_status subagent_run"><span data-i18n="g.team">Teamwork</span></button>
           <button type="button" aria-pressed="false" data-tools="record_correction list_corrections drift_check"><span data-i18n="g.learn">Learning</span></button>
           <button type="button" aria-pressed="false" data-tools="db_query db_schema db_sample db_explore"><span data-i18n="g.db">Database</span></button>
-          <button type="button" aria-pressed="false" data-tools="fivem_status fivem_cmd fivem_console_tail fivem_nui_dump"><span data-i18n="g.fivem">FiveM</span></button>
         </div>
         <div class="tchips" id="toolChips" aria-live="polite"></div>
       </div>
@@ -793,7 +792,7 @@
     "close": "Fechar",
     "nav.how": "Ferramentas",
     "nav.specialties": "Especialidades",
-    "sub": "O que um agente aprende, todos os agentes sabem.",
+    "sub": "Ferramentas multiagente para agentes de código.",
     "cta.install": "Instalar", "cta.star": "Estrela",
     "h1.t": "Memória no seu repositório.", "h1.d": "Compartilhada com o time pelo git.",
     "h2.t": "Sem colisões.", "h2.d": "Cada agente reserva os arquivos que edita.",
@@ -805,7 +804,7 @@
     "speed.num": "10,8×", "speed.big": "buscas mais rápidas com o cache carregado.",
     "speed.before": "Antes do cache", "speed.after": "Com cache",
     "speed.aria": "Mediana por consulta com o cache carregado: antes da otimização, 783 milissegundos; depois, 73 milissegundos. Mesmas respostas e tokens em 150 perguntas.",
-    "g.mem": "Memória", "g.gate": "Trabalho verificado", "g.team": "Trabalho em equipe", "g.learn": "Aprendizado", "g.db": "Banco de dados", "g.fivem": "FiveM", "tools.t": "Mais de 40 tools para seus agentes.",
+    "g.mem": "Memória", "g.gate": "Trabalho verificado", "g.team": "Trabalho em equipe", "g.learn": "Aprendizado", "g.db": "Banco de dados","tools.t": "Mais de 40 tools para seus agentes.",
     "packs.t": "Boas práticas em cada especialidade.",
     "packs.intro": "Oriente cada alteração com boas práticas de programação e os aprendizados que o time já construiu.",
     "practice.arch.t": "Arquitetura", "practice.arch.d": "Responsabilidades claras, reaproveitamento de soluções e contratos consistentes entre componentes.",
@@ -820,7 +819,7 @@
     "review.no.t": "Passa pela evidência", "review.no.d": "Uma tarefa trivial, ou um único arquivo que não é Lua.",
     "mod.t": "Um mod dentro do Claude Code.", "mod.t1": "Um mod dentro do",
     "mod.install.d": "Reinicie o Claude Code para carregar.", "mod.docs": "Documentação do plugin",
-    "m.refine": "Refinador", "m.effort": "Barra de esforço", "m.card": "Cartão fxmind", "m.status": "Linha de status", "m.theme": "Tema",
+    "m.refine": "Refinador", "m.effort": "Barra de esforço", "m.card": "Memórias", "m.status": "Linha de status", "m.theme": "Tema",
     "m.refine.d": "Segura um pedido novo, pergunta o que falta e envia um prompt completo. Também /fxmind refine em todos os agentes.",
     "m.effort.d": "Escolhe o esforço de cada mensagem; mostra cache, contexto e limites.",
     "m.card.d": "As opções do refinador e três ações do projeto, nas configurações.",
