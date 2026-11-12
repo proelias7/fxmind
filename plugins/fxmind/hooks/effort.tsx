@@ -4808,7 +4808,9 @@ Saved to ${out}.md and .json` }
               up. The rows lift over it with their empty absolute child. */}
           {term ? null : (
             <Box key="settings-art" position="absolute" top={-1} right={0} bottom={-1}>
-              <Svg source={DASH_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+              {/* Stretched over the panel, not sliced: the cards wrap onto a second row in a longer language, and a fixed
+                  height left the wash ending halfway down. */}
+              <Svg source={DASH_SVG.replace('xMaxYMid slice', 'none')} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 4} />
             </Box>
           )}
           {term ? null : introLayer({ Box, Svg }, 'settings', await introShows($, 'settings'))}
@@ -4827,6 +4829,7 @@ Saved to ${out}.md and .json` }
           {headRow([
           <Box key="settings-title" {...(term ? { flexShrink: 0 } : { position: 'absolute', top: 0, left: 2, height: 2.5 })} flexDirection="row" alignItems="center" gap={1}>
             {term ? <Text color={ACCENT} bold>✦</Text> : null}
+            {Svg && !term ? <Svg source={MARK_SVG} alt="fxmind" width={22} height={22} /> : null}
             {Svg && !term ? <Svg source={SETTINGS_TITLE} alt="fxmind" width={92} height={28} /> : <Text color={DASH_TEXT} bold>fxmind</Text>}
             {/* Inside a part: Back to the cards, then the part's name. */}
             {card === null ? (
