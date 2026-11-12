@@ -56,6 +56,7 @@ function applyTheme() {
   CARD_HOVER = ink ? '#161c27' : neutral ? '#1c1c1c' : '#1c1c20'
   CARD_HOVER_EDGE = ink ? '#33405a' : neutral ? '#3b3b3b' : '#3b3b42'
   HOVER_BOX = ink ? '#1e2634' : neutral ? '#2b2b2b' : '#2b2b2f'
+  DASH_SVG = dashSvg(tintHex('#7c6cf0'), tintHex('#b3a6ff'))
   applyAppearance()
 }
 
@@ -262,9 +263,10 @@ const BRAND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="6
 
 // The handoff card once it has landed: the brand's art in green, with a big dark checkmark on the right.
 // The dashboard sits there all the time, so it is grey: purple is kept for the moments that ask for attention. Its
-// art is a soft grey wash from the right with a faint glow that breathes slowly: no grain, streaks or sparkles,
-// so the dashboard stays calm under its text. Only the ✦ keeps the accent.
-const DASH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="64" viewBox="0 0 360 30" preserveAspectRatio="xMaxYMid slice"><style>:root{color-scheme:light dark}html,body{margin:0}svg{background:transparent;display:block}.br{animation:br 9s ease-in-out infinite}@keyframes br{0%,100%{opacity:.8}50%{opacity:1}}</style><defs><linearGradient id="bg" x1="0" x2="1"><stop offset=".35" stop-color="#9a9aa2" stop-opacity="0"/><stop offset=".7" stop-color="#9a9aa2" stop-opacity=".06"/><stop offset="1" stop-color="#b4b4bc" stop-opacity=".14"/></linearGradient><radialGradient id="glow" cx="330" cy="15" r="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#c8c8d0" stop-opacity=".1"/><stop offset="1" stop-color="#9a9aa2" stop-opacity="0"/></radialGradient></defs><rect class="br" width="360" height="30" fill="url(#bg)"/><rect class="br" width="360" height="30" fill="url(#glow)"/></svg>`
+// art is a soft wash from the right in the theme's colour, with a faint glow that breathes slowly: no grain,
+// streaks or sparkles, so the dashboard stays calm under its text. Rebuilt only when the theme changes.
+const dashSvg = (base: string, light: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="64" viewBox="0 0 360 30" preserveAspectRatio="xMaxYMid slice"><style>:root{color-scheme:light dark}html,body{margin:0}svg{background:transparent;display:block}.br{animation:br 9s ease-in-out infinite}@keyframes br{0%,100%{opacity:.8}50%{opacity:1}}</style><defs><linearGradient id="bg" x1="0" x2="1"><stop offset=".35" stop-color="${base}" stop-opacity="0"/><stop offset=".7" stop-color="${base}" stop-opacity=".07"/><stop offset="1" stop-color="${light}" stop-opacity=".16"/></linearGradient><radialGradient id="glow" cx="330" cy="15" r="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${light}" stop-opacity=".12"/><stop offset="1" stop-color="${base}" stop-opacity="0"/></radialGradient></defs><rect class="br" width="360" height="30" fill="url(#bg)"/><rect class="br" width="360" height="30" fill="url(#glow)"/></svg>`
+let DASH_SVG = dashSvg('#7c6cf0', '#b3a6ff')
 let DASH_BG = '#141416'
 let DASH_EDGE = '#2a2a2f'
 /** The settings title's word in the website hero's style: crisp, going soft and grainy at its bottom right (a radial
