@@ -262,9 +262,9 @@ const BRAND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="6
 
 // The handoff card once it has landed: the brand's art in green, with a big dark checkmark on the right.
 // The dashboard sits there all the time, so it is grey: purple is kept for the moments that ask for attention. Its
-// art is the brand's, in grey and at 40% of its strength; only the ✦ keeps the accent.
-const DASH_SVG = BRAND_SVG.replace(/stop-opacity="([0-9.]+)"/g, (_m, v: string) => `stop-opacity="${(Number(v) * 0.4).toFixed(3)}"`)
-  .replace(/#(7c6cf0|8f7ff0|b3a6ff|c9bdff|9a86ff)/g, '#9a9aa2')
+// art is a soft grey wash from the right with a faint glow that breathes slowly: no grain, streaks or sparkles,
+// so the dashboard stays calm under its text. Only the ✦ keeps the accent.
+const DASH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="64" viewBox="0 0 360 30" preserveAspectRatio="xMaxYMid slice"><style>:root{color-scheme:light dark}html,body{margin:0}svg{background:transparent;display:block}.br{animation:br 9s ease-in-out infinite}@keyframes br{0%,100%{opacity:.8}50%{opacity:1}}</style><defs><linearGradient id="bg" x1="0" x2="1"><stop offset=".35" stop-color="#9a9aa2" stop-opacity="0"/><stop offset=".7" stop-color="#9a9aa2" stop-opacity=".06"/><stop offset="1" stop-color="#b4b4bc" stop-opacity=".14"/></linearGradient><radialGradient id="glow" cx="330" cy="15" r="90" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#c8c8d0" stop-opacity=".1"/><stop offset="1" stop-color="#9a9aa2" stop-opacity="0"/></radialGradient></defs><rect class="br" width="360" height="30" fill="url(#bg)"/><rect class="br" width="360" height="30" fill="url(#glow)"/></svg>`
 let DASH_BG = '#141416'
 let DASH_EDGE = '#2a2a2f'
 /** The settings title's word in the website hero's style: crisp, going soft and grainy at its bottom right (a radial
