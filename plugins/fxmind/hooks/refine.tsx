@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderInput } from 'claude-code'
 
 import type { Refine, RefineQuestion } from '../types'
-import { projectRoot } from './status'
+import { projectRoot } from './project-root'
 import { tr } from './i18n'
 import { themedEls } from './theme'
 

@@ -7,7 +7,6 @@ import type { AgentRec, Effort, HandoffAfter, HandoffChoice, ModelKey, Pick, Set
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
 import { MARK_SVG, TEXTURE_SVG } from './brand-mark'
-import { statusStart, statusToolCall, statusTurnEnd } from './status'
 import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
 import type { RefineFrame } from './refine'
 import { accent, setLight, setTheme, themedEls, type ThemeName, THEMES, tintHex } from './theme'
@@ -3964,8 +3963,8 @@ export const register: Register = (on, options) => {
   })
   on('session.start', async ($, e, next) => {
     sessionStarted = Date.now()
-    // The fxmind status line shares this event: a plugin may hook an event only once without a matcher.
-    void statusStart($).catch(() => undefined)
+    // The footer line this mod once wrote (memories, task gates) lives in the side panel now: clear any left behind.
+    try { void Promise.resolve($.ui.status(undefined)).catch(() => undefined) } catch { /* no footer to clear */ }
     void refineStart($).catch(() => undefined)
     // Everything the first draw needs, asked for at once: one after the other they held the start (and with it the
     // band) for a second or more. What the draw does not need runs after, unawaited.
@@ -4034,7 +4033,6 @@ export const register: Register = (on, options) => {
   // The handoff turn ended: keep its text; the session's timer clears the chat and sends it.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (!e.agentId) await statusTurnEnd($).catch(() => undefined)
     if (e.agentId) await agentEnded($, e.agentId, e.reason)
     if (!e.agentId) await setTurnBusy($, false)
     // A lower verdict for a message typed during the turn takes over now, if Auto is still on.
@@ -4585,7 +4583,6 @@ Saved to ${out}.md and .json` }
     const known = id !== undefined && (await read($, agentsState)).some(a => a.id === id)
     if (!touch && !known && !(id === undefined && isList)) {
       const plain = await next(e)
-      await statusToolCall($, e).catch(() => undefined)
       return plain
     }
     if (known && id !== undefined) {
@@ -4607,7 +4604,6 @@ Saved to ${out}.md and .json` }
       const steps = ok && e.tool === 'TodoWrite' ? stepsFromTodos(e.todos) : undefined
       await agentSet($, id, a => ({ ...a, toolSince: undefined, file: undefined, state: a.state === 'waiting' ? 'running' : a.state, ...(steps ? { steps } : {}) }))
     }
-    await statusToolCall($, e).catch(() => undefined)
     return result
   })
 
