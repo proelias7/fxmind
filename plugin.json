@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "fxmind",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Shared project memory, selective task workflows and MCP tools for coding agents.",
   "author": {
     "name": "FXMIND"
