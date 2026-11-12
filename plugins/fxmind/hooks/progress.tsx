@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { On } from 'claude-code'
 import { tintHex } from './theme'
-import { MARK_SVG } from './brand-mark'
+import { MARK_SVG, TEXTURE_SVG } from './brand-mark'
 
 import type { Progress, ProgressStep } from '../types'
 
@@ -538,6 +538,11 @@ export function drawProgress(p: Progress, d: ProgressDraw) {
       <Box key="progress-bar" position="relative" flexDirection="row" gap={1} alignItems="center" paddingX={1} overflow="hidden"
         backgroundColor={look.bg} borderStyle="round" borderColor={look.edge}>
         {d.Svg ? (
+          <Box key="progress-texture" position="absolute" top={-1} left={0} right={0} bottom={-1}>
+            <d.Svg source={TEXTURE_SVG} alt="" width={1600} height={240} />
+          </Box>
+        ) : null}
+        {d.Svg ? (
           <Box key="progress-art" position="absolute" top={-1} left={0} bottom={-1}>
             <d.Svg key={`art-${p.phase}`} source={progressArtSvg(p.phase)} alt="" width={ART_W} height={ART_H} />
           </Box>
@@ -590,6 +595,11 @@ export function drawProgress(p: Progress, d: ProgressDraw) {
   return (
     <Box key="progress-bar" position="relative" flexDirection="column" paddingX={1} overflow="hidden"
       backgroundColor={look.bg} borderStyle="round" borderColor={look.edge}>
+      {d.Svg ? (
+        <Box key="progress-texture" position="absolute" top={-1} left={0} right={0} bottom={-1}>
+          <d.Svg source={TEXTURE_SVG} alt="" width={1600} height={240} />
+        </Box>
+      ) : null}
       {d.Svg ? (
         <Box key="progress-art" position="absolute" top={-1} left={0} bottom={-1}>
           <d.Svg key={`art-${p.phase}`} source={progressArtSvg(p.phase)} alt="" width={ART_W} height={ART_H} />
