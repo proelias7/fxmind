@@ -1,0 +1,13 @@
+description = "Ask what a demand is missing, then write the prompt for the coding agent"
+
+prompt = """
+Refine an implementation demand into the prompt a coding agent should receive.
+
+**Demand:** {{args}}
+
+Read `.fxmind/modes/refine.md` and follow it step by step. **Do NOT implement code or edit files** in this mode.
+
+When the user asks to run the refined prompt, follow `/fxmind:task` with it as the goal.
+
+Reply in the user's language.
+"""

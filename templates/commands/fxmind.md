@@ -1,6 +1,6 @@
 ---
-description: "fxmind — shared project memory — task, create, refactor, judge, init, audit, learn, teach, memory health, graph, painel, query, path, explain, update"
-argument-hint: "task <implementation> | create <resource> | refactor <resource> | judge [target] | init [scope] | audit [scope] | learn <topic> | teach <playbook> | memory health [fix] [topic] | graph | painel | query \"<question>\" [--dfs] [--budget N] | path <a> <b> | explain <topic> | update | <question>"
+description: "fxmind — shared project memory — task, refine, create, refactor, judge, init, audit, learn, teach, memory health, graph, painel, query, path, explain, update"
+argument-hint: "task <implementation> | refine <demand> | create <resource> | refactor <resource> | judge [target] | init [scope] | audit [scope] | learn <topic> | teach <playbook> | memory health [fix] [topic] | graph | painel | query \"<question>\" [--dfs] [--budget N] | path <a> <b> | explain <topic> | update | <question>"
 ---
 
 # fxmind
@@ -14,6 +14,7 @@ Parse `$ARGUMENTS` (trim, case-insensitive). **Prefer Task for any code/config c
 | Input | Mode file |
 |-------|-----------|
 | `task` or `task ...` | `.fxmind/modes/task.md` (**preferred** for code/config changes) |
+| `refine <demand>` | `.fxmind/modes/refine.md` — ask what is missing, then write the prompt for the agent (no code) |
 | `create` or `create ...` | `.fxmind/modes/create.md` — new resource: design + approval, then build |
 | `refactor` or `refactor ...` | `.fxmind/modes/refactor.md` — large rewrite of an existing resource with contract parity |
 | `judge` or `judge ...` | `.fxmind/modes/judge.md` (claims vs observation; after Task / any "done") |
