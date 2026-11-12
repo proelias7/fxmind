@@ -367,9 +367,9 @@ function iconBtn(
       backgroundColor={o.primary ? '#ffffff26' : undefined}>
       <S source={iconSvg(icon, o.color ?? (o.dim ? '#a0a0a8' : '#ffffff'))} alt={alt} width={16} height={16} />
       {word && T ? <T color={o.dim ? '#a0a0a8' : '#ffffff'}>{word}</T> : null}
-      <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-        {/* Wide enough for the word in a longer language too. */}
-        <Bt key={key} plain autoFocus={o.autoFocus} hover={{ backgroundColor: '#ffffff1f' }} label={' '.repeat(word ? Math.ceil(word.length * 1.35) + 5 : 4)} onPress={onPress} />
+      <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center" overflow="hidden">
+        {/* No-break spaces, wider than the chip and clipped to it: a label wider than its box showed as "…". */}
+        <Bt key={key} plain autoFocus={o.autoFocus} hover={{ backgroundColor: '#ffffff1f' }} label={'\u00a0'.repeat(word ? Math.ceil(word.length * 1.5) + 6 : 6)} onPress={onPress} />
       </B>
     </B>
   )
@@ -3193,7 +3193,7 @@ const handoffSlot = () => handoffLoud() || config.handoffButton === 'always'
 /** Handoff's box: it fades in, grey, up to HANDOFF_BOX_AT, then lightens to white by HANDOFF_LOUD_AT, where the glow
  * takes over (it grows to 80%). A glow only ever sits around the white box. */
 const HANDOFF_BOX_AT = 15
-const HANDOFF_PILL_W = 66
+const HANDOFF_PILL_W = 84
 const HANDOFF_PILL_H = 19
 /** Handoff's look at `percent` of context, a step each percent: no box at 0, the grey box by HANDOFF_BOX_AT, white by
  * HANDOFF_LOUD_AT. The label goes from dim to white, and dark once the box is light enough to need it. */
@@ -3489,7 +3489,7 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
               {/* Its width is a spacer in the flow, not the image: the app can lay an image out at no width, and the
                   label (centred over it) then ran into Auto. */}
               <Box key="dash-handoff-box" flexShrink={0} flexDirection="row" alignItems="center">
-                <Box width={9} height={1} flexShrink={0} />
+                <Box width={11} height={1} flexShrink={0} />
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
                   <els.Svg source={handoffPillSvg(handoffLevel())} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
                 </Box>
@@ -3502,8 +3502,8 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
                   <Text color={handoffLook(handoffLevel()).label} hover={{ scope: 'handoff', color: handoffLook(handoffLevel(), true).label }}>{handoffSlot() ? 'Handoff' : 'Compact'}</Text>
                 </Box>
-                <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                  <Button key="dash-handoff" plain label={' '.repeat(14)} hover={{ scope: 'handoff', backgroundColor: '#00000000' }} onPress={() => (handoffSlot() ? openHandoffBar($) : openCompact($, e))} />
+                <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center" overflow="hidden">
+                  <Button key="dash-handoff" plain label={'\u00a0'.repeat(11)} hover={{ scope: 'handoff', backgroundColor: '#00000000' }} onPress={() => (handoffSlot() ? openHandoffBar($) : openCompact($, e))} />
                 </Box>
               </Box>
             </Box>
