@@ -6,7 +6,7 @@ import type { EngineInterface, ModelForkResult, Register, RenderInput } from 'cl
 import type { AgentRec, Effort, HandoffAfter, HandoffChoice, ModelKey, Pick, SettingsDraft, Spent } from '../types'
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
-import { MARK_SVG, TEXTURE_SVG } from './brand-mark'
+import { MARK_SVG, TEXTURE_SVG, WATERMARK_SVG } from './brand-mark'
 import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
 import type { RefineFrame } from './refine'
 import { accent, setLight, setTheme, themedEls, type ThemeName, THEMES, tintHex } from './theme'
@@ -382,6 +382,10 @@ function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string) {
   return (
     <B key={`${key}-texture`} position="absolute" top={-1} left={0} right={0} bottom={-1}>
       <S source={TEXTURE_SVG} alt="" width={1600} height={240} />
+      {/* The mark, large and faint, tilted into the right edge: the panel's own watermark. */}
+      <B position="absolute" top={-2} right={6} bottom={-2} alignItems="center" justifyContent="center">
+        <S source={WATERMARK_SVG} alt="" width={150} height={150} />
+      </B>
     </B>
   )
 }
@@ -4830,8 +4834,8 @@ Saved to ${out}.md and .json` }
         ? <Box key="settings-head" flexDirection="row" flexWrap="wrap" justifyContent="space-between" columnGap={2}>{kids}</Box>
         : kids
       const bugUrl = ownVersion ? `${REPORT_BUG_URL}?title=${encodeURIComponent(`[mod ${ownVersion}] `)}` : REPORT_BUG_URL
-      // The version, the look for a new one and the bug report sit with Uninstall in Customize: the top bar holds only
-      // the name, Save once something changed, and the cross.
+      // The version, the look for a new one and the bug report sit in the top bar, by Save and the cross; Uninstall
+      // stays in Customize.
       const upkeep = [
         ...(ownVersion ? [<Text key="settings-version" color="#6b6b73">v{ownVersion}</Text>] : []),
         checking === 'checking' ? (
@@ -4907,6 +4911,8 @@ Saved to ${out}.md and .json` }
             )}
           </Box>,
           <Box key="settings-actions" {...(term ? { flexShrink: 1, flexWrap: 'wrap', columnGap: 2 } : { position: 'absolute', top: 0, right: 2, height: 2.5, gap: 2 })} flexDirection="row" alignItems="center">
+            {/* The version, the look for a new one and the bug report: in the top bar, seen as the panel opens. */}
+            {bare ? null : upkeep}
             {/* Save shows once something changed: until then there is nothing to save, and nothing to read. */}
             {dirty ? iconBtn({ Box, Text, Button, Svg }, 'settings-save', 'check', 'Save', () => saveDraft($), { primary: true, hotkey: term ? 's' : undefined }) : null}
             {iconBtn({ Box, Text, Button, Svg }, 'settings-close', 'close', 'Close', close, { label: '✕' })}
@@ -5047,7 +5053,7 @@ Saved to ${out}.md and .json` }
                   pick({ key: "settings-language", label: "Language", value: shown.language, options: [{ value: 'en', label: 'English' }, { value: 'pt-BR', label: 'Português (Brasil)' }], onSelect: set('language') }),
                 ]),
             ...toggles,
-            ...(bare ? [] : [...upkeep, uninstallButton($, themedEls($.ui.resolve(e)))]),
+            ...(bare ? [] : [uninstallButton($, themedEls($.ui.resolve(e)))]),
 ]}
               </Box>
             </Box>

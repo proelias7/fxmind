@@ -16,9 +16,12 @@ export const MARK_SVG =
 export const TEXTURE_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="240" viewBox="0 0 1600 240" preserveAspectRatio="none">' +
   '<defs><pattern id="net" width="30" height="26" patternUnits="userSpaceOnUse" patternTransform="rotate(-18)">' +
-  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28" fill="none" stroke="#fff" stroke-opacity=".075" stroke-width="1"/>' +
-  '<g fill="#fff"><circle cx="4" cy="5" r="1.3" fill-opacity=".16"/><circle cx="19" cy="11" r="1.6" fill-opacity=".2"/>' +
-  '<circle cx="10" cy="22" r="1.2" fill-opacity=".14"/></g></pattern>' +
+  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="1"/>' +
+  '<g fill="#fff"><circle cx="4" cy="5" r="1.3" fill-opacity=".26"/><circle cx="19" cy="11" r="1.6" fill-opacity=".32"/>' +
+  '<circle cx="10" cy="22" r="1.2" fill-opacity=".22"/></g></pattern>' +
   '<linearGradient id="fd" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity=".7"/></linearGradient>' +
   '<mask id="fm"><rect width="1600" height="240" fill="url(#fd)"/></mask></defs>' +
   '<rect width="1600" height="240" fill="url(#net)" mask="url(#fm)"/></svg>'
+
+// The mark as a faint watermark for a panel's right edge: white, tilted, at a whisper, over the texture.
+export const WATERMARK_SVG = MARK_SVG.replace('<g mask=', '<g opacity=".09" transform="rotate(-12 50 50)" mask=').replace('fill="#a79cf7"', 'fill="#ffffff"')
