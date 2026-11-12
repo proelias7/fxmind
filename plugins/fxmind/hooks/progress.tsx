@@ -1,6 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { On } from 'claude-code'
 import { tintHex } from './theme'
+import { MARK_SVG } from './brand-mark'
 
 import type { Progress, ProgressStep } from '../types'
 
@@ -515,9 +516,18 @@ export function drawProgress(p: Progress, d: ProgressDraw) {
   const words = p.phase === 'done' || p.phase === 'planning' ? '' : ((p.phase === 'paused' ? step?.label : step?.doing) ?? '')
   const name = (
     <Box key="progress-name" position="relative" flexShrink={0}>
-      <Text color={look.color} bold>
-        ✦ fxmind
-      </Text>
+      {d.Svg ? (
+        <Box flexDirection="row" alignItems="center">
+          <Box flexShrink={0} marginRight={1} alignItems="center">
+            <d.Svg source={MARK_SVG} alt="fxmind" width={16} height={16} />
+          </Box>
+          <Text color={look.color} bold>fxmind</Text>
+        </Box>
+      ) : (
+        <Text color={look.color} bold>
+          ✦ fxmind
+        </Text>
+      )}
     </Box>
   )
   const closeButton = <Button key="progress-close" plain role="dismiss" label="✕" onPress={d.onClose} />

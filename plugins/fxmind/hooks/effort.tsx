@@ -5180,9 +5180,7 @@ Saved to ${out}.md and .json` }
             <Svg source={BRAND_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
           </Box>
           <Box key="setup-words" position="relative" flexDirection="column" flexShrink={1} minWidth={0}>
-            <Text color={ACCENT} bold wrap="truncate">
-              {counter ? `✦ fxmind setup  ${counter}` : '✦ fxmind setup'}
-            </Text>
+            {markTitle({ Box, Text, Svg }, 'setup-title', ACCENT, counter ? `✦ fxmind setup  ${counter}` : '✦ fxmind setup')}
             {typeof words === 'string' ? <Text key="setup-what" wrap="truncate">{words}</Text> : words}
           </Box>
           <Box flexGrow={1} minWidth={room} />
@@ -5301,9 +5299,7 @@ Saved to ${out}.md and .json` }
           </Box>
           {introLayer({ Box, Svg }, 'down', await introShows($, 'down'), '#7d8aa8', '#e6ecf8')}
           <Box flexShrink={0}>
-            <Text color={SLATE} bold wrap="truncate">
-              ✦ Judge down
-            </Text>
+            {markTitle({ Box, Text, Svg }, 'judge-down-title', SLATE, '✦ Judge down')}
           </Box>
           <Text wrap="truncate">{`${downReason}. Haiku stands in.`}</Text>
           <Box flexGrow={1} minWidth={30} />
@@ -5338,9 +5334,7 @@ Saved to ${out}.md and .json` }
           </Box>
           {introLayer({ Box, Svg }, 'hot', await introShows($, 'hot'), EMBER, '#ffd2a8')}
           <Box flexShrink={0}>
-            <Text color={EMBER} bold wrap="truncate">
-              ✦ Running hot
-            </Text>
+            {markTitle({ Box, Text, Svg }, 'running-hot-title', EMBER, '✦ Running hot')}
           </Box>
           <Text wrap="truncate">{`${Math.round(heat.percent)}% of your ${window} limit used${resets ? ` · resets ${resets}` : ''}`}</Text>
           <Box flexGrow={1} minWidth={30} />
@@ -5416,9 +5410,7 @@ Saved to ${out}.md and .json` }
           </Box>
           {introLayer({ Box, Svg }, 'cold', await introShows($, 'cold'), ICE, '#cfeeff')}
           <Box flexShrink={0}>
-            <Text color={ICE} bold wrap="truncate">
-              ✦ Chat went cold
-            </Text>
+            {markTitle({ Box, Text, Svg }, 'chat-went-cold-title', ICE, '✦ Chat went cold')}
           </Box>
           <Text wrap="truncate">{line}</Text>
           {/* Room for the buttons, which sit in their own layer after the frost so they are drawn on top of it. */}
@@ -5464,9 +5456,7 @@ Saved to ${out}.md and .json` }
           </Box>
           {introLayer({ Box, Svg }, 'swamp', await introShows($, 'swamp'), '#6f9a4f', '#d6ecc2')}
           <Box flexShrink={0}>
-            <Text color={BOG} bold wrap="truncate">
-              ✦ Chat is getting swamped
-            </Text>
+            {markTitle({ Box, Text, Svg }, 'chat-is-getting-swamped-title', BOG, '✦ Chat is getting swamped')}
           </Box>
           {/* How full the context is, as a ring and a figure: the tokens alone do not say how close the limit is. */}
           {lastContext && lastContext.window ? (
