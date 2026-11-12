@@ -4802,6 +4802,13 @@ Saved to ${out}.md and .json` }
         // sweep plays once, behind everything, as the panel opens.
         <Box key="settings" position="relative" flexDirection="column" gap={roomy && !term ? 1 : 0} paddingX={term ? 1 : 2} overflow="hidden"
           backgroundColor={DASH_BG} borderStyle="round" borderColor={DASH_EDGE}>
+          {/* The bar's own art, the brand's at 40%, on the right behind everything: the panel reads as the bar opened
+              up. The rows lift over it with their empty absolute child. */}
+          {term ? null : (
+            <Box key="settings-art" position="absolute" top={-1} right={0} bottom={-1}>
+              <Svg source={DASH_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+            </Box>
+          )}
           {term ? null : introLayer({ Box, Svg }, 'settings', await introShows($, 'settings'))}
           {/* The top bar: barely a shade lighter than the band, holding the title, Save and the cross. */}
           {!term ? (
