@@ -538,8 +538,8 @@ export function drawProgress(p: Progress, d: ProgressDraw) {
       <Box key="progress-bar" position="relative" flexDirection="row" gap={1} alignItems="center" paddingX={1} overflow="hidden"
         backgroundColor={look.bg} borderStyle="round" borderColor={look.edge}>
         {d.Svg ? (
-          <Box key="progress-texture" position="absolute" top={-1} left={0} right={0} bottom={-1}>
-            <d.Svg source={TEXTURE_SVG} alt="" width={1600} height={240} />
+          <Box key="progress-texture" position="absolute" top={-1} right={0} bottom={-1}>
+            <d.Svg source={TEXTURE_SVG} alt="" width={880} height={128} />
           </Box>
         ) : null}
         {d.Svg ? (
@@ -596,8 +596,8 @@ export function drawProgress(p: Progress, d: ProgressDraw) {
     <Box key="progress-bar" position="relative" flexDirection="column" paddingX={1} overflow="hidden"
       backgroundColor={look.bg} borderStyle="round" borderColor={look.edge}>
       {d.Svg ? (
-        <Box key="progress-texture" position="absolute" top={-1} left={0} right={0} bottom={-1}>
-          <d.Svg source={TEXTURE_SVG} alt="" width={1600} height={240} />
+        <Box key="progress-texture" position="absolute" top={-1} right={0} bottom={-1}>
+          <d.Svg source={TEXTURE_SVG} alt="" width={880} height={128} />
         </Box>
       ) : null}
       {d.Svg ? (

@@ -6,7 +6,7 @@ import type { EngineInterface, ModelForkResult, Register, RenderInput } from 'cl
 import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, ModelKey, Pick, SettingsDraft, Spent } from '../types'
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
-import { MARK_SVG, TEXTURE_SVG, WATERMARK_SVG } from './brand-mark'
+import { MARK_SVG, TEXTURE_SVG, TEXTURE_TALL_SVG } from './brand-mark'
 import { projectRoot } from './project-root'
 import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
 import type { RefineFrame } from './refine'
@@ -324,17 +324,14 @@ function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: str
   )
 }
 
-/** The fxmind texture under a panel's art: the same net on every panel, none where no images are drawn. */
-function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string) {
+/** The fxmind texture under a panel's art, in the art's own box (right-anchored, full height): none where no images
+ * are drawn. The settings panel passes its taller one. */
+function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = false) {
   if (!els.Svg) return null
   const { Box: B, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Svg: (p: Record<string, unknown>) => unknown }
   return (
-    <B key={`${key}-texture`} position="absolute" top={-1} left={0} right={0} bottom={-1}>
-      <S source={TEXTURE_SVG} alt="" width={1600} height={240} />
-      {/* The mark, large and faint, tilted into the right edge: the panel's own watermark. */}
-      <B position="absolute" top={-2} right={6} bottom={-2} alignItems="center" justifyContent="center">
-        <S source={WATERMARK_SVG} alt="" width={150} height={150} />
-      </B>
+    <B key={`${key}-texture`} position="absolute" top={-1} right={0} bottom={-1}>
+      <S source={tall ? TEXTURE_TALL_SVG : TEXTURE_SVG} alt="" width={880} height={tall ? 256 : 128} />
     </B>
   )
 }
@@ -4912,7 +4909,7 @@ Saved to ${out}.md and .json` }
           backgroundColor={DASH_BG} borderStyle="round" borderColor={DASH_EDGE}>
           {/* The bar's own art, the brand's at 40%, on the right behind everything: the panel reads as the bar opened
               up. The rows lift over it with their empty absolute child. */}
-          {term ? null : textureLayer({ Box, Svg }, 'settings')}
+          {term ? null : textureLayer({ Box, Svg }, 'settings', true)}
           {term ? null : (
             <Box key="settings-art" position="absolute" top={-1} right={0} bottom={-1}>
               {/* Stretched over the panel, not sliced: the cards wrap onto a second row in a longer language, and a fixed

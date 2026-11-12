@@ -11,17 +11,28 @@ export const MARK_SVG =
   '<text x="50" y="60" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="800" letter-spacing="1" fill="#fff">FX</text>' +
   '</mask></defs><g mask="url(#kem)"><rect width="100" height="100" fill="#a79cf7"/></g></svg>'
 
-// The fxmind texture, one for every panel: a fine net of thoughts (small nodes joined by hairlines) that turns
-// across the surface. It is white at a whisper, so it takes the colour of whatever panel it lies on.
-export const TEXTURE_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="240" viewBox="0 0 1600 240" preserveAspectRatio="none">' +
-  '<defs><pattern id="net" width="30" height="26" patternUnits="userSpaceOnUse" patternTransform="rotate(-18)">' +
-  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="1"/>' +
-  '<g fill="#fff"><circle cx="4" cy="5" r="1.3" fill-opacity=".26"/><circle cx="19" cy="11" r="1.6" fill-opacity=".32"/>' +
-  '<circle cx="10" cy="22" r="1.2" fill-opacity=".22"/></g></pattern>' +
-  '<linearGradient id="fd" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity=".7"/></linearGradient>' +
-  '<mask id="fm"><rect width="1600" height="240" fill="url(#fd)"/></mask></defs>' +
-  '<rect width="1600" height="240" fill="url(#net)" mask="url(#fm)"/></svg>'
+// The fxmind texture, one for every panel: a fine net of thoughts (small nodes joined by hairlines) with the mark,
+// large and faint, near the right edge. Built the way the panels' own art is (which the app draws): the same <style>
+// head, a right-anchored slice, one plain pattern (no transform, no mask), at one pixel per unit, so it is laid out
+// and drawn like that art, in the same right-anchored box.
+const NET =
+  '<pattern id="fxnet" width="30" height="26" patternUnits="userSpaceOnUse">' +
+  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28M0 3L4 5M30 28L26 26" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="1"/>' +
+  '<circle cx="4" cy="5" r="1.3" fill="#fff" fill-opacity=".26"/><circle cx="19" cy="11" r="1.6" fill="#fff" fill-opacity=".32"/>' +
+  '<circle cx="10" cy="22" r="1.2" fill="#fff" fill-opacity=".22"/></pattern>'
+const MARK_INNER = MARK_SVG.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '').replace('fill="#a79cf7"', 'fill="#ffffff"')
 
-// The mark as a faint watermark for a panel's right edge: white, tilted, at a whisper, over the texture.
-export const WATERMARK_SVG = MARK_SVG.replace('<g mask=', '<g opacity=".09" transform="rotate(-12 50 50)" mask=').replace('fill="#a79cf7"', 'fill="#ffffff"')
+/** The texture at width by height pixels: the net over all of it, the mark near the right, centred on the height. */
+export function textureSvg(width: number, height: number): string {
+  const size = Math.min(170, Math.round(height * 1.25))
+  const x = width - size - 40
+  const y = Math.round(height / 2 - size / 2)
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMaxYMid slice">` +
+    '<style>:root{color-scheme:light dark}html,body{margin:0}svg{background:transparent;display:block}</style>' +
+    `<defs>${NET}</defs><rect width="${width}" height="${height}" fill="url(#fxnet)"/>` +
+    `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 100 100" opacity=".12"><g transform="rotate(-12 50 50)">${MARK_INNER}</g></svg>` +
+    '</svg>'
+}
+/** The size every band's art is drawn at (FROST_WIDTH * 2 by FROST_HEIGHT * 2), and the settings panel's taller one. */
+export const TEXTURE_SVG = textureSvg(880, 128)
+export const TEXTURE_TALL_SVG = textureSvg(880, 256)
