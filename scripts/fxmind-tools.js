@@ -769,7 +769,7 @@ function queryGraph(targetRoot, question, options = {}) {
     } catch { /* keep legacy queries available on index failures */ }
   }
   if (atom?.hits?.length) {
-    const memories = atom.hits.map(({ node, score, tokens }) => ({
+    const memories = atom.hits.map(({ node, score, tokens, via }) => ({
       slug: node.slug || node.id,
       id: node.id,
       kind: node.kind,
@@ -785,12 +785,14 @@ function queryGraph(targetRoot, question, options = {}) {
       content: node.content,
       truncated: false,
       omittedSections: [],
+      ...(via ? { via } : {}),
     }));
     appendMetric(targetRoot, { event: "atomic_query", mode, tokensUsed: atom.tokensUsed,
       fragments: memories.length, fallback: false });
     return { ok: true, graphStale, mode: "atomic", expanded: memories.map((m) => m.id),
       startNodes: memories.map((m) => m.id), memories, fragments: memories,
-      related: atom.related.map((r) => ({ slug: r.id, name: r.name, kind: r.kind, type: r.type })),
+      related: atom.related.map((r) => ({ slug: r.id, name: r.name, kind: r.kind, type: r.type,
+        ...(r.hop ? { hop: r.hop } : {}), ...(r.file ? { path: r.file, line: r.line } : {}) })),
       tokensUsed: atom.tokensUsed, budget, indexVersion: atom.index.version };
   }
 

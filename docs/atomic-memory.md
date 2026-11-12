@@ -41,7 +41,9 @@ Jev is optional and advisory: it can recommend whether to highlight a verified c
 
 ## Graph and panel
 
-Each node has a stable ID, type, resource, evidence and source link. Relationships include `belongs-to`, `references-file`, `references-symbol` and `same-symbol`. The Memories panel shows a condensed overview by default; typing a resource or symbol reveals matching nodes plus nearby connections. Selecting a node shows the exact snippet, provenance and backlinks.
+Each node has a stable ID, type, resource, evidence and source link. Relationships include `belongs-to`, `references-file`, `references-symbol` and `same-symbol`, plus directed code-flow edges: `handled-by` (`TriggerServerEvent`/`TriggerClientEvent`/`TriggerEvent` → `RegisterNetEvent`/`AddEventHandler` of the same event), `emits` and `uses-export` (enclosing function → emitter / `exports['res']:fn()` call), `calls-export` (call → `exports("fn", ...)` definition) and `calls` (function or handler body → function definition). A call resolves only to a unique target, preferring the same file, then the same resource; ambiguous names stay unlinked. Cross-file targets are `inferred` with a numeric `score`.
+
+Queries seed from the best-scoring fragments (one extra seed per query term no hit covers), then walk up to two hops weighted by edge type, never through resource hubs. Direct code-flow neighbours (the handler of an emitted event, a called function) are added as evidence with leftover budget and marked `via`; the rest is listed in `related`, ranked, with `hop` and location. The Memories panel shows a condensed overview by default; typing a resource or symbol reveals matching nodes plus nearby connections. Selecting a node shows the exact snippet, provenance and backlinks.
 
 ## Limits and safety
 

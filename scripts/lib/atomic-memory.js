@@ -11,7 +11,7 @@ const { resolveDataRoot, resolveMemoryDir } = require("../global-store");
 const retrieval = require("./memory-retrieval");
 const { withFileLock } = require("./fs-lock");
 
-const VERSION = 3;
+const VERSION = 4;
 const MAX_SOURCE_FILES = 12000;
 const MAX_SOURCE_BYTES = 350 * 1024;
 const MAX_LINES = 18000;
@@ -23,11 +23,26 @@ const CODE_PATTERNS = [
   ["function", /\b(?:local\s+)?function\s+([A-Za-z_][\w.:]*)\s*\(/g],
   ["function", /\b(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][\w]*)\s*\(/g],
   ["function", /\b(?:const|let)\s+([A-Za-z_][\w]*)\s*=\s*(?:async\s*)?(?:function\s*\(|\([^)]*\)\s*=>)/g],
-  ["event", /\b(?:RegisterNetEvent|AddEventHandler|TriggerServerEvent|TriggerClientEvent|TriggerEvent|onNet|emitNet)\s*\(\s*["']([\w:.-]+)["']/g],
+  ["event", /\b(?:RegisterNetEvent|RegisterServerEvent|AddEventHandler|onNet)\s*\(\s*["']([\w:.-]+)["']/g, "handler"],
+  ["event", /\b(?:TriggerServerEvent|TriggerClientEvent|TriggerLatentServerEvent|TriggerLatentClientEvent|TriggerEvent|emitNet)\s*\(\s*["']([\w:.-]+)["']/g, "emitter"],
   ["command", /\bRegisterCommand\s*\(\s*["']([\w:.-]+)["']/g],
   ["export", /\bexports\s*\(\s*["']([\w:.-]+)["']/g],
+  // exports['res']:fn(  exports.res:fn(  exports.res.fn(  exports["res"].fn(
+  ["export-call", /\bexports\s*(?:\[\s*["']([\w-]+)["']\s*\]|\.([\w-]+))\s*[:.]\s*([A-Za-z_]\w*)\s*\(/g, "usage"],
   ["sql-table", /\b(?:FROM|JOIN|INTO|UPDATE|TABLE)\s+["'\x60]?([A-Za-z_][\w]*)/gi],
 ];
+// Call sites are collected per enclosing scope (function, handler or command
+// body) and resolved to definitions after every file is indexed.
+const CALL_RE = /(?<![\w.:])([A-Za-z_]\w*(?:[.:][A-Za-z_]\w*)*)\s*\(/g;
+const CALL_SKIP = new Set(("if elseif while for return local function and or not then do end else repeat until in " +
+  "new typeof await async switch catch const let var print require pairs ipairs tostring tonumber type next " +
+  "select error assert pcall xpcall setmetatable getmetatable rawget rawset unpack table.insert table.remove " +
+  "table.concat table.sort table.unpack string.format string.sub string.find string.match string.gsub " +
+  "string.lower string.upper math.floor math.ceil math.random math.max math.min math.abs json.encode json.decode " +
+  "console.log Citizen.Wait Citizen.CreateThread CreateThread Wait SetTimeout setTimeout setInterval " +
+  "RegisterNetEvent RegisterServerEvent AddEventHandler TriggerServerEvent TriggerClientEvent TriggerEvent " +
+  "TriggerLatentServerEvent TriggerLatentClientEvent RegisterCommand onNet emitNet exports").split(/\s+/));
+const MAX_CALLS_PER_SCOPE = 40;
 
 function idFor(prefix, value) {
   return prefix + ":" + crypto.createHash("sha256").update(value).digest("hex").slice(0, 18);
@@ -99,21 +114,31 @@ function cleanEvidence(line) {
   const value = String(line || "").trim().slice(0, 240);
   return SECRET_LINE.test(value) ? "[linha potencialmente sensível omitida]" : value;
 }
+function stripStrings(line) {
+  return line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
+}
 function sourceNodes(root, rel, content, digest) {
   const lines = content.split(/\r?\n/);
   const resource = resourceFor(rel);
   const nodes = [];
   const used = new Map();
+  let scope = null;
   for (let i = 0; i < Math.min(lines.length, MAX_LINES); i++) {
     const line = lines[i];
     if (!line || line.length > 1000 || /^\s*(?:--|\/\/|#|\*)/.test(line)) continue;
-    for (const [kind, re] of CODE_PATTERNS) {
+    // A top-level `end` / `}` closes the current scope (Lua and JS bodies).
+    if (scope && /^(?:end|\})\s*\)?\s*[,;]?\s*$/.test(line)) { scope = null; continue; }
+    let opened = null;
+    const lineNodes = [];
+    for (const [kind, re, role] of CODE_PATTERNS) {
       re.lastIndex = 0;
       let match;
       while ((match = re.exec(line))) {
-        const name = match[1];
+        const name = kind === "export-call" ? match[3] : match[1];
         if (!name || name.length > 100) continue;
-        const key = kind + ":" + name;
+        // Overlapping patterns (`local function x(` matches two) yield one node.
+        if (lineNodes.some((n) => n.kind === kind && n.name === name && n.role === role)) continue;
+        const key = kind + ":" + name + (role === "emitter" ? ":emit" : "");
         const ordinal = (used.get(key) || 0) + 1;
         used.set(key, ordinal);
         if (nodes.length >= 160) break;
@@ -127,17 +152,43 @@ function sourceNodes(root, rel, content, digest) {
           }
           evidence = excerpt.filter(Boolean).join("\n").slice(0, 680);
         }
-        nodes.push({
+        const node = {
           id: idFor("code", rel + "|" + key + "|" + ordinal),
           name, kind, group: "code-symbol", resource,
           file: rel, line: i + 1, sourceHash: digest,
           source: "code", confidence: "extracted",
           content: evidence, topic: resource,
-        });
+        };
+        if (role) node.role = role;
+        if (kind === "export-call") node._target = String(match[1] || match[2] || "").toLowerCase();
+        nodes.push(node);
+        lineNodes.push(node);
+        const opensBody = kind === "function" ||
+          ((role === "handler" || kind === "command") && /\bfunction\b|=>/.test(line));
+        if (opensBody && !opened) opened = node;
+      }
+    }
+    for (const node of lineNodes) {
+      if ((node.role === "emitter" || node.role === "usage") && (opened || scope) && (opened || scope) !== node) {
+        node._scope = (opened || scope).id;
+      }
+    }
+    if (opened) { scope = opened; scope._calls = []; }
+    if (scope && scope._calls.length < MAX_CALLS_PER_SCOPE) {
+      const code = stripStrings(line);
+      CALL_RE.lastIndex = 0;
+      let call;
+      while ((call = CALL_RE.exec(code))) {
+        const name = call[1];
+        if (CALL_SKIP.has(name) || CALL_SKIP.has(name.split(/[.:]/)[0]) || name === scope.name) continue;
+        if (/\bfunction\s+$/.test(code.slice(0, call.index))) continue;
+        if (!scope._calls.includes(name)) scope._calls.push(name);
+        if (scope._calls.length >= MAX_CALLS_PER_SCOPE) break;
       }
     }
     if (nodes.length >= 160) break;
   }
+  for (const node of nodes) if (node._calls && !node._calls.length) delete node._calls;
   return nodes;
 }
 function parseMeta(content) {
@@ -224,6 +275,70 @@ function fileEntry(root, abs, prior, isMemory) {
     nodes: isMemory ? memoryNodes(rel, content, digest) : sourceNodes(root, rel, content, digest),
   };
 }
+/**
+ * Directed code-flow edges, resolved conservatively (an ambiguous target is
+ * never guessed):
+ *   emitter event  --handled-by-->   handler of the same event name
+ *   scope          --emits-->        emitter event inside its body
+ *   scope          --uses-export-->  exports['res']:fn() call inside its body
+ *   scope          --calls-->        function definition it calls
+ *   export call    --calls-export--> exports("name", ...) definition
+ * Same-file/explicit targets are "extracted"; cross-file ones "inferred" with a score.
+ */
+function codeFlowRelations(nodes, byId, edge) {
+  const handlers = new Map();
+  const exportsByName = new Map();
+  const functions = new Map();
+  const push = (map, key, node) => {
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(node);
+  };
+  for (const node of nodes) {
+    if (node.group !== "code-symbol") continue;
+    if (node.kind === "event" && node.role === "handler") push(handlers, node.name, node);
+    else if (node.kind === "export") push(exportsByName, node.name, node);
+    else if (node.kind === "function") {
+      push(functions, node.name, node);
+      const tail = node.name.split(/[.:]/).pop();
+      if (tail !== node.name) push(functions, tail, node);
+    }
+  }
+  for (const node of nodes) {
+    if (node.group !== "code-symbol") continue;
+    if (node._scope && byId.has(node._scope)) {
+      edge(node._scope, node.id, node.kind === "export-call" ? "uses-export" : "emits");
+    }
+    if (node.kind === "event" && node.role === "emitter") {
+      for (const target of (handlers.get(node.name) || []).slice(0, 16)) {
+        edge(node.id, target.id, "handled-by", "extracted", target.file === node.file ? 1 : 0.95);
+      }
+    }
+    if (node.kind === "export-call") {
+      const defs = exportsByName.get(node.name) || [];
+      const exact = defs.filter((d) => d.resource === node._target);
+      const targets = exact.length ? exact : defs.length === 1 ? defs : [];
+      for (const target of targets.slice(0, 4)) {
+        edge(node.id, target.id, "calls-export", exact.length ? "extracted" : "inferred", exact.length ? 1 : 0.75);
+      }
+    }
+    for (const call of node._calls || []) {
+      let candidates = functions.get(call) || [];
+      if (!candidates.length && /[.:]/.test(call)) candidates = functions.get(call.split(/[.:]/).pop()) || [];
+      if (!candidates.length) continue;
+      const tiers = [
+        [candidates.filter((c) => c.file === node.file), "extracted", 1],
+        [candidates.filter((c) => c.resource === node.resource), "inferred", 0.85],
+        [candidates, "inferred", 0.75],
+      ];
+      for (const [tier, confidence, score] of tiers) {
+        if (!tier.length) continue;
+        // Unique target only: overloaded/duplicated names stay unresolved.
+        if (tier.length === 1) edge(node.id, tier[0].id, "calls", confidence, score);
+        break;
+      }
+    }
+  }
+}
 function graphRelations(nodes) {
   const relations = [];
   const seen = new Set();
@@ -231,12 +346,12 @@ function graphRelations(nodes) {
   const resourceNodes = new Map();
   const bySymbol = new Map();
   const byPath = new Map();
-  function edge(a, b, type) {
+  function edge(a, b, type, confidence = "extracted", score = 1) {
     if (!a || !b || a === b) return;
     const key = a + "|" + b + "|" + type;
     if (seen.has(key)) return;
     seen.add(key);
-    relations.push({ source: a, target: b, type, kind: type, confidence: "extracted" });
+    relations.push({ source: a, target: b, type, kind: type, confidence, score });
   }
   for (const node of nodes) {
     map.set(node.id, node);
@@ -271,6 +386,7 @@ function graphRelations(nodes) {
       }
     }
   }
+  codeFlowRelations(nodes, map, edge);
   for (const [name, group] of bySymbol) {
     if (group.length < 2 || group.length > 16) continue;
     for (let i = 1; i < group.length; i++) edge(group[i - 1].id, group[i].id, "same-symbol");
@@ -448,6 +564,14 @@ function fieldsForNode(node) {
     triggers: new Set(retrieval.termsOf((node.triggers || []).join(" "))),
   };
 }
+function fieldsOf(node) {
+  let fields = NODE_FIELDS.get(node);
+  if (!fields) {
+    fields = fieldsForNode(node);
+    NODE_FIELDS.set(node, fields);
+  }
+  return fields;
+}
 function scoreNode(node, concepts, fields = fieldsForNode(node)) {
   let score = 0, matched = 0;
   for (const concept of concepts) {
@@ -564,18 +688,110 @@ function queryAtomic(root, question, options = {}) {
     hits.push({ ...hit, tokens: cost });
   }
   const ids = new Set(hits.map((hit) => hit.node.id));
-  const byId = new Map((index.nodes || []).map((node) => [node.id, node]));
-  const related = [];
-  const relatedIds = new Set();
-  for (const link of index.links || []) {
-    const match = ids.has(link.source) ? link.target : ids.has(link.target) ? link.source : null;
-    if (!match || ids.has(match) || relatedIds.has(match)) continue;
-    const node = byId.get(match);
-    if (!node) continue;
-    relatedIds.add(match);
-    related.push({ id: node.id, name: node.name, kind: node.kind, type: link.type });
-    if (related.length >= 12) break;
+  // Per-term guarantee (graphify #1445): a query term matched by no hit may
+  // add its best node as a seed, so one dominant term cannot starve the rest.
+  const covers = (node, concept) => {
+    const fields = fieldsOf(node);
+    return concept.variants.some((v) => fields.name.has(v) || fields.content.has(v) || fields.triggers.has(v));
+  };
+  if (concepts.length > 1 && hits.length) {
+    for (const concept of concepts) {
+      if (hits.length >= (options.limit || 3) + 2) break;
+      if (hits.some((hit) => covers(hit.node, concept))) continue;
+      const best = ranked.find((hit) => !ids.has(hit.node.id) && covers(hit.node, concept)
+        && hit.score >= ranked[0].score * 0.15);
+      if (!best) continue;
+      const cost = retrieval.estimateTokens(best.node.content) + 35;
+      if (tokensUsed + cost > budget) continue;
+      ids.add(best.node.id);
+      tokensUsed += cost;
+      hits.push({ ...best, tokens: cost, via: "term:" + concept.term });
+    }
   }
-  return { index, hits, related, tokensUsed };
+  const graph = graphView(index);
+  const related = expandFromSeeds(graph, [...ids], concepts, { limit: 12 });
+  // Leftover budget pulls in direct code-flow neighbours (handler of an
+  // emitted event, called function, export definition) as evidence.
+  if (options.expand !== false) {
+    for (const rel of related) {
+      if (hits.length >= (options.limit || 3) + 2) break;
+      if (rel.hop !== 1 || !FLOW_TYPES.has(rel.type)) continue;
+      const node = graph.byId.get(rel.id);
+      if (!node || node.group !== "code-symbol") continue;
+      const cost = retrieval.estimateTokens(node.content) + 35;
+      if (tokensUsed + cost > budget * 0.9) continue;
+      tokensUsed += cost;
+      ids.add(node.id);
+      hits.push({ node, score: Math.round(rel.score * 100) / 100, tokens: cost, via: rel.type });
+    }
+  }
+  return { index, hits, related: related.filter((rel) => !ids.has(rel.id)), tokensUsed };
 }
-module.exports = { VERSION, indexPath, readAtomic, buildAtomic, queryAtomic, resourceFor, sourceNodes, memoryNodes, scoreNode, learnVerifiedSnapshot, addFact };
+const EDGE_WEIGHTS = {
+  "handled-by": 1, calls: 1, "calls-export": 1, "uses-export": 0.9, emits: 0.9,
+  "references-symbol": 0.9, "references-file": 0.6, "same-symbol": 0.5, "belongs-to": 0.25,
+};
+const FLOW_TYPES = new Set(["handled-by", "calls", "calls-export", "uses-export", "emits"]);
+const GRAPH_VIEWS = new WeakMap();
+/** Undirected adjacency + hub threshold, cached per loaded index. */
+function graphView(index) {
+  let view = GRAPH_VIEWS.get(index);
+  if (view) return view;
+  const byId = new Map((index.nodes || []).map((node) => [node.id, node]));
+  const adj = new Map();
+  for (const link of index.links || []) {
+    if (!byId.has(link.source) || !byId.has(link.target)) continue;
+    const w = (EDGE_WEIGHTS[link.type] ?? 0.4) * (Number(link.score) || 1);
+    for (const [a, b, dir] of [[link.source, link.target, "out"], [link.target, link.source, "in"]]) {
+      if (!adj.has(a)) adj.set(a, []);
+      adj.get(a).push({ id: b, type: link.type, w, dir });
+    }
+  }
+  const degrees = [...adj.values()].map((list) => list.length).sort((x, y) => x - y);
+  const hub = Math.max(30, degrees[Math.floor(degrees.length * 0.99)] || 0);
+  view = { byId, adj, hub };
+  GRAPH_VIEWS.set(index, view);
+  return view;
+}
+/**
+ * Two-hop weighted expansion from the seeds. Hubs (resource nodes, degree at
+ * or above the p99 floor) are reported but never used as transit, so one
+ * shared resource cannot drag every symbol into the answer. Ranking: path
+ * weight decayed per hop, plus a bonus when the node itself matches the query.
+ */
+function expandFromSeeds(graph, seeds, concepts, options = {}) {
+  const seedSet = new Set(seeds);
+  const best = new Map();
+  let frontier = seeds.map((id) => ({ id, w: 1 }));
+  for (let hop = 1; hop <= (options.depth || 2) && frontier.length; hop++) {
+    const next = [];
+    for (const { id, w } of frontier) {
+      const node = graph.byId.get(id);
+      const neighbours = graph.adj.get(id) || [];
+      const transit = seedSet.has(id) || (node?.group !== "resource" && neighbours.length < graph.hub);
+      if (!transit) continue;
+      for (const edge of neighbours) {
+        if (seedSet.has(edge.id)) continue;
+        const weight = w * edge.w / hop;
+        const prior = best.get(edge.id);
+        if (prior && prior.weight >= weight) continue;
+        best.set(edge.id, { id: edge.id, hop: prior ? Math.min(prior.hop, hop) : hop, weight,
+          type: edge.type, direction: edge.dir });
+        next.push({ id: edge.id, w: weight });
+      }
+    }
+    frontier = next;
+  }
+  const scored = [...best.values()].map((entry) => {
+    const node = graph.byId.get(entry.id);
+    const match = concepts.length ? scoreNode(node, concepts, fieldsOf(node)) : 0;
+    return { ...entry, node, score: entry.weight * 2 + Math.min(match, 10) * 0.15 };
+  });
+  scored.sort((a, b) => b.score - a.score || a.hop - b.hop || a.id.localeCompare(b.id));
+  return scored.slice(0, options.limit || 12).map(({ node, id, hop, type, direction, score }) => ({
+    id, name: node.name, kind: node.kind, type, hop, direction,
+    score: Math.round(score * 100) / 100,
+    ...(node.file ? { file: node.file, line: node.line } : {}),
+  }));
+}
+module.exports = { VERSION, expandFromSeeds, graphView, indexPath, readAtomic, buildAtomic, queryAtomic, resourceFor, sourceNodes, memoryNodes, scoreNode, learnVerifiedSnapshot, addFact };

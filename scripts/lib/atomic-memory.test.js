@@ -339,3 +339,96 @@ describe("source-grounded manual learning", () => {
     assert.ok(atomic.readAtomic(root).nodes.some((n) => n.id === result.fact.id));
   });
 });
+
+describe("atomic code flow", () => {
+  const files = {
+    "resources/[g]/garages/client.lua": [
+      "local function openMenu()",
+      "  local ok = exports['bank']:hasMoney(100)",
+      '  TriggerServerEvent("garages:store", "ABC123")',
+      "  buildList()",
+      "end",
+      "",
+      "function buildList()",
+      "  return {}",
+      "end",
+      "",
+    ].join("\n"),
+    "resources/[g]/garages/server.lua": [
+      "local function canStoreVehicle(userId, plate)",
+      "  return plate ~= nil",
+      "end",
+      "",
+      'RegisterNetEvent("garages:store", function(plate)',
+      "  if canStoreVehicle(source, plate) then",
+      '    print("ok")',
+      "  end",
+      "end)",
+      "",
+    ].join("\n"),
+    "resources/[g]/bank/server.lua": 'exports("hasMoney", function(amount)\n  return true\nend)\n',
+    "resources/[g]/shop/a.lua": "function dup()\nend\n",
+    "resources/[g]/shop/b.lua": "function dup()\nend\nfunction caller()\n  dup()\nend\n",
+  };
+  function setup() {
+    for (const [rel, text] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      fs.writeFileSync(path.join(root, rel), text);
+    }
+    const graph = atomic.buildAtomic(root);
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    const edges = graph.links.map((l) => ({ ...l, from: byId.get(l.source), to: byId.get(l.target) }));
+    return { graph, edges };
+  }
+  const has = (edges, type, from, to) =>
+    edges.find((e) => e.type === type && e.from.name === from && e.to.name === to);
+
+  it("links emitters to handlers, calls to definitions and export calls to exports", () => {
+    const { edges } = setup();
+    const handled = edges.find((e) => e.type === "handled-by");
+    assert.equal(handled.from.role, "emitter");
+    assert.equal(handled.to.role, "handler");
+    assert.ok(handled.to.file.endsWith("garages/server.lua"));
+    assert.ok(has(edges, "emits", "openMenu", "garages:store"));
+    assert.ok(has(edges, "calls", "openMenu", "buildList"));
+    assert.ok(has(edges, "calls", "garages:store", "canStoreVehicle"));
+    assert.ok(has(edges, "uses-export", "openMenu", "hasMoney"));
+    const exp = edges.find((e) => e.type === "calls-export" && e.to.kind === "export");
+    assert.equal(exp.confidence, "extracted");
+    assert.ok(exp.to.file.endsWith("bank/server.lua"));
+  });
+
+  it("does not guess an ambiguous call target nor index one definition twice", () => {
+    const { graph, edges } = setup();
+    assert.equal(edges.filter((e) => e.type === "calls" && e.from.name === "caller").length, 1);
+    assert.equal(has(edges, "calls", "caller", "dup").to.file, "resources/[g]/shop/b.lua");
+    const opens = graph.nodes.filter((n) => n.kind === "function" && n.name === "openMenu");
+    assert.equal(opens.length, 1);
+  });
+
+  it("expands a query through the code flow instead of unordered links", () => {
+    setup();
+    const result = atomic.queryAtomic(root, "onde dispara o evento garages:store", { budget: 800, refresh: false });
+    const names = result.hits.map((hit) => hit.node.name);
+    assert.ok(names.includes("garages:store"));
+    assert.ok(result.hits.some((hit) => hit.node.role === "handler"));
+    assert.ok(result.hits.some((hit) => hit.via === "calls" && hit.node.name === "canStoreVehicle"));
+    for (const rel of result.related) {
+      assert.ok(rel.hop >= 1 && rel.hop <= 2);
+      assert.ok(!result.hits.some((hit) => hit.node.id === rel.id));
+    }
+    const scores = result.related.map((rel) => rel.score);
+    assert.deepEqual(scores, [...scores].sort((a, b) => b - a));
+  });
+
+  it("never walks through a resource hub to unrelated symbols", () => {
+    const { graph } = setup();
+    const view = atomic.graphView(graph);
+    const seed = graph.nodes.find((n) => n.name === "buildList");
+    const related = atomic.expandFromSeeds(view, [seed.id], [], { limit: 50 });
+    assert.ok(related.some((rel) => rel.kind === "resource" && rel.name === "garages"));
+    assert.ok(related.some((rel) => rel.name === "openMenu" && rel.type === "calls"));
+    // Same resource, but only reachable through the garages hub.
+    assert.ok(!related.some((rel) => rel.name === "canStoreVehicle"));
+  });
+});
