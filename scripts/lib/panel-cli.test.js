@@ -261,8 +261,25 @@ describe("reviewer MCP CLI hardening", () => {
     const body = panelCli.buildSubagentBody("reviewer", persona, {
       prompt: "Review robberys", paths: ["resources/[ecco]/robberys/server-side/server.lua"],
     });
-    assert.match(body, /First call fxmind_query/);
+    assert.match(body, /MCP is optional/);
+    assert.match(body, /Never stop for lack of MCP/);
     assert.match(body, /VERDICT: VERIFIED/);
+    const reader = panelCli.buildSubagentBody("reader", panelCli.readSubagentPersona("reader"), { prompt: "Read" });
+    assert.match(reader, /First call fxmind_query/);
+  });
+  it("lets the headless Claude reviewer reach FxMind MCP and git read commands, never edits", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-claude-reviewer-"));
+    fs.writeFileSync(path.join(root, ".mcp.json"), "{}");
+    const { args } = panelCli.buildJudgeArgs("claude", { root, body: "Review", accessArgs: [], execOpts: {}, readOnly: true });
+    assert.ok(args.includes("--mcp-config"));
+    assert.ok(args.includes("mcp__fxmind__fxmind_query"));
+    assert.ok(args.includes("Bash(git diff:*)"));
+    assert.ok(args.includes("Edit") && args.indexOf("Edit") > args.indexOf("--disallowedTools"));
+    const general = panelCli.buildJudgeArgs("claude", { root, body: "Do", accessArgs: [], execOpts: {}, readOnly: false });
+    assert.deepEqual(general.args, ["-p"]);
+  });
+  it("accepts a verdict line wrapped in markdown", () => {
+    assert.equal(panelCli.subagentCompletion("reviewer", "claude", 0, null, "Ok.\n**VERDICT: VERIFIED**").ok, true);
   });
   it("never treats a CLI error or empty result as a completed review", () => {
     for (const args of [

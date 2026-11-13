@@ -10,6 +10,8 @@ describe("independent review artifact", () => {
     assert.equal(review.parseVerdict("Options: VERDICT: REFUTED\nVERDICT: VERIFIED"), "verified");
     assert.equal(review.parseVerdict("VERDICT: VERIFIED\nextra text"), "unverifiable");
     assert.equal(review.parseVerdict("finding\nVERDICT: REFUTED"), "refuted");
+    assert.equal(review.parseVerdict("ok\n**VERDICT: VERIFIED**"), "verified");
+    assert.equal(review.parseVerdict("ok\n`VERDICT: VERIFIED WITH CAVEATS`"), "verified_with_caveats");
   });
 
   it("binds VERIFIED to the exact reviewed contents", () => {
@@ -148,5 +150,29 @@ describe("independent review artifact", () => {
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("candidate diff in the reviewer prompt", () => {
+  it("includes tracked changes and new files, so the reviewer needs no Bash", () => {
+    const fs = require("fs");
+    const os = require("os");
+    const path = require("path");
+    const { execFileSync } = require("child_process");
+    const review = require("./independent-review");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-diff-"));
+    const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
+    git("init", "-q");
+    git("config", "user.email", "t@t");
+    git("config", "user.name", "t");
+    fs.writeFileSync(path.join(root, "a.lua"), "local x = 1\n");
+    git("add", ".");
+    git("commit", "-qm", "init");
+    fs.writeFileSync(path.join(root, "a.lua"), "local x = 2\n");
+    fs.writeFileSync(path.join(root, "b.lua"), "print('new')\n");
+    const prompt = review.buildPrompt(root, { kind: "fix", note: "goal" }, ["a.lua", "b.lua"]);
+    assert.match(prompt, /## Candidate diff/);
+    assert.match(prompt, /\+local x = 2/);
+    assert.match(prompt, /\+print\('new'\)/);
   });
 });

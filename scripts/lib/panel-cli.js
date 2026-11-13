@@ -1548,8 +1548,14 @@ async function reviewerExecution(cliId, cfg = {}) {
  * with a text body and get text back", not the full transcript/session
  * machinery of runThreadDirect.
  */
+const CLAUDE_READONLY_TOOLS = [
+  "Read", "Grep", "Glob", "LS",
+  "mcp__fxmind__fxmind_query", "mcp__fxmind__fxmind_search", "mcp__fxmind__fxmind_read_file", "mcp__fxmind__fxmind_playbook",
+  "Bash(git diff:*)", "Bash(git status:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git ls-files:*)",
+];
+
 function buildJudgeArgs(cliId, { root, body, accessArgs, execOpts, readOnly = false }) {
-  const trimmed = body.slice(0, cliId === "opencode" ? 12000 : 24000);
+  const trimmed = body.slice(0, cliId === "opencode" ? 12000 : 64000);
   if (cliId === "opencode") {
     const args = ["run", "--dir", root, "--format", "json", ...accessArgs];
     if (execOpts.model) args.push("--model", execOpts.model);
@@ -1570,6 +1576,16 @@ function buildJudgeArgs(cliId, { root, body, accessArgs, execOpts, readOnly = fa
   // run via `cmd.exe /c`, which truncates any argument at its first newline.
   if (cliId === "claude") {
     let args = ["-p"];
+    if (readOnly) {
+      // `claude -p` has nobody to approve anything: without these, the project's .mcp.json server is never started
+      // and every MCP call or `git diff` is denied, so the reviewer ends without a verdict. Read-only tools only.
+      const mcpConfig = path.join(root || "", ".mcp.json");
+      if (root && fs.existsSync(mcpConfig)) args.push("--mcp-config", mcpConfig);
+      args.push(
+        "--allowedTools", ...CLAUDE_READONLY_TOOLS,
+        "--disallowedTools", "Edit", "Write", "NotebookEdit", "MultiEdit",
+      );
+    }
     if (execOpts.model) args = ["--model", execOpts.model, ...args];
     if (execOpts.claudeEffort) args = ["--effort", execOpts.claudeEffort, ...args];
     return { args, stdinPrompt: trimmed };
@@ -1809,6 +1825,11 @@ async function runJudge(threadId, options = {}) {
 
 const SUBAGENT_TEMPLATE_DIR = path.join(PACKAGE_ROOT, "templates", "opencode", "agents");
 const SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000;
+// Gate V's reviewer reads the diff, its callers and the rubric: three minutes cut real reviews off mid-way.
+const REVIEWER_TIMEOUT_MS = 8 * 60 * 1000;
+const REVIEWER_PROMPT_MAX = 56000;
+// A reviewer's last line, with the markdown models like to wrap it in (`**VERDICT: VERIFIED**`, `` `VERDICT: …` ``).
+const REVIEWER_VERDICT_LINE = /^[\s>*_`#-]*VERDICT:\s*(?:VERIFIED WITH CAVEATS|VERIFIED|REFUTED)[\s*_`.]*$/im;
 
 /**
  * Reads a subagent's persona straight from the same templates OpenCode's own
@@ -1849,10 +1870,12 @@ function buildSubagentBody(agentId, persona, { prompt, paths } = {}) {
     "",
     persona?.body || `You are the "${agentId}" subagent. Perform the scoped task below and stop.`,
     "",
-    "First call fxmind_query through the FxMind MCP before using other tools. If it is unavailable, report that the review cannot be verified and stop; do not attempt Grep/Read to bypass the project hook.",
+    agentId === "reviewer"
+      ? "The diff and the binding project rules are included below, so FxMind MCP is optional here: call fxmind_query if it is available, and if it is not, review from the material below and the files on disk. Never stop for lack of MCP, Bash or tests; when evidence is missing, say so and still end with the VERDICT line."
+      : "First call fxmind_query through the FxMind MCP before using other tools. If it is unavailable, report that the review cannot be verified and stop; do not attempt Grep/Read to bypass the project hook.",
     "",
     "## Task",
-    String(prompt || "").slice(0, agentId === "reviewer" ? 18000 : 6000),
+    String(prompt || "").slice(0, agentId === "reviewer" ? REVIEWER_PROMPT_MAX : 6000),
   ];
   if (Array.isArray(paths) && paths.length) {
     lines.push("", "## Known paths", paths.map((p) => `- ${p}`).join("\n"));
@@ -1881,7 +1904,7 @@ function subagentCompletion(agentId, cliId, exitCode, signal, output, cliError =
   if (!text || text === "(subagent returned no text)") {
     return { ok: false, error: prefix + ' returned no text' + (cliError ? ': ' + cliError : '') };
   }
-  if (agentId === "reviewer" && !/^VERDICT:\s*(?:VERIFIED|VERIFIED WITH CAVEATS|REFUTED)\s*$/im.test(text)) {
+  if (agentId === "reviewer" && !REVIEWER_VERDICT_LINE.test(text)) {
     return { ok: false, error: prefix + ' produced no valid VERDICT line' };
   }
   return { ok: true, agent: agentId, cliId, output: text };
@@ -1941,7 +1964,7 @@ async function runSubagentTask(root, options = {}) {
       clearTimeout(timer);
       resolve(result);
     };
-    const reviewerTimeoutMs = agentId === "reviewer" ? 180_000 : SUBAGENT_TIMEOUT_MS;
+    const reviewerTimeoutMs = agentId === "reviewer" ? REVIEWER_TIMEOUT_MS : SUBAGENT_TIMEOUT_MS;
     const timer = setTimeout(() => {
       terminateCliProcess(child);
       finish({

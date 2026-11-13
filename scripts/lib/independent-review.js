@@ -99,7 +99,8 @@ function parseVerdict(output) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const finalLine = lines.at(-1) || "";
+  // Models often wrap the line in markdown (`**VERDICT: VERIFIED**`); the words themselves stay strict.
+  const finalLine = (lines.at(-1) || "").replace(/^[>*_`#\s-]+|[*_`.\s]+$/g, "");
   if (/^VERDICT:\s*REFUTED$/i.test(finalLine)) return "refuted";
   if (/^VERDICT:\s*VERIFIED WITH CAVEATS$/i.test(finalLine)) return "verified_with_caveats";
   if (/^VERDICT:\s*VERIFIED$/i.test(finalLine)) return "verified";
@@ -201,6 +202,37 @@ function reviewGuidance(root, files, isUi = (files || []).some(uiFile)) {
   return sections.join("\n\n");
 }
 
+const DIFF_MAX_CHARS = 24000;
+
+/** The candidate change itself, so the reviewer needs no Bash or MCP to see it (`claude -p` and read-only
+ * sandboxes deny both by default, and a reviewer without the diff ends without a verdict). */
+function candidateDiff(root, files) {
+  const list = (files || []).map((file) => repoPath(root, file));
+  if (!list.length) return "";
+  const git = (args) => {
+    try {
+      return execFileSync("git", args, {
+        cwd: root, encoding: "utf8", timeout: 5000, maxBuffer: 8 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"], windowsHide: true,
+      });
+    } catch {
+      return "";
+    }
+  };
+  let out = git(["diff", "HEAD", "--no-color", "--", ...list]) || git(["diff", "--no-color", "--", ...list]);
+  const untracked = new Set(git(["ls-files", "--others", "--exclude-standard", "-z", "--", ...list]).split("\0").filter(Boolean));
+  for (const file of untracked) {
+    const absolute = path.join(root, file);
+    try {
+      if (!fs.statSync(absolute).isFile()) continue;
+      const body = fs.readFileSync(absolute, "utf8");
+      out += "\n--- /dev/null\n+++ b/" + file + " (new file)\n" + body.split("\n").map((line) => "+" + line).join("\n") + "\n";
+    } catch { /* unreadable: the reviewer reads it from disk */ }
+  }
+  out = out.trim();
+  return out.length > DIFF_MAX_CHARS ? out.slice(0, DIFF_MAX_CHARS) + "\n[diff truncated; read the remaining files from disk]" : out;
+}
+
 function buildPrompt(root, session, files, evidence = {}) {
   const goal = session && session.gates && session.gates.A && session.gates.A.note
     ? session.gates.A.note
@@ -248,6 +280,8 @@ function buildPrompt(root, session, files, evidence = {}) {
     "For new branching logic, parsers, security, persistence or money, check for one focused regression test that would fail on a real defect. Verify the tests and their behavior, not just their existence.",
     "For Lua, explicitly check that every local callee is lexically visible to its callers and that a later local declaration did not turn an earlier reference into a global lookup.",
   );
+  const diff = candidateDiff(root, files);
+  if (diff) lines.push("", "## Candidate diff (git, against HEAD)", "```diff", diff, "```");
   if (guidance) {
     lines.push(
       "",
@@ -357,6 +391,7 @@ module.exports = {
   requiresIndependentReview,
   reviewGuidance,
   buildPrompt,
+  candidateDiff,
   recordReview,
   readReview,
   assertVerifiedFresh,
