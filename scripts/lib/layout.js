@@ -119,7 +119,23 @@ const PROJECT_GITIGNORE_LINES = [
   ".opencode/skills/fxmind/",
   // Regenerated MCP registration; path/version specific to this machine.
   ".codex/config.toml",
+  "opencode.json",
+  // Only the team's knowledge is shared: memories and corrections. Modes, policy, templates, skills, the router and
+  // packs.json are installed by fxmind and rewritten on every update, so in git they are only noise.
+  ".fxmind/*",
+  "!.fxmind/memory/",
+  "!.fxmind/corrections/",
+  ".fxmind/corrections/README.md",
+  ".fxmind/corrections/correction.template.md",
 ];
+
+/** What stays in git under .fxmind/ (every other tracked file there is untracked on install/update). */
+function sharedFxmindFile(file) {
+  const rel = String(file).replace(/\\/g, "/");
+  if (rel.startsWith(".fxmind/memory/")) return true;
+  if (!rel.startsWith(".fxmind/corrections/")) return false;
+  return !/\/(?:README\.md|correction\.template\.md)$/.test(rel);
+}
 
 /** Already-tracked generated files to drop from the git index (`git rm --cached`). */
 const PROJECT_GITIGNORE_UNTRACK = [
@@ -141,6 +157,7 @@ const PROJECT_GITIGNORE_UNTRACK = [
   ".codex/skills/fxmind",
   ".opencode/skills/fxmind",
   ".codex/config.toml",
+  "opencode.json",
 ];
 
 function fxmindDir(root) {
@@ -345,6 +362,7 @@ module.exports = {
   DEPRECATED_ROOT_FILES,
   PROJECT_GITIGNORE_LINES,
   PROJECT_GITIGNORE_UNTRACK,
+  sharedFxmindFile,
   fxmindDir,
   joinRel,
   projectRel,

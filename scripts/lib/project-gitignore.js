@@ -13,6 +13,7 @@ const path = require("path");
 const {
   PROJECT_GITIGNORE_LINES,
   PROJECT_GITIGNORE_UNTRACK,
+  sharedFxmindFile,
 } = require("./layout");
 
 function runGit(root, args, options = {}) {
@@ -45,25 +46,29 @@ function untrackGeneratedFxmindFiles(targetRoot) {
 
   let listed = "";
   try {
-    listed = runGit(root, ["ls-files", "-z", "--", ...PROJECT_GITIGNORE_UNTRACK]);
+    listed = runGit(root, ["ls-files", "-z", "--", ...PROJECT_GITIGNORE_UNTRACK, ".fxmind"]);
   } catch {
     return [];
   }
 
-  const tracked = listed
+  // Generated paths, plus every installed .fxmind/ file that is not shared knowledge (memory, corrections).
+  const tracked = [...new Set(listed
     .split("\0")
     .map((entry) => entry.replace(/\\/g, "/").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((file) => !sharedFxmindFile(file)))];
   if (tracked.length === 0) {
     return [];
   }
 
   try {
-    runGit(
-      root,
-      ["rm", "-r", "--cached", "--ignore-unmatch", "-q", "--", ...PROJECT_GITIGNORE_UNTRACK],
-      { stdio: "ignore", timeout: 15_000 },
-    );
+    for (let i = 0; i < tracked.length; i += 200) {
+      runGit(
+        root,
+        ["rm", "--cached", "--ignore-unmatch", "-q", "--", ...tracked.slice(i, i + 200)],
+        { stdio: "ignore", timeout: 15_000 },
+      );
+    }
   } catch {
     return [];
   }
