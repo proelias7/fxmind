@@ -213,17 +213,17 @@ let orchDraft: OrchestrationConfig | null = null
 const CARDS: readonly { id: SettingsCard; title: string }[] = [
   // fxmind's own: the prompt refiner and the memory's actions.
   { id: 'fxmind', title: 'fxmind' },
-  { id: 'orchestration', title: 'Orchestration' },
+  { id: 'orchestration', title: 'Agents' },
   { id: 'effort', title: 'Effort' },
   { id: 'model', title: 'Model' },
-  { id: 'handoff', title: 'Handoff & alerts' },
+  { id: 'handoff', title: 'Handoff' },
   { id: 'show', title: 'Customize' },
   { id: 'judge', title: 'Judge' },
 ]
 // The Model card: the two ways to run. Effort follows the judge in both.
 const MODEL_CHOICES = [
-  { value: 'on', label: 'Cheaper when it can', tag: 'experimental' },
-  { value: 'off', label: "Always the chat's", tag: '' },
+  { value: 'on', label: 'Save tokens', tag: 'beta' },
+  { value: 'off', label: "Keep model", tag: '' },
 ] as const
 // The settings panel's judge test: running, or what it found. Null before a test and once the panel closes.
 const judgeTest = atom({ plugin: 'fxmind', key: 'judgeTest' } as const, null)
@@ -338,8 +338,8 @@ function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = 
   if (!els.Svg) return null
   const { Box: B, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Svg: (p: Record<string, unknown>) => unknown }
   return (
-    <B key={`${key}-texture`} position="absolute" top={-1} right={0} bottom={-1}>
-      <S source={tall ? TEXTURE_TALL_SVG : TEXTURE_SVG} alt="" width={880} height={tall ? 256 : 128} />
+    <B key={`${key}-texture`} position="absolute" top={-1} right={0} bottom={-1} overflow="hidden">
+      <S source={tall ? TEXTURE_TALL_SVG : TEXTURE_SVG} alt="" width={tall ? 1600 : 880} height={tall ? 448 : 128} />
     </B>
   )
 }
@@ -4967,6 +4967,26 @@ Saved to ${out}.md and .json` }
       const roomy = (typeof e.props.maxRows === 'number' ? e.props.maxRows : 12) >= 12
       const { Input, Select } = themedEls($.ui.resolve(e))
       const opts = (values: readonly string[]) => values.map(value => ({ value, label: value }))
+      // A single action surface across all settings views. The actual SDK
+      // button remains the interactive hit target; ink and background never
+      // depend on the host's button variant colors.
+      const panelAction = (key: string, label: string, press: () => unknown, hotkey?: string) => term ? (
+        <Button key={key} variant="primary" color="#0b1610" backgroundColor="#f5f8f5" label={label} hotkey={hotkey} onPress={() => Promise.resolve(press()).then(() => undefined)} />
+      ) : (
+        <Box key={key + '-surface'} position="relative" flexDirection="row" alignItems="center"
+          overflow="hidden" paddingX={1} borderStyle="round" borderColor="#cedbd2"
+          backgroundColor="#f5f8f5" hover={{ backgroundColor: "#e4eee6", borderColor: "#ffffff" }}>
+          <Text color="#0b1610" bold>{label}</Text>
+          <Box position="absolute" top={0} left={0} right={0} bottom={0}
+            flexDirection="row" alignItems="center" overflow="hidden">
+            <Box flexShrink={0}>
+              <Button key={key} plain hotkey={hotkey} label={' '.repeat(160)}
+                hover={{ backgroundColor: "#e4eee6" }}
+                onPress={() => Promise.resolve(press()).then(() => undefined)} />
+            </Box>
+          </Box>
+        </Box>
+      )
       // The skills and commands installed here, to pick the handoff writer from: no typing, no file paths. A plugin
       // cannot open a file dialog, and a skill is run by its name anyway.
       const skillNames = await read($, installedSkills)
@@ -5117,23 +5137,23 @@ Saved to ${out}.md and .json` }
         ) : checking === 'newest' ? (
           <Text key="settings-newest" dimColor>✓ Up to date</Text>
         ) : checking.startsWith('found ') && (!ownVersion || isNewer(checking.slice(6), ownVersion)) ? (
-          <Button key="settings-update" variant="primary" label={`Update to ${checking.slice(6)}`} onPress={async () => {
+          panelAction("settings-update", "Update " + checking.slice(6), async () => {
             const card = await read($, updateCard)
             await update($, updateCheck, () => 'idle')
             if (card) void runUpdate($, card)
             await close()
-          }} />
+          })
         ) : (
-          <Button key="settings-check-update" plain dimColor label="Check for updates" onPress={() => void checkUpdateNow($)} />
+          panelAction("settings-check-update", "Updates", () => checkUpdateNow($))
         ),
         // A terminal without link support prints the whole address after the label, so there it copies instead.
         term ? (
-          <Button key="settings-bug" plain dimColor label="Report a bug" onPress={async () => {
+          <Button key="settings-bug" plain dimColor label="Bug" onPress={async () => {
             const r = await $.ui.copy({ text: bugUrl, surface: e.surface }).catch(() => ({ isCopied: false as const }))
             $.ui.toast(tr(r.isCopied ? `Bug report link copied: ${bugUrl}` : `fxmind: report a bug at ${bugUrl}`))
           }} />
         ) : (
-          <Text key="settings-bug-link" color="#9a9aa3"><Link href={bugUrl} label="Report a bug" /></Text>
+          <Text key="settings-bug-link" color="#9a9aa3"><Link href={bugUrl} label="Bug" /></Text>
         ),
       ]
       return (
@@ -5174,7 +5194,7 @@ Saved to ${out}.md and .json` }
             ) : (
               <Box key="settings-trail" flexDirection="row" alignItems="center" gap={1}>
                 {/* A real button: a dim "Settings" in a trail did not read as a way back. */}
-                <Button key="settings-back" variant="secondary" label="← Back" onPress={openCard(null)} />
+                {panelAction("settings-back", "Back", openCard(null))}
                 <Text color={DASH_TEXT} bold>{CARDS.find(c => c.id === card)?.title}</Text>
               </Box>
             )}
@@ -5183,7 +5203,7 @@ Saved to ${out}.md and .json` }
             {/* The version, the look for a new one and the bug report: in the top bar, seen as the panel opens. */}
             {bare ? null : upkeep}
             {/* Save shows once something changed: until then there is nothing to save, and nothing to read. */}
-            {dirty ? <Button key="settings-save" variant="primary" hotkey="s" label="Save" onPress={() => saveDraft($)} /> : null}
+            {dirty ? panelAction("settings-save", "Save", () => saveDraft($), "s") : null}
             <Button key="settings-close" plain label="✕" onPress={close} />
           </Box>,
           ])}
@@ -5194,15 +5214,17 @@ Saved to ${out}.md and .json` }
               <Box position="absolute" top={0} left={0} />
               {CARDS.map(c => (
                 <Box key={`card-${c.id}`} position="relative" flexDirection="column" flexGrow={1} width={0} minWidth={18}
-                  paddingX={1} borderStyle="round" borderColor={DASH_EDGE} hover={{ backgroundColor: CARD_HOVER, borderColor: CARD_HOVER_EDGE }}>
+                  paddingX={1} backgroundColor={term ? DASH_BG : "#f3f8f4"} borderStyle="round"
+                   borderColor={term ? DASH_EDGE : "#c4d7c9"}
+                   hover={{ backgroundColor: term ? CARD_HOVER : "#e2eee5", borderColor: term ? CARD_HOVER_EDGE : "#ffffff" }}>
                   <Box flexDirection="row" gap={1} alignItems="center">
-                    {Svg && !term ? <Svg source={rowIconSvg(c.id, DASH_TEXT)} alt={c.title} width={14} height={14} /> : null}
+                    {Svg && !term ? <Svg source={rowIconSvg(c.id, "#111d16")} alt={c.title} width={14} height={14} /> : null}
                     {/* The terminal draws the blank buttons below as real spaces over the card's text, so there the
                         title itself is the button. (Full-width padded buttons per row looked worse: a big lit block.) */}
                     {term ? (
                       <Button key={`settings-card-${c.id}`} plain label={`${c.title} ›`} onPress={openCard(c.id)} />
                     ) : (
-                      <Text color={DASH_TEXT} bold hover={{ color: '#ffffff' }}>{c.title}</Text>
+                      <Text color="#101d14" bold hover={{ color: "#101d14" }}>{c.title}</Text>
                     )}
                   </Box>
                   {/* The click takes the whole card: a button is one line high and centred in its box, whatever the box,
@@ -5232,18 +5254,18 @@ Saved to ${out}.md and .json` }
               <Box position="absolute" top={0} left={0} />
               <Box flexDirection="row" flexWrap="wrap" gap={1} alignItems="center">
                 {card === 'fxmind' ? (bare ? [] : [
-            pick({ key: "settings-refine", label: "Prompt refiner", value: shown.refine, options: [{ value: 'auto', label: 'Automatic' }, { value: 'command', label: 'Command only' }, { value: 'off', label: 'Off' }], onSelect: set('refine') }),
-            pick({ key: "settings-refine-with", label: "Refine with", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'sonnet', label: 'Sonnet 5.5' }, { value: 'opus', label: 'Opus 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
-            pick({ key: "settings-refine-clear", label: "Clear chat", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
-            pick({ key: "settings-refine-send", label: "Refined prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
-            pick({ key: "settings-project-setup", label: "Repo without fxmind", value: shown.projectSetup, options: [{ value: 'ask', label: 'Offer install' }, { value: 'auto', label: 'Install' }, { value: 'off', label: 'Off' }], onSelect: set('projectSetup') }),
-            pick({ key: "settings-gate-v", label: "Gate V review", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
+            pick({ key: "settings-refine", label: "Refiner", value: shown.refine, options: [{ value: 'auto', label: 'Automatic' }, { value: 'command', label: 'Command only' }, { value: 'off', label: 'Off' }], onSelect: set('refine') }),
+            pick({ key: "settings-refine-with", label: "Model", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'sonnet', label: 'Sonnet 5.5' }, { value: 'opus', label: 'Opus 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
+            pick({ key: "settings-refine-clear", label: "Clear", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
+            pick({ key: "settings-refine-send", label: "Prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
+            pick({ key: "settings-project-setup", label: "New repo", value: shown.projectSetup, options: [{ value: 'ask', label: 'Offer install' }, { value: 'auto', label: 'Install' }, { value: 'off', label: 'Off' }], onSelect: set('projectSetup') }),
+            pick({ key: "settings-gate-v", label: "Gate V", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
             // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
-            ...([['init', 'Map project'], ['memory health', 'Review memories'], ['learn', 'Learn']] as const).map(([args, label]) => (
-              <Button key={`settings-fxmind-${args.split(' ')[0]}`} plain dimColor label={label} onPress={async () => {
-                await close()
-                await $.command.run({ command: 'fxmind', args })
-              }} />
+            ...([['init', 'Map'], ['memory health', 'Memory'], ['learn', 'Learn']] as const).map(([args, label]) => (
+               panelAction("settings-fxmind-" + args.split(" ")[0], label, async () => {
+                 await close()
+                 await $.command.run({ command: "fxmind", args })
+               })
             )),
 ]) : card === 'effort' ? [
             <Text key="cheap" dimColor>Cheaper</Text>,
@@ -5283,38 +5305,37 @@ Saved to ${out}.md and .json` }
               ? [field('key-field', <Input key="settings-key" placeholder={hasKey ? 'Key saved. Paste to replace' : 'Paste TypeSafe key'}
                   value={draft.key ?? ''} submitLabel="ok" onInput={set('key')} onSubmit={set('key')} />, 30)]
               : []),
-            <Button key="settings-judge-test" variant="secondary" dimColor={tested?.ok === null} label={tested?.ok === null ? 'Testing…' : 'Test'}
-              onPress={async () => {
-                if (tested?.ok === null) return
-                await update($, judgeTest, () => ({ ok: null, text: '' }))
-                $.ui.invalidate('ui.render')
-                const result = await testJudge($, shown.judge, draft.key ?? '')
-                await update($, judgeTest, () => result)
-                $.ui.invalidate('ui.render')
-              }} />,
-            ...(tested && tested.ok !== null
+                         panelAction("settings-judge-test", tested?.ok === null ? "Testing" : "Test", async () => {
+               if (tested?.ok === null) return
+               await update($, judgeTest, () => ({ ok: null, text: '' }))
+               $.ui.invalidate('ui.render')
+               const result = await testJudge($, shown.judge, draft.key ?? '')
+               await update($, judgeTest, () => result)
+               $.ui.invalidate('ui.render')
+             }),
+...(tested && tested.ok !== null
               ? [<Text key="settings-judge-result" color={tested.ok ? '#7fd49b' : '#ff8a80'}>{`${tested.ok ? '✓' : '✗'} ${tested.text}`}</Text>]
               : []),
 ]) : card === 'model' ? (bare ? [] : MODEL_CHOICES.map(c => (
             <Box key={`model-${c.value}`} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={26}>
               <Box flexDirection="row" gap={1} alignItems="center">
-                <Button key={`settings-model-${c.value}`} plain label={`${shown.modelAuto === c.value ? '◉' : '○'} ${c.label}`} onPress={() => set('modelAuto')(c.value)} />
-                {/* A warning in the cache countdown's yellow: this choice rarely pays. */}
+                                 {panelAction("settings-model-" + c.value, (shown.modelAuto === c.value ? "● " : "○ ") + c.label, () => set("modelAuto")(c.value))}
+{/* A warning in the cache countdown's yellow: this choice rarely pays. */}
                 {c.tag ? <Text key={`model-tag-${c.value}`} color={YELLOW} bold>{`⚠ ${c.tag}`}</Text> : null}
               </Box>
             </Box>
           )).concat([
             // Which model writes a compaction's summary: a model choice, so it sits with the others.
-            pick({ key: "settings-compact-with", label: "Compact with", value: shown.compactWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('compactWith') }),
+            pick({ key: "settings-compact-with", label: "Compact", value: shown.compactWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('compactWith') }),
           ])) : card === 'handoff' ? (bare ? [] : [
-            pick({ key: "settings-skill", label: "Handoff skill", value: shown.handoffSkill || '-', options: [
+            pick({ key: "settings-skill", label: "Skill", value: shown.handoffSkill || '-', options: [
                 { value: '-', label: 'fxmind (built in)' },
                 ...[...new Set([...(shown.handoffSkill ? [shown.handoffSkill] : []), ...skillNames])].map(name => ({ value: name, label: `/${name}` })),
               ], onSelect: v => set('handoffSkill')(v === '-' ? '' : v) }),
-            pick({ key: "settings-swamp", label: "Compact alert at", value: shown.swampAt, options: SWAMP_STEPS.map(n => ({ value: String(n), label: `${n}%` })), onSelect: set('swampAt') }),
-            pick({ key: "settings-handoff-button", label: "Handoff button", value: shown.handoffButton, options: [{ value: 'advised', label: 'When advised' }, { value: 'always', label: 'Always' }], onSelect: set('handoffButton') }),
-            pick({ key: "settings-cold-prompt", label: "Prompt in a cold chat", value: shown.coldPrompt, options: [{ value: 'off', label: 'Send' }, { value: 'block', label: 'Block' }, { value: 'compact', label: 'Compact & resend' }], onSelect: set('coldPrompt') }),
-            pick({ key: "settings-cold-at", label: "Cold from", value: shown.coldAt, options: COLD_STEPS.map(n => ({ value: String(n), label: `${n}k` })), onSelect: set('coldAt') }),
+            pick({ key: "settings-swamp", label: "Alert at", value: shown.swampAt, options: SWAMP_STEPS.map(n => ({ value: String(n), label: `${n}%` })), onSelect: set('swampAt') }),
+            pick({ key: "settings-handoff-button", label: "Button", value: shown.handoffButton, options: [{ value: 'advised', label: 'When advised' }, { value: 'always', label: 'Always' }], onSelect: set('handoffButton') }),
+            pick({ key: "settings-cold-prompt", label: "Cold chat", value: shown.coldPrompt, options: [{ value: 'off', label: 'Send' }, { value: 'block', label: 'Block' }, { value: 'compact', label: 'Compact & resend' }], onSelect: set('coldPrompt') }),
+            pick({ key: "settings-cold-at", label: "Cold at", value: shown.coldAt, options: COLD_STEPS.map(n => ({ value: String(n), label: `${n}k` })), onSelect: set('coldAt') }),
             ...alertToggles,
 ]) : card === 'orchestration' ? (bare ? [] : (() => {
             const orchShown = orchDraft ?? orchConfigLoaded
@@ -5339,7 +5360,7 @@ Saved to ${out}.md and .json` }
             return [
               pick({
                 key: "settings-orch-enabled",
-                label: "Orchestration",
+                label: "Agents",
                 value: orchShown.enabled ? 'on' : 'off',
                 options: [{ value: 'on', label: 'Enabled' }, { value: 'off', label: 'Disabled' }],
                 onSelect: v => setOrch({ enabled: v === 'on' }),

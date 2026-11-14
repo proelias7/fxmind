@@ -17,9 +17,9 @@ export const MARK_SVG =
 // and drawn like that art, in the same right-anchored box.
 const NET =
   '<pattern id="fxnet" width="30" height="26" patternUnits="userSpaceOnUse">' +
-  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28M0 3L4 5M30 28L26 26" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="1"/>' +
-  '<circle cx="4" cy="5" r="1.3" fill="#fff" fill-opacity=".26"/><circle cx="19" cy="11" r="1.6" fill="#fff" fill-opacity=".32"/>' +
-  '<circle cx="10" cy="22" r="1.2" fill="#fff" fill-opacity=".22"/></pattern>'
+  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28M0 3L4 5M30 28L26 26" fill="none" stroke="#fff" stroke-opacity=".19" stroke-width="1"/>' +
+  '<circle cx="4" cy="5" r="1.3" fill="#fff" fill-opacity=".34"/><circle cx="19" cy="11" r="1.6" fill="#fff" fill-opacity=".38"/>' +
+  '<circle cx="10" cy="22" r="1.2" fill="#fff" fill-opacity=".28"/></pattern>'
 const MARK_INNER = MARK_SVG.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '').replace('fill="#a79cf7"', 'fill="#ffffff"')
 
 /** The texture at width by height pixels: the net over all of it, the mark near the right, centred on the height. */
@@ -29,10 +29,12 @@ export function textureSvg(width: number, height: number): string {
   const y = Math.round(height / 2 - size / 2)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMaxYMid slice">` +
     '<style>:root{color-scheme:light dark}html,body{margin:0}svg{background:transparent;display:block}</style>' +
-    `<defs>${NET}</defs><rect width="${width}" height="${height}" fill="url(#fxnet)"/>` +
+    `<defs>${NET}<pattern id="fxmicro" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".6" fill="#c6ffdf" opacity=".19"/></pattern><radialGradient id="fxglow"><stop stop-color="#7ee0b4" stop-opacity=".10"/><stop offset="1" stop-color="#7ee0b4" stop-opacity="0"/></radialGradient></defs>` +
+    `<rect width="${width}" height="${height}" fill="url(#fxnet)"/><rect width="${width}" height="${height}" fill="url(#fxmicro)"/>` +
+    `<ellipse cx="${Math.round(width*.85)}" cy="0" rx="${Math.round(width*.52)}" ry="${Math.round(height*.90)}" fill="url(#fxglow)"/>` +
     `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 100 100" opacity=".12"><g transform="rotate(-12 50 50)">${MARK_INNER}</g></svg>` +
     '</svg>'
 }
 /** The size every band's art is drawn at (FROST_WIDTH * 2 by FROST_HEIGHT * 2), and the settings panel's taller one. */
 export const TEXTURE_SVG = textureSvg(880, 128)
-export const TEXTURE_TALL_SVG = textureSvg(880, 256)
+export const TEXTURE_TALL_SVG = textureSvg(1600, 448)

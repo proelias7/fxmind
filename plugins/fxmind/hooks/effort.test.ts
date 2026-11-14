@@ -3452,7 +3452,8 @@ describe('updates', () => {
     await panel.press({ key: 'settings-check-update' })
     await settle()
     await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
-    expect((await panel.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.1')
+    expect(await panel.find({ key: 'settings-update' })).toBeDefined()
+    expect(await drawn(panel)).toContain('Update 1.0.1')
   })
 
   test('a version found earlier is not offered once the installed one is as new', DESK, async ($, on) => {
@@ -3469,7 +3470,8 @@ describe('updates', () => {
     await panel.press({ key: 'settings-check-update' })
     await settle()
     await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
-    expect((await panel.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.1')
+    expect(await panel.find({ key: 'settings-update' })).toBeDefined()
+    expect(await drawn(panel)).toContain('Update 1.0.1')
     // Installed some other way (a dev release, claude plugin update), and newer than what was found.
     v.installed = '1.0.2'
     v.latest = '1.0.2'
@@ -3494,7 +3496,8 @@ describe('updates', () => {
     await again.press({ key: 'settings-check-update' })
     await settle()
     await again.press({ key: 'settings-card-show' }).catch(() => undefined)
-    expect((await again.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.2')
+    expect(await again.find({ key: 'settings-update' })).toBeDefined()
+    expect(await drawn(again)).toContain('Update 1.0.2')
     expect(w.ran.some(r => r.includes('fetch -q --depth 1 --filter=blob:none origin main'))).toBe(true)
   })
 
@@ -3519,7 +3522,8 @@ describe('updates', () => {
     await panel.press({ key: 'settings-check-update' })
     await settle()
     await panel.press({ key: 'settings-card-show' }).catch(() => undefined)
-    expect((await panel.find({ key: 'settings-update' }))?.text).toContain('Update to 1.0.2')
+    expect(await panel.find({ key: 'settings-update' })).toBeDefined()
+    expect(await drawn(panel)).toContain('Update 1.0.2')
   })
 
   test('Check for updates says Up to date when there is nothing newer', DESK, async ($, on) => {
@@ -4057,12 +4061,12 @@ describe('language and the fxmind theme', () => {
     expect(String(reply.text)).toBe('As configurações do fxmind estão abertas acima do prompt.')
     const panel = await $.ui.mount(DESK_BAND)
     const text = await drawn(panel)
-    for (const word of ['Configurações', 'Esforço', 'Modelo', 'Handoff e alertas', 'Personalizar', 'Juiz']) expect(text).toContain(word)
+    for (const word of ['Configurações', 'Esforço', 'Modelo', 'Transferir', 'Personalizar', 'Juiz']) expect(text).toContain(word)
     expect(text).not.toContain('"Customize"')
     await panel.press({ key: 'settings-card-show' })
     const card = await drawn(panel)
     expect(card).toContain('Idioma')
-    expect(card).toContain('Buscar atualizações')
+    expect(card).toContain('Atualizar')
     expect(card).toContain('Português (Brasil)')
     await panel.unmount()
   })

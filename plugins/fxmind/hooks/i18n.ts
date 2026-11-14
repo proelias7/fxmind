@@ -38,6 +38,10 @@ const PT: Record<string, string> = {
   'Cheaper when it can': 'Mais barato quando der', "Always the chat's": 'Sempre o do chat',
   'Built in': 'Embutido', Minimal: 'Mínimo', Dashboard: 'Painel',
 
+  // Short labels used by the compact settings panel.
+  Handoff: 'Transferir', Updates: 'Atualizar', Bug: 'Erro', Memory: 'Memórias',
+  Economy: 'Economia', 'Save tokens': 'Economizar',
+
   // Settings: header and rows.
   '← Back': '← Voltar', Back: 'Voltar', Next: 'Avançar', Done: 'Concluir', Skip: 'Pular', Save: 'Salvar', Go: 'Ir',
   'Settings saved': 'Configurações salvas',

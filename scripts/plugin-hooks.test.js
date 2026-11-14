@@ -45,3 +45,21 @@ test("Gate V Skip never submits a synthetic user message", () => {
   assert.equal((handler.match(/\$\.prompt\.submit\(/g) || []).length, 1);
   assert.match(handler, /gate-v-choice\.json/);
 });
+
+test("All settings pages share a full-panel FXMIND texture", () => {
+  const ui = read("effort.tsx");
+  const art = read("brand-mark.ts");
+  assert.match(ui, /textureLayer\(\{ Box, Svg \}, [\x27"]settings[\x27"], true\)/);
+  assert.match(ui, /width=\{tall \? 1600 : 880\}/);
+  assert.match(art, /TEXTURE_TALL_SVG = textureSvg\(1600, 448\)/);
+  assert.match(art, /fxmicro/);
+});
+test("Settings actions and navigation use light surfaces with dark labels", () => {
+  const ui = read("effort.tsx");
+  assert.match(ui, /backgroundColor="#f5f8f5"/);
+  assert.match(ui, /color="#0b1610"/);
+  assert.match(ui, /backgroundColor=\{term \? DASH_BG : "#f3f8f4"\}/);
+  for (const key of ["settings-check-update", "settings-back", "settings-save", "settings-judge-test", "settings-model-"]) {
+    assert.ok(ui.includes("panelAction(") && ui.includes(key), key);
+  }
+});
