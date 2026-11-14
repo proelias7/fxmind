@@ -1557,7 +1557,8 @@ const CLAUDE_READONLY_TOOLS = [
 function buildJudgeArgs(cliId, { root, body, accessArgs, execOpts, readOnly = false }) {
   const trimmed = body.slice(0, cliId === "opencode" ? 12000 : 64000);
   if (cliId === "opencode") {
-    const args = ["run", "--dir", root, "--format", "json", ...accessArgs];
+    // OpenCode runs in cwd; the installed CLI no longer accepts --dir.
+    const args = ["run", "--format", "json", ...accessArgs];
     if (execOpts.model) args.push("--model", execOpts.model);
     if (execOpts.variant) args.push("--variant", execOpts.variant);
     args.push(trimmed);
@@ -1583,7 +1584,7 @@ function buildJudgeArgs(cliId, { root, body, accessArgs, execOpts, readOnly = fa
       if (root && fs.existsSync(mcpConfig)) args.push("--mcp-config", mcpConfig);
       args.push(
         "--allowedTools", ...CLAUDE_READONLY_TOOLS,
-        "--disallowedTools", "Edit", "Write", "NotebookEdit", "MultiEdit",
+        "--disallowedTools", "Edit", "Write", "NotebookEdit",
       );
     }
     if (execOpts.model) args = ["--model", execOpts.model, ...args];
@@ -1598,6 +1599,15 @@ function buildJudgeArgs(cliId, { root, body, accessArgs, execOpts, readOnly = fa
       ...accessArgs, "--workspace", root];
     if (execOpts.model) args.push("--model", execOpts.model);
     return { args, stdinPrompt: trimmed };
+  }
+  if (cliId === "hermes") {
+    // Hermes CLI accepts one-shot prompts via -z, unlike Claude's -p.
+    const args = ["--in", root, "--cli", "-z", trimmed.slice(0, 8000)];
+    if (execOpts.model) args.push("-m", execOpts.model);
+    if (execOpts.effort && execOpts.effort !== "default") {
+      args.push("--reasoning", execOpts.effort);
+    }
+    return { args, stdinPrompt: null };
   }
   return { args: ["-p"], stdinPrompt: trimmed };
 }

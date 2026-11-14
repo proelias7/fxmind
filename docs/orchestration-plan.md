@@ -1,5 +1,22 @@
 # Plano de Implementação: Orquestração Multi-Agente no FXMind
 
+## Estado da implementação — 14/11/2026
+
+A execução foi centralizada em um **broker local exclusivo por projeto**, acessível por named pipe (Windows) ou Unix socket (Linux/macOS), com inicialização sob demanda:
+
+- `scripts/orchestration-broker.js`: único proprietário do motor, subprocessos, aprovação e eventos.
+- `scripts/lib/orchestration-client.js`: cliente comum do servidor MCP e painel HTTP; encaminha SSE.
+- `scripts/lib/orchestration-engine.js`: DAG validado, concorrência limitada, isolamento e persistência atômica; não reexecuta tarefas interrompidas após reinício.
+- `scripts/lib/orchestration-runner.js`: isolamento de modelo por provider, abort/timeout e política read-only (Codex/Claude).
+- `scripts/plugin-mcp.js`: runtime de versão correspondente ao plugin, sem fallback silencioso para catálogo MCP divergente.
+- Testes: `orchestration-client.test.js` e `orchestration-http.test.js` verificam broker, isolamento, recuperação, MCP, REST e SSE sem consumir APIs externas.
+
+**Validação real:** Claude Code executou com sucesso. OpenCode com o provedor padrão configurado encontrou limite de créditos do OpenRouter; Codex atingiu timeout no teste remoto. Não considerar estes dois providers validados em produção até resolver os bloqueios externos.
+
+**Observação:** o painel web distribuído em `web/dist` é gerado; o código-fonte da interface não consta neste checkout. Os endpoints REST/SSE e o painel do plugin Claude estão integrados; uma tela específica de orquestração no painel web exige o repositório-fonte da UI.
+
+---
+
 > **Status do Documento:** Planejamento continuado e consolidado após auditoria do código já iniciado no repositório (`scripts/lib/panel-orchestration.js` e `scripts/lib/orchestration-engine.js`).
 > **Objetivo:** Permitir que o **Claude Code** atue como orquestrador principal — decompondo demandas complexas em subtarefas com dependências (DAG) — enquanto o **FXMind** gerencia roteamento, concorrência, aprovação, streaming de progresso e execução multi-provider (**OpenCode**, **Claude Code**, **Codex**, **Cursor Agent**, **Hermes** e provedores BYOK).
 

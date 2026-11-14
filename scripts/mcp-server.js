@@ -1324,66 +1324,37 @@ async function dispatchTool(name, args) {
     }
 
     case "fxmind_orchestrate": {
-      const { engine } = require("./lib/orchestration-engine");
-      const started = engine.startOrchestration(
-        {
-          task: args.task || "",
-          strategy: args.strategy,
-          subtasks: Array.isArray(args.subtasks) ? args.subtasks : [],
-        },
-        {
-          projectRoot: root,
-          timeoutMs: args.timeoutMs,
-        },
-      );
-      if (!started.ok || started.awaitingApproval || args.wait === false) {
-        return started;
-      }
-      return engine.waitForOrchestration(started.orchestrationId, args.timeoutMs);
+      const { brokerCall } = require("./lib/orchestration-client");
+      const started = await brokerCall(root, "start", {
+        plan: { task: args.task || "", strategy: args.strategy, subtasks: args.subtasks || [] },
+        timeoutMs: args.timeoutMs,
+      });
+      if (!started.ok || started.awaitingApproval || args.wait === false) return started;
+      return brokerCall(root, "wait", {
+        id: started.orchestrationId, timeoutMs: args.timeoutMs,
+      }, (Number(args.timeoutMs) || 300000) + 10000);
     }
-
     case "fxmind_orchestration_status": {
-      const { engine } = require("./lib/orchestration-engine");
-      if (args.orchestrationId) {
-        const found = engine.getOrchestration(String(args.orchestrationId), root);
-        return found
-          ? { ok: true, orchestration: found }
-          : { ok: false, error: `Orchestration not found: ${args.orchestrationId}` };
-      }
-      const active = engine.getActiveOrchestration(root);
-      return {
-        ok: true,
-        orchestration: active,
-        recent: engine.listOrchestrations(5, root),
-      };
+      const { brokerCall } = require("./lib/orchestration-client");
+      return brokerCall(root, "status", { id: args.orchestrationId || "" });
     }
-
     case "fxmind_orchestration_control": {
-      const { engine } = require("./lib/orchestration-engine");
-      const orchId = String(args.orchestrationId || "").trim();
-      if (!orchId) return { ok: false, error: "orchestrationId is required" };
-      if (args.action === "approve") {
-        return engine.approveOrchestration(orchId);
+      const { brokerCall } = require("./lib/orchestration-client");
+      const id = String(args.orchestrationId || "").trim();
+      if (!id) return { ok: false, error: "orchestrationId is required" };
+      if (!["approve", "cancel"].includes(args.action)) {
+        return { ok: false, error: "Unknown control action: " + args.action };
       }
-      if (args.action === "cancel") {
-        return engine.cancelOrchestration(orchId);
-      }
-      return { ok: false, error: `Unknown control action: ${args.action}` };
+      return brokerCall(root, args.action, { id });
     }
-
     case "fxmind_orchestration_config": {
-      const panelOrch = require("./lib/panel-orchestration");
+      const { brokerCall } = require("./lib/orchestration-client");
       const action = args.action || "get";
-      if (action === "get") {
-        return panelOrch.getOrchestrationSettings(root);
-      }
-      if (action === "set") {
-        return panelOrch.putOrchestrationSettings(root, {
-          scope: args.scope || "project",
-          config: args.config || {},
-        });
-      }
-      return { ok: false, error: `Unknown config action: ${action}` };
+      if (action === "get") return brokerCall(root, "config_get");
+      if (action === "set") return brokerCall(root, "config_set", {
+        scope: args.scope || "project", config: args.config || {},
+      });
+      return { ok: false, error: "Unknown config action: " + action };
     }
 
     default:

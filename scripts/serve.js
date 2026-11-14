@@ -20,7 +20,7 @@ const panelBuild = require("./lib/panel-build");
 const panelSubagents = require("./lib/panel-subagents");
 const panelProviders = require("./lib/panel-providers");
 const panelOrchestration = require("./lib/panel-orchestration");
-const { engine: orchestrationEngine } = require("./lib/orchestration-engine");
+const orchestrationBroker = require("./lib/orchestration-client");
 
 let workspaceRoot = panel.bindWorkspaceRoot(process.env.FXMIND_TARGET || process.cwd(), { exact: true });
 let workspaceIsExplicit = true;
@@ -343,130 +343,88 @@ async function handleApi(req, res, url) {
         return { ok: true, root: resolved.root };
       }
       const explicitRoot = body.root || url.searchParams.get("root");
-      if (explicitRoot) {
-        return { ok: true, root: path.resolve(String(explicitRoot)) };
-      }
+      if (explicitRoot) return { ok: true, root: path.resolve(String(explicitRoot)) };
       return { ok: true, root: workspaceRoot };
+    };
+
+    const runBroker = async (resolved, action, payload = {}, timeoutMs) => {
+      try {
+        return await orchestrationBroker.brokerCall(resolved.root, action, payload, timeoutMs);
+      } catch (error) {
+        return { ok: false, error: String(error.message || error) };
+      }
     };
 
     if (req.method === "GET" && pathname === "/api/orchestration/config") {
       const resolved = resolveOrchRoot();
-      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-      return sendJson(res, 200, panelOrchestration.getOrchestrationSettings(resolved.root));
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+      const result = await runBroker(resolved, "config_get");
+      return sendJson(res, result.ok ? 200 : 503, result);
     }
-
     if (req.method === "PUT" && pathname === "/api/orchestration/config") {
       try {
         const body = await readBody(req);
         const resolved = resolveOrchRoot(body);
-        if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-        return sendJson(res, 200, panelOrchestration.putOrchestrationSettings(resolved.root, body));
+        if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+        const result = await runBroker(resolved, "config_set", {
+          scope: body.scope, config: body.config || body,
+        });
+        return sendJson(res, result.ok ? 200 : 503, result);
       } catch {
         return sendJson(res, 400, { error: "invalid JSON body" });
       }
     }
-
     if (req.method === "POST" && pathname === "/api/orchestration/run") {
       try {
         const body = await readBody(req);
         const resolved = resolveOrchRoot(body);
-        if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-        const result = orchestrationEngine.startOrchestration(
-          {
-            task: body.task || "",
-            strategy: body.strategy,
-            subtasks: Array.isArray(body.subtasks) ? body.subtasks : [],
-          },
-          {
-            projectRoot: resolved.root,
-            mode: body.mode,
-            approved: body.approved,
-            timeoutMs: body.timeoutMs,
-          },
-        );
-        if (!result.ok) return sendJson(res, 400, result);
-        return sendJson(res, 201, result);
+        if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+        const result = await runBroker(resolved, "start", {
+          plan: { task: body.task || "", strategy: body.strategy, subtasks: body.subtasks },
+          mode: body.mode, approved: body.approved, timeoutMs: body.timeoutMs,
+        });
+        return sendJson(res, result.ok ? 201 : 400, result);
       } catch {
         return sendJson(res, 400, { error: "invalid JSON body" });
       }
     }
-
     if (req.method === "GET" && pathname === "/api/orchestration/active") {
       const resolved = resolveOrchRoot();
-      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-      return sendJson(res, 200, {
-        ok: true,
-        orchestration: orchestrationEngine.getActiveOrchestration(resolved.root),
-      });
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+      const result = await runBroker(resolved, "active");
+      return sendJson(res, result.ok ? 200 : 503, result);
     }
-
     if (req.method === "GET" && pathname === "/api/orchestration/history") {
       const resolved = resolveOrchRoot();
-      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-      const limit = Number.parseInt(url.searchParams.get("limit"), 10) || 20;
-      return sendJson(res, 200, {
-        ok: true,
-        orchestrations: orchestrationEngine.listOrchestrations(limit, resolved.root),
-      });
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+      const result = await runBroker(resolved, "history", { limit: Number(url.searchParams.get("limit")) || 20 });
+      return sendJson(res, result.ok ? 200 : 503, result);
     }
-
     if (req.method === "GET" && pathname === "/api/orchestration/stream") {
       const resolved = resolveOrchRoot();
-      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-      const orchestrationId = url.searchParams.get("orchestrationId");
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
-      });
-      if (res.socket) res.socket.setNoDelay(true);
-      const snapshot = orchestrationId
-        ? orchestrationEngine.getOrchestration(orchestrationId, resolved.root)
-        : orchestrationEngine.getActiveOrchestration(resolved.root);
-      writeSse(res, { type: "snapshot", orchestration: snapshot });
-      const unsub = orchestrationId
-        ? orchestrationEngine.subscribe(orchestrationId, (event) => writeSse(res, event))
-        : orchestrationEngine.subscribeAll((event) => writeSse(res, event));
-      const ping = setInterval(() => {
-        if (res.writableEnded) return;
-        res.write(": ping\n\n");
-      }, 12000);
-      req.on("close", () => {
-        clearInterval(ping);
-        unsub();
-      });
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+      try {
+        await orchestrationBroker.forwardEvents(resolved.root, res, url.searchParams.get("orchestrationId") || "");
+      } catch (error) {
+        if (!res.headersSent) sendJson(res, 503, { ok: false, error: String(error.message || error) });
+      }
       return;
     }
-
-    const orchApproveMatch = pathname.match(/^\/api\/orchestration\/([^/]+)\/approve$/);
-    if (orchApproveMatch && req.method === "POST") {
-      const id = decodeURIComponent(orchApproveMatch[1]);
-      const result = orchestrationEngine.approveOrchestration(id);
-      if (!result.ok) {
-        return sendJson(res, result.error === "Orchestration not found" ? 404 : 400, result);
-      }
-      return sendJson(res, 200, result);
+    const orchActionMatch = pathname.match(/^\/api\/orchestration\/([^/]+)\/(approve|cancel)$/);
+    if (orchActionMatch && req.method === "POST") {
+      const id = decodeURIComponent(orchActionMatch[1]);
+      // Broker owns approval and running processes, not this HTTP handler.
+      const resolved = resolveOrchRoot();
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+      const result = await runBroker(resolved, orchActionMatch[2], { id });
+      return sendJson(res, result.ok ? 200 : /not found/i.test(result.error || "") ? 404 : 400, result);
     }
-
-    const orchCancelMatch = pathname.match(/^\/api\/orchestration\/([^/]+)\/cancel$/);
-    if (orchCancelMatch && req.method === "POST") {
-      const id = decodeURIComponent(orchCancelMatch[1]);
-      const result = orchestrationEngine.cancelOrchestration(id);
-      if (!result.ok) {
-        return sendJson(res, result.error === "Orchestration not found" ? 404 : 400, result);
-      }
-      return sendJson(res, 200, result);
-    }
-
     const orchDetailMatch = pathname.match(/^\/api\/orchestration\/([^/]+)$/);
     if (orchDetailMatch && req.method === "GET") {
       const resolved = resolveOrchRoot();
-      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
-      const id = decodeURIComponent(orchDetailMatch[1]);
-      const found = orchestrationEngine.getOrchestration(id, resolved.root);
-      if (!found) return sendJson(res, 404, { error: "Orchestration not found" });
-      return sendJson(res, 200, { ok: true, orchestration: found });
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, resolved);
+      const result = await runBroker(resolved, "status", { id: decodeURIComponent(orchDetailMatch[1]) });
+      return sendJson(res, result.ok ? 200 : 404, result);
     }
   }
 

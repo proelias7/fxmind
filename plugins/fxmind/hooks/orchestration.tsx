@@ -177,8 +177,8 @@ export async function syncOrchestration($: EngineInterface): Promise<Orchestrati
 }
 
 async function approveOrchestrationAction($: EngineInterface, session: OrchestrationSession) {
-  await update($, orchestrationState, cur => (cur && cur.id === session.id ? { ...cur, status: 'running' } : cur))
-  $.ui.invalidate('ui.render')
+  // Do not optimistically mark approval as successful. Another process owns
+  // the execution; its persisted state is the single source of truth.
   await $.prompt.submit({
     text: `Approve and run orchestration ${session.id}: call fxmind_orchestration_control with orchestrationId "${session.id}" and action "approve".`,
     asUser: true,
@@ -186,18 +186,7 @@ async function approveOrchestrationAction($: EngineInterface, session: Orchestra
 }
 
 async function cancelOrchestrationAction($: EngineInterface, session: OrchestrationSession) {
-  await update($, orchestrationState, cur =>
-    cur && cur.id === session.id
-      ? {
-          ...cur,
-          status: 'cancelled',
-          subtasks: cur.subtasks.map(st =>
-            st.status === 'pending' || st.status === 'running' ? { ...st, status: 'cancelled', error: 'Cancelled by user' } : st,
-          ),
-        }
-      : cur,
-  )
-  $.ui.invalidate('ui.render')
+  // Keep status pending until the MCP tool confirms cancellation.
   await $.prompt.submit({
     text: `Cancel orchestration ${session.id}: call fxmind_orchestration_control with orchestrationId "${session.id}" and action "cancel".`,
     asUser: true,

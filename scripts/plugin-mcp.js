@@ -65,8 +65,34 @@ function runtimeCandidates(env = process.env) {
   return [...new Set(candidates)];
 }
 
+function runtimeVersion(serverPath) {
+  try {
+    const pkg = path.join(path.dirname(serverPath), "..", "package.json");
+    return JSON.parse(fs.readFileSync(pkg, "utf8")).version || null;
+  } catch {
+    return null;
+  }
+}
+
+function expectedRuntimeVersion() {
+  for (const pkg of ["package.json", "plugin.json"]) {
+    try {
+      const version = JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, pkg), "utf8")).version;
+      if (version) return version;
+    } catch {
+      // Packaged plugins may contain only plugin.json.
+    }
+  }
+  return null;
+}
+
 function selectRuntime(env = process.env) {
-  return runtimeCandidates(env).find(hasRuntimeDependencies) || null;
+  const expected = expectedRuntimeVersion();
+  // Never silently substitute a different global version: it changes the
+  // MCP tool catalog and makes hosts disagree on the number of tools.
+  return runtimeCandidates(env).find((candidate) =>
+    hasRuntimeDependencies(candidate) &&
+    (!expected || runtimeVersion(candidate) === expected)) || null;
 }
 
 function main() {
@@ -75,8 +101,9 @@ function main() {
     const runtime = selectRuntime(process.env);
     if (!runtime) {
       throw new Error(
-        "FXMIND MCP runtime/dependencies not found. Install the package with " +
-        "npm install -g github:proelias7/fxmind or npm ci in this plugin checkout.",
+        "FXMIND MCP runtime missing, dependencies absent, or version does not match plugin (" +
+        (expectedRuntimeVersion() || "unknown") + "). " +
+        "Run npm ci in this checkout, or update both the plugin and global FXMIND to the same version.",
       );
     }
     const child = spawn(process.execPath, [runtime], {

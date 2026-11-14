@@ -26,6 +26,15 @@ const controllers = new Map();
 
 const READONLY_SUBTASK_TYPES = new Set(["explore", "review", "query"]);
 
+function sameProjectRoot(a, b) {
+  if (!a || !b) return false;
+  const left = path.resolve(a);
+  const right = path.resolve(b);
+  return process.platform === "win32"
+    ? left.toLowerCase() === right.toLowerCase()
+    : left === right;
+}
+
 function stateFilePath(projectRoot) {
   if (!projectRoot) return null;
   return path.join(path.resolve(projectRoot), ".fxmind", "state", "orchestrations.json");
@@ -36,7 +45,10 @@ function persistSessions(projectRoot) {
   if (!filePath) return;
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const list = Array.from(sessions.values()).map((s) => ({
+    const ownerRoot = path.resolve(projectRoot);
+    const list = Array.from(sessions.values())
+      .filter((session) => sameProjectRoot(session.projectRoot, ownerRoot))
+      .map((s) => ({
       id: s.id,
       task: s.task,
       status: s.status,
@@ -49,7 +61,9 @@ function persistSessions(projectRoot) {
       projectRoot: s.projectRoot,
       summary: s.summary || null,
     }));
-    fs.writeFileSync(filePath, JSON.stringify(list.slice(-30), null, 2), "utf8");
+    const temporary = filePath + "." + process.pid + ".tmp";
+    fs.writeFileSync(temporary, JSON.stringify(list.slice(-30), null, 2), "utf8");
+    fs.renameSync(temporary, filePath);
   } catch {
     // Non-fatal persistence
   }
@@ -61,11 +75,41 @@ function loadPersistedSessions(projectRoot) {
   try {
     const list = JSON.parse(fs.readFileSync(filePath, "utf8"));
     if (Array.isArray(list)) {
+      let recovered = false;
       for (const item of list) {
-        if (item && item.id && !sessions.has(item.id)) {
-          sessions.set(item.id, item);
+        if (!item || !item.id || !item.projectRoot ||
+            !sameProjectRoot(item.projectRoot, projectRoot) ||
+            sessions.has(item.id)) continue;
+        if (item.status === "running") {
+          // Never re-execute a partially completed write task on restart.
+          item.status = "failed";
+          item.updatedAt = new Date().toISOString();
+          item.completedAt = item.updatedAt;
+          for (const task of item.subtasks || []) {
+            if (task.status === "running") {
+              task.status = "failed";
+              task.error = "Interrupted: orchestration broker restarted";
+              task.endedAt = item.updatedAt;
+            } else if (task.status === "pending") {
+              task.status = "cancelled";
+              task.error = "Cancelled: orchestration broker restarted";
+              task.endedAt = item.updatedAt;
+            }
+          }
+          const jobs = item.subtasks || [];
+          item.summary = {
+            total: jobs.length,
+            completed: jobs.filter((t) => t.status === "done").length,
+            failed: jobs.filter((t) => t.status === "failed").length,
+            cancelled: jobs.filter((t) => t.status === "cancelled").length,
+            durationMs: Math.max(0, Date.parse(item.completedAt) - Date.parse(item.createdAt)),
+            status: item.status,
+          };
+          recovered = true;
         }
+        sessions.set(item.id, item);
       }
+      if (recovered) persistSessions(projectRoot);
     }
   } catch {
     // Ignore corrupt state
@@ -209,17 +253,27 @@ class OrchestrationEngine {
     const normalizedSubtasks = [];
     for (let index = 0; index < rawSubtasks.length; index += 1) {
       const st = rawSubtasks[index] || {};
+      const type = String(st.type || "implement");
+      const readOnly = typeof st.readOnly === "boolean"
+        ? st.readOnly
+        : READONLY_SUBTASK_TYPES.has(type);
       const routing = resolveSubtaskRouting(st, config);
       if (routing.error) {
         return { ok: false, error: routing.error };
       }
+      if (readOnly && !["codex", "claude"].includes(routing.provider)) {
+        if (st.provider) {
+          return { ok: false, error: `Read-only tasks cannot use "${routing.provider}"; select codex or claude` };
+        }
+        const allowed = Array.isArray(config.allowedProviders) ? config.allowedProviders : null;
+        const safeProvider = ["claude", "codex"].find((name) => !allowed || allowed.includes(name));
+        if (!safeProvider) return { ok: false, error: "No sandboxed provider available for read-only subtask" };
+        routing.provider = safeProvider;
+        routing.model = st.model || null;
+      }
 
       const subtaskId = String(st.id || `st_${index + 1}`);
-      const type = String(st.type || "implement");
       const dependsOn = Array.isArray(st.dependsOn) ? st.dependsOn.map(String) : [];
-      const readOnly = typeof st.readOnly === "boolean"
-        ? st.readOnly
-        : READONLY_SUBTASK_TYPES.has(type);
 
       normalizedSubtasks.push({
         id: subtaskId,
@@ -246,10 +300,13 @@ class OrchestrationEngine {
       return { ok: false, error: validation.error };
     }
 
-    const effectiveMode = options.mode || config.mode || "auto";
-    const needsApproval = effectiveMode === "confirm" && options.approved !== true;
+    // Project confirmation policy cannot be bypassed through an API payload.
+    const effectiveMode = config.mode === "confirm" ? "confirm" : (options.mode || config.mode || "auto");
+    const needsApproval = effectiveMode === "confirm";
     const strategy = plan.strategy || config.strategy || "smart";
-    const configuredMax = Number(config.maxConcurrent) > 0 ? Number(config.maxConcurrent) : 3;
+    const requestedMax = Number(config.maxConcurrent);
+    const configuredMax = Number.isFinite(requestedMax) && requestedMax > 0
+      ? Math.min(10, Math.max(1, Math.floor(requestedMax))) : 3;
 
     const session = {
       id,
@@ -306,9 +363,12 @@ class OrchestrationEngine {
   /**
    * Approves and starts an orchestration currently in `awaiting_approval`.
    */
-  approveOrchestration(id) {
+  approveOrchestration(id, projectRoot = null) {
+    if (projectRoot) loadPersistedSessions(projectRoot);
     const session = sessions.get(id);
-    if (!session) return { ok: false, error: "Orchestration not found" };
+    if (!session || (projectRoot && !sameProjectRoot(session.projectRoot, projectRoot))) {
+      return { ok: false, error: "Orchestration not found" };
+    }
     if (session.status !== "awaiting_approval") {
       return { ok: false, error: `Orchestration is not awaiting approval (status: ${session.status})` };
     }
@@ -352,12 +412,18 @@ class OrchestrationEngine {
     const running = session.subtasks.filter((s) => s.status === "running");
 
     // Cancel pending subtasks blocked by a failed/cancelled dependency
-    for (const st of session.subtasks) {
-      if (st.status === "pending" && st.dependsOn.some((depId) => failedIds.has(depId))) {
-        st.status = "cancelled";
-        st.error = "Cancelled because a dependency failed";
-        st.endedAt = new Date().toISOString();
-        this.emitSubtaskUpdate(session, st);
+    let updated = true;
+    while (updated) {
+      updated = false;
+      for (const st of session.subtasks) {
+        if (st.status === "pending" && st.dependsOn.some((depId) => failedIds.has(depId))) {
+          st.status = "cancelled";
+          st.error = "Cancelled because a dependency failed";
+          st.endedAt = new Date().toISOString();
+          failedIds.add(st.id);
+          updated = true;
+          this.emitSubtaskUpdate(session, st);
+        }
       }
     }
 
@@ -515,8 +581,8 @@ class OrchestrationEngine {
    * Waits until an orchestration reaches a terminal state (or awaiting_approval),
    * or until timeoutMs elapses.
    */
-  waitForOrchestration(id, timeoutMs = 300_000) {
-    const initial = this.getOrchestration(id);
+  waitForOrchestration(id, timeoutMs = 300_000, projectRoot = null) {
+    const initial = this.getOrchestration(id, projectRoot);
     if (!initial) {
       return Promise.resolve({ ok: false, error: "Orchestration not found" });
     }
@@ -539,7 +605,7 @@ class OrchestrationEngine {
       };
 
       const unsubscribe = this.subscribe(id, (evt) => {
-        const snap = evt.orchestration || this.getOrchestration(id);
+        const snap = evt.orchestration || this.getOrchestration(id, projectRoot);
         if (!snap) return;
         if (["done", "failed", "cancelled", "awaiting_approval"].includes(snap.status)) {
           done({
@@ -551,9 +617,9 @@ class OrchestrationEngine {
       });
 
       const timer = setTimeout(() => {
-        const current = this.getOrchestration(id);
+        const current = this.getOrchestration(id, projectRoot);
         done({
-          ok: true,
+          ok: false,
           timedOut: true,
           orchestration: current,
         });
@@ -579,9 +645,12 @@ class OrchestrationEngine {
     };
   }
 
-  cancelOrchestration(id) {
+  cancelOrchestration(id, projectRoot = null) {
+    if (projectRoot) loadPersistedSessions(projectRoot);
     const session = sessions.get(id);
-    if (!session) return { ok: false, error: "Orchestration not found" };
+    if (!session || (projectRoot && !sameProjectRoot(session.projectRoot, projectRoot))) {
+      return { ok: false, error: "Orchestration not found" };
+    }
 
     if (session.status === "running" || session.status === "awaiting_approval") {
       session.status = "cancelled";
@@ -679,21 +748,22 @@ class OrchestrationEngine {
 
     if (this.activeSessionId && sessions.has(this.activeSessionId)) {
       const active = sessions.get(this.activeSessionId);
-      if (active.status === "running" || active.status === "awaiting_approval") {
+      if ((!projectRoot || sameProjectRoot(active.projectRoot, projectRoot)) &&
+          (active.status === "running" || active.status === "awaiting_approval")) {
         return this.publicSnapshot(active);
       }
     }
 
     for (const session of sessions.values()) {
       if (session.status === "running" || session.status === "awaiting_approval") {
-        if (!projectRoot || session.projectRoot === projectRoot) {
+        if (!projectRoot || sameProjectRoot(session.projectRoot, projectRoot)) {
           return this.publicSnapshot(session);
         }
       }
     }
 
     const all = Array.from(sessions.values()).filter(
-      (s) => !projectRoot || s.projectRoot === projectRoot,
+      (s) => !projectRoot || sameProjectRoot(s.projectRoot, projectRoot),
     );
     if (all.length > 0) {
       const sorted = all.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
@@ -708,7 +778,9 @@ class OrchestrationEngine {
       loadPersistedSessions(projectRoot);
     }
     const session = sessions.get(id);
-    return session ? this.publicSnapshot(session) : null;
+    return session && (!projectRoot || sameProjectRoot(session.projectRoot, projectRoot))
+      ? this.publicSnapshot(session)
+      : null;
   }
 
   listOrchestrations(limit = 20, projectRoot = null) {
@@ -716,7 +788,7 @@ class OrchestrationEngine {
       loadPersistedSessions(projectRoot);
     }
     return Array.from(sessions.values())
-      .filter((s) => !projectRoot || s.projectRoot === projectRoot)
+      .filter((s) => !projectRoot || sameProjectRoot(s.projectRoot, projectRoot))
       .map((s) => this.publicSnapshot(s))
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, limit);
