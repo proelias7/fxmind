@@ -68,6 +68,8 @@ export type SettingsDraft = {
   gateV?: string
   /** A prompt typed into a cold chat: off (sent), block (held back), compact (compacted first, then sent). */
   coldPrompt?: string
+  /** A repository without .fxmind: ask (a band offers the install), auto (the agent installs it), off. */
+  projectSetup?: string
   /** From how many thousand tokens a cold cache counts. */
   coldAt?: string
   bias?: string
@@ -106,6 +108,8 @@ export type SettingsDraft = {
   gateV?: string
   /** A prompt typed into a cold chat: off, block or compact. */
   coldPrompt?: string
+  /** A repository without .fxmind: ask, auto or off. */
+  projectSetup?: string
   /** From how many thousand tokens a cold cache counts. */
   coldAt?: string
 }
@@ -229,6 +233,8 @@ declare module 'claude-code' {
       gateVAsk: GateVPending | null
       /** The reviewer picked in the Gate V band, until Review is pressed; null for the suggested one. */
       gateVPick: string | null
+      /** A repository with no .fxmind yet, offered the project install in the band; null when there is none. */
+      setupOffer: { root: string } | null
       /** The newest reply's text: the reply card hangs under its last block. */
       lastAnswer: string
       /** What the newest reply cost: tokens weighted by price over the main thread's requests, and its time. */

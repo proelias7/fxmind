@@ -106,6 +106,7 @@ Options:
   --update           Refresh global fxmind (GitHub) + project files from .fxmind/packs.json (keeps memories; also refreshes hooks, MCP, fivem-start)
   --no-self-update   With --update, skip npm install -g github:proelias7/fxmind
   --hooks            Install Cursor hooks (gate-guard, drift-watcher, learn-prompt)
+  --no-plugin        Skip installing the Claude Code fxmind mod in the user profile
   --no-hooks         Skip hook installation even when Cursor is selected
   --mcp              Install MCP server configs for selected agents (fxmind-mcp)
   --no-mcp           Skip MCP wiring even when agents are selected
@@ -263,6 +264,10 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--no-plugin") {
+      options.noPlugin = true;
+      continue;
+    }
     if (arg === "--no-hooks") {
       options.hooks = false;
       continue;

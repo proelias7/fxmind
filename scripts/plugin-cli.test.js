@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { installPlugin, usage } = require("./plugin-cli");
+const { installPlugin, ensureClaudeMod, usage } = require("./plugin-cli");
 
 const SOURCE = path.resolve(__dirname, "..");
 
@@ -126,4 +126,24 @@ test("Codex installs via marketplace and skips an identical existing version", (
   const count = calls.filter((entry) => entry[2] === "add").length;
   installPlugin("codex", { home, sourceRoot: SOURCE, run, log() {} });
   assert.equal(calls.filter((entry) => entry[2] === "add").length, count);
+});
+
+test("the Claude mod is installed once in the user profile, replacing the skills-only bundle", () => {
+  const calls = [];
+  let installed = false;
+  const run = (program, args) => {
+    calls.push(args.join(" "));
+    if (args[1] === "list") return JSON.stringify(installed ? [{ id: "fxmind@fxmind", scope: "user" }] : [{ id: "fxmind@fxmind-local", scope: "user" }]);
+    if (args[1] === "marketplace" && args[2] === "list") return "[]";
+    if (args[1] === "install") installed = true;
+    return "";
+  };
+  assert.equal(ensureClaudeMod({ run }).status, "installed");
+  assert.ok(calls.includes("plugin marketplace add proelias7/fxmind"));
+  assert.ok(calls.includes("plugin install fxmind@fxmind --scope user"));
+  assert.ok(calls.includes("plugin uninstall fxmind@fxmind-local --scope user"));
+  calls.length = 0;
+  assert.equal(ensureClaudeMod({ run }).status, "present");
+  assert.deepEqual(calls, ["plugin list --json"]);
+  assert.equal(ensureClaudeMod({ run: () => { throw new Error("claude nao encontrado"); } }).status, "failed");
 });

@@ -154,6 +154,7 @@ const handoffPick = atom({ plugin: 'fxmind', key: 'handoffPick' } as const, null
 // Gate V waiting on the person, and the reviewer picked in its band (scripts/lib/gate-v-ask.js says the exchange).
 const gateVAsk = atom({ plugin: 'fxmind', key: 'gateVAsk' } as const, null)
 const gateVPick = atom({ plugin: 'fxmind', key: 'gateVPick' } as const, null)
+const setupOffer = atom({ plugin: 'fxmind', key: 'setupOffer' } as const, null)
 // The context is swamped: tokens read per request, or null below the line. Drives the swamp band.
 const swamped = atom({ plugin: 'fxmind', key: 'swamped' } as const, null)
 // Why Haiku thinks a handoff would suit now, or null. It lights Handoff and says why; there is no percent threshold.
@@ -667,6 +668,9 @@ export type JudgeConfig = {
   coldPrompt: 'off' | 'block' | 'compact'
   /** From how many thousand tokens of context a cold cache counts: the cold band and the cold-prompt guard. */
   coldAt: number
+  /** A git repository without .fxmind: ask (a band above the prompt offers the install), auto (the agent is asked to
+   * install it at once, once per repository) or off. */
+  projectSetup: 'ask' | 'auto' | 'off'
   /** auto: light when Claude Code's own theme is light. dark and light fix it. */
   appearance: 'auto' | 'dark' | 'light'
 }
@@ -708,6 +712,7 @@ let config: JudgeConfig = {
   gateV: 'ask',
   coldPrompt: 'compact',
   coldAt: 100,
+  projectSetup: 'ask',
   appearance: 'auto',
 }
 
@@ -741,6 +746,7 @@ export function readConfig(options: unknown): JudgeConfig {
     refineSend: refiner.send,
     gateV: str(o.gateV) === 'auto' ? 'auto' : 'ask',
     coldPrompt: (['off', 'block'] as const).find(c => c === str(o.coldPrompt)) ?? 'compact',
+    projectSetup: (['auto', 'off'] as const).find(c => c === str(o.projectSetup)) ?? 'ask',
     coldAt: COLD_STEPS.includes(Number(str(o.coldAt)) as (typeof COLD_STEPS)[number]) ? Number(str(o.coldAt)) : 100,
     appearance: (['dark', 'light'] as const).find(a => a === str(o.appearance)) ?? 'auto',
     // The judge's line is off until switched on; an empty string saved from the panel means everything shows.
@@ -1936,6 +1942,7 @@ const SETTING_FIELDS = {
   gateV: 'gateV',
   coldPrompt: 'coldPrompt',
   coldAt: 'coldAt',
+  projectSetup: 'projectSetup',
 } as const
 
 async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELDS, value: string) {
@@ -1975,6 +1982,7 @@ async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELD
     gateV: config.gateV,
     coldPrompt: config.coldPrompt,
     coldAt: String(config.coldAt),
+    projectSetup: config.projectSetup,
     [SETTING_FIELDS[field]]: value,
   }
   config = { ...readConfig(raw), typesafeKey: config.typesafeKey }
@@ -2056,6 +2064,55 @@ export function gateVMessage(decision: 'review' | 'skip', label?: string): strin
   return decision === 'skip'
     ? 'fxmind Gate V: I chose to skip the independent review for this task. Call fxmind_record_gate with gate V again to go on.'
     : `fxmind Gate V: run the independent review with ${label ?? 'the suggested agent'}. Call fxmind_record_gate with gate V again.`
+}
+
+/** What the agent is asked to do in a repository with no .fxmind yet: the plugin's fxmind-setup skill, then init. */
+export const SETUP_PROMPT = 'Set up fxmind in this project: use the fxmind-setup skill (it runs `npx --yes github:proelias7/fxmind --claude -y` in this repository and keeps any memories). Then tell me to restart Claude Code and run /fxmind init.'
+
+/** The git repository the session is in when it has no .fxmind yet; null in one that has it, or outside a repository. */
+export async function repoWithoutFxmind($: EngineInterface): Promise<string | null> {
+  let dir = (await $.session.cwd()).replace(/\\/g, '/').replace(/\/+$/, '')
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (await $.fs.exists(`${dir}/.fxmind/packs.json`)) return null
+    if (await $.fs.exists(`${dir}/.git`)) return dir
+    const parent = dir.replace(/\/[^/]+$/, '')
+    if (!parent || parent === dir) break
+    dir = parent
+  }
+  return null
+}
+
+const storedRoots = async ($: EngineInterface, key: string): Promise<string[]> => {
+  const got = await $.store.get(key).catch(() => null)
+  return Array.isArray(got) ? got.filter((r): r is string => typeof r === 'string') : []
+}
+
+/** At session start: a repository without .fxmind is offered the install (ask), or the agent installs it (auto). */
+async function checkProjectSetup($: EngineInterface) {
+  if (config.projectSetup === 'off') return
+  const root = await repoWithoutFxmind($)
+  if (!root || (await storedRoots($, 'setupDeclined')).includes(root)) return
+  if (config.projectSetup === 'auto') {
+    const started = await storedRoots($, 'setupStarted')
+    if (started.includes(root)) return
+    await $.store.set('setupStarted', [...started, root].slice(-50)).catch(() => undefined)
+    $.clock.after(1500, () => void $.prompt.submit({ text: SETUP_PROMPT, asUser: true }).catch(() => undefined))
+    return
+  }
+  await update($, setupOffer, () => ({ root }))
+  $.ui.invalidate('ui.render')
+}
+
+/** The person answered the install band: install now, not now (this chat), or never for this repository. */
+async function answerSetup($: EngineInterface, answer: 'install' | 'later' | 'never') {
+  const offer = await read($, setupOffer)
+  await update($, setupOffer, () => null)
+  if (!offer) return
+  if (answer === 'never') {
+    const declined = await storedRoots($, 'setupDeclined')
+    await $.store.set('setupDeclined', [...declined, offer.root].slice(-200)).catch(() => undefined)
+  }
+  if (answer === 'install') await $.prompt.submit({ text: SETUP_PROMPT, asUser: true })
 }
 
 /** The person answered in the band: the choice goes to the server's file, the band closes, the agent is told. */
@@ -4076,6 +4133,8 @@ export const register: Register = (on, options) => {
     void refineStart($).catch(() => undefined)
     // Gate V may ask the person in the band: the server waits on a fresh marker, and a question may already be waiting.
     void markGateV($).then(() => readGateVAsk($)).catch(() => undefined)
+    // A repository without fxmind's memory: offered the install in the band (or installed, per the setting).
+    void checkProjectSetup($).catch(() => undefined)
     // Everything the first draw needs, asked for at once: one after the other they held the start (and with it the
     // band) for a second or more. What the draw does not need runs after, unawaited.
     const [sid, kept, kff, storedAuto, storedAutoModel, storedPick, setupDone] = await Promise.all([
@@ -4857,6 +4916,7 @@ Saved to ${out}.md and .json` }
         gateV: draft.gateV ?? config.gateV,
         coldPrompt: draft.coldPrompt ?? config.coldPrompt,
         coldAt: draft.coldAt ?? String(config.coldAt),
+        projectSetup: draft.projectSetup ?? config.projectSetup,
       }
       // The Helpers switch slides like Auto's: the time it flipped, seen by the draw after the click.
       const helpersNow = await $.clock.now()
@@ -5078,6 +5138,7 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-refine-with", label: "Refine with", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'sonnet', label: 'Sonnet 5.5' }, { value: 'opus', label: 'Opus 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
             pick({ key: "settings-refine-clear", label: "Clear chat", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
             pick({ key: "settings-refine-send", label: "Refined prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
+            pick({ key: "settings-project-setup", label: "Repo without fxmind", value: shown.projectSetup, options: [{ value: 'ask', label: 'Offer install' }, { value: 'auto', label: 'Install' }, { value: 'off', label: 'Off' }], onSelect: set('projectSetup') }),
             pick({ key: "settings-gate-v", label: "Gate V review", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
             // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
             ...([['init', 'Map project'], ['memory health', 'Review memories'], ['learn', 'Learn']] as const).map(([args, label]) => (
@@ -5207,6 +5268,34 @@ Saved to ${out}.md and .json` }
           </Box>
           <Box flexGrow={1} minWidth={44} />
           <Box key="gatev-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
+            {controls}
+          </Box>
+        </Box>
+      )
+    }
+    // A repository with no .fxmind: the band offers the project install (the fxmind-setup skill, then /fxmind init).
+    const offer = config.projectSetup === 'ask' ? await read($, setupOffer) : null
+    if (offer) {
+      const line = 'This repository has no fxmind memory yet.'
+      const controls = [
+        <Button key="setup-never" plain dimColor label="Never here" onPress={() => answerSetup($, 'never')} />,
+        <Button key="setup-later" plain label="Not now" onPress={() => answerSetup($, 'later')} />,
+        <Button key="setup-install" variant="primary" label="Install fxmind" onPress={() => answerSetup($, 'install')} />,
+      ]
+      if (isPlain(e)) return terminalPanel($, e, 'project-setup', '✦ fxmind', line, controls)
+      return (
+        <Box key="project-setup" position="relative" flexDirection="row" alignItems="center" paddingX={1} overflow="hidden"
+          backgroundColor={BRAND_BG} borderStyle="round" borderColor={BRAND_EDGE}>
+          {textureLayer({ Box, Svg }, 'project-setup-art')}
+          <Box key="project-setup-art" position="absolute" top={-1} right={0} bottom={-1}>
+            <Svg source={BRAND_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+          </Box>
+          <Box key="project-setup-words" position="relative" flexDirection="row" gap={1} flexShrink={1} minWidth={0}>
+            <Box flexShrink={0}>{markTitle({ Box, Text, Svg }, 'project-setup-title', ACCENT, '✦ fxmind')}</Box>
+            <Text key="project-setup-what" dimColor wrap="truncate">{line}</Text>
+          </Box>
+          <Box flexGrow={1} minWidth={44} />
+          <Box key="project-setup-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
             {controls}
           </Box>
         </Box>

@@ -1,11 +1,15 @@
 ---
 name: fxmind
-description: "Use for code/config changes in projects with .fxmind/ and for /fxmind commands: shared memory, domain skills, task gates, verification and learning."
+description: "Use for code/config changes in projects with .fxmind/, for /fxmind commands (shared memory, domain skills, task gates, verification and learning), and in a repository with no .fxmind/ yet, to offer installing it."
 ---
 
 # fxmind
 
 Shared knowledge lives under `.fxmind/`; domain skills live in `.fxmind/skills/`, not the agent's skills directory. Every agent and teammate on the project reads and writes the same memory — leave it better than you found it.
+
+## Repository without fxmind
+
+If the project root has no `.fxmind/packs.json`, fxmind's memory is not installed in this repository yet. Say so in one line and offer to install it; never install without the user's yes. On yes, follow the `fxmind-setup` skill (it runs the project installer and keeps any existing memories), then tell the user to restart the agent and run `/fxmind init` (`$fxmind init` in Codex). In Claude Code the fxmind panel offers the same above the prompt. If the user says no, carry on without fxmind and do not offer again in this conversation.
 
 ## Routing
 

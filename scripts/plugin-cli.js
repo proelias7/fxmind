@@ -207,6 +207,36 @@ function installPlugin(client, options = {}) {
   return { client, marketplace: root, version };
 }
 
+const MOD_MARKETPLACE = "fxmind";
+const MOD_MARKETPLACE_SOURCE = "proelias7/fxmind";
+const MOD_ID = "fxmind@" + MOD_MARKETPLACE;
+
+/**
+ * The Claude Code mod (plugins/fxmind: effort, cache, handoff, refiner, Gate V band, the fxmind panel) is useful in
+ * every repository, so a project install also puts it in the user's profile, once. It replaces the skills-only
+ * fxmind@fxmind-local bundle, which it contains. Returns what it did; never throws.
+ */
+function ensureClaudeMod(options = {}) {
+  const run = options.run || runNative;
+  try {
+    const plugins = runJson(run, "claude", ["plugin", "list", "--json"]);
+    if (!Array.isArray(plugins)) return { status: "skipped", reason: "lista de plugins invalida" };
+    if (plugins.some((entry) => entry.id === MOD_ID && entry.scope === "user")) return { status: "present" };
+    const marketplaces = runJson(run, "claude", ["plugin", "marketplace", "list", "--json"]);
+    if (!Array.isArray(marketplaces)) return { status: "skipped", reason: "lista de marketplaces invalida" };
+    if (!marketplaces.some((entry) => entry.name === MOD_MARKETPLACE)) {
+      run("claude", ["plugin", "marketplace", "add", MOD_MARKETPLACE_SOURCE]);
+    }
+    run("claude", ["plugin", "install", MOD_ID, "--scope", "user"]);
+    if (plugins.some((entry) => entry.id === PLUGIN_ID)) {
+      try { run("claude", ["plugin", "uninstall", PLUGIN_ID, "--scope", "user"]); } catch { /* the mod covers it */ }
+    }
+    return { status: "installed" };
+  } catch (error) {
+    return { status: "failed", reason: String(error.message || error).slice(0, 200) };
+  }
+}
+
 function runPluginCli(argv) {
   if (!argv.length || (argv.length === 1 && ["-h", "--help", "help"].includes(argv[0]))) {
     console.log(usage());
@@ -225,4 +255,4 @@ function runPluginCli(argv) {
   }
 }
 
-module.exports = { installPlugin, runPluginCli, copySkillOnlyBundle, installCatalog, usage };
+module.exports = { installPlugin, ensureClaudeMod, runPluginCli, copySkillOnlyBundle, installCatalog, usage };

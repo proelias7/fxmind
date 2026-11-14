@@ -334,6 +334,13 @@ async function main() {
     }
 
     const agentEntries = [...installAgentsLayer(options.target, agents, options)];
+    // The Claude Code mod serves every repository: put it in the user's profile once (skipped under tests and with
+    // --no-plugin). Its panel offers this install in repositories that have no .fxmind yet.
+    let claudeMod = null;
+    if (agents.some((agent) => agent.id === "claude") && !options.noPlugin &&
+        !process.env.NODE_TEST_CONTEXT && process.env.FXMIND_SKIP_PLUGIN !== "1") {
+      claudeMod = require("./plugin-cli").ensureClaudeMod();
+    }
     let integrationsChanged = false;
     if (
       shouldInstallHooks(options, agents) ||
@@ -425,6 +432,17 @@ async function main() {
         printGlobalStoreWarnings(globalStore);
         console.log("");
       }
+    }
+
+    if (claudeMod?.status === "installed") {
+      console.log("[Claude Code plugin]");
+      console.log("  ✓ fxmind mod installed for every repository (user scope)");
+      console.log("");
+    } else if (claudeMod?.status === "failed") {
+      console.log("[Claude Code plugin]");
+      console.log("  ! could not install the fxmind mod: " + claudeMod.reason);
+      console.log("    In Claude Code: /plugin marketplace add proelias7/fxmind, then /plugin install fxmind@fxmind");
+      console.log("");
     }
 
     let lastAgentLabel = "";

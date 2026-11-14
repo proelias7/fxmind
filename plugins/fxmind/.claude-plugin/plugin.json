@@ -1,6 +1,6 @@
 {
   "name": "fxmind",
-  "version": "1.2.14",
+  "version": "1.2.15",
   "description": "Shared project memory for AI agents, plus a prompt refiner, automatic reasoning effort, cache countdown, handoff and agent panel. Ask: \"set up fxmind in this project\".",
   "author": {
     "name": "proelias7",
@@ -249,6 +249,17 @@
         "off",
         "block",
         "compact"
+      ]
+    },
+    "projectSetup": {
+      "type": "string",
+      "title": "Repository without fxmind",
+      "description": "In a git repository with no .fxmind yet. ask: a band above the prompt offers the install (the fxmind-setup skill, then /fxmind init). auto: the agent is asked to install it at once, once per repository. off: nothing.",
+      "default": "ask",
+      "options": [
+        "ask",
+        "auto",
+        "off"
       ]
     },
     "coldAt": {
