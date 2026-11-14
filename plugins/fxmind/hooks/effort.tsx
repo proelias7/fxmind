@@ -2007,7 +2007,7 @@ const SAVED_CARD_MS = 2500
 function savedCardTree($: EngineInterface, e: RenderInput<'AbovePrompt'>) {
   const { Box, Text } = themedEls($.ui.resolve(e))
   return (
-    <Box key="saved" flexDirection="row" alignItems="center" gap={1} paddingX={1} backgroundColor={DASH_BG} borderStyle="round" borderColor={DASH_EDGE}>
+    <Box key="saved" flexDirection="row" alignItems="center" gap={1} paddingX={1} backgroundColor={BRAND_BG} borderStyle="round" borderColor={BRAND_EDGE}>
       <Text color={ACCENT}>✓</Text>
       <Text bold>Settings saved</Text>
     </Box>
@@ -3757,13 +3757,13 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
   if (glowSource && judgeEndedAt !== null) renderLog.push(`${new Date().toISOString()} ${loadedSession} glow: fade drawn at +${Math.round(glowNow - Math.max(judgeEndedAt, judgeStartedAt + JUDGE_RISE_MS))} ms, lead ${Math.round(drawLead)} ms, ${Math.round(glowNow - drawLead - nowMs)} ms after the draw began`)
   return (
     <Box key="dash" position="relative" flexDirection="row" alignItems="center" paddingX={1} overflow="hidden"
-      backgroundColor={DASH_BG} borderStyle="round" borderColor={DASH_EDGE}>
+      backgroundColor={BRAND_BG} borderStyle="round" borderColor={BRAND_EDGE}>
       {textureLayer({ Box, Svg }, 'dash')}
       {Svg ? (
         // Auto off: the art goes, so the bar reads as resting, not working.
         v.auto ? (
           <Box key="dash-art" position="absolute" top={-1} right={0} bottom={-1}>
-            <Svg source={DASH_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+            <Svg source={BRAND_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
           </Box>
         ) : null
       ) : null}
@@ -5109,7 +5109,7 @@ Saved to ${out}.md and .json` }
         // made them busy). The entrance
         // sweep plays once, behind everything, as the panel opens.
         <Box key="settings" position="relative" flexDirection="column" gap={roomy && !term ? 1 : 0} paddingX={term ? 1 : 2} overflow="hidden"
-          backgroundColor={term ? DASH_BG : UPDATED_BG} borderStyle="round" borderColor={term ? DASH_EDGE : PANEL_EDGE}>
+          backgroundColor={term ? DASH_BG : BRAND_BG} borderStyle="round" borderColor={term ? DASH_EDGE : BRAND_EDGE}>
           {/* The Updated card's look over the whole panel: one near-black surface, the texture on the right and the
               brand glow behind the title. No wash stretched over the rows (it ended partway down, a block of colour). */}
           {term ? null : textureLayer({ Box, Svg }, 'settings', true)}
@@ -5124,7 +5124,7 @@ Saved to ${out}.md and .json` }
             <Box key="settings-bar" position="absolute" top={-1} left={0} right={0} height={3.5} overflow="hidden">
               {/* A hairline along the bar's bottom: a one-pixel image stretched across (a Box cannot draw one pixel). */}
               <Box key="settings-rule" position="absolute" bottom={0} left={0} right={0} height={1} alignItems="flex-end">
-                <Svg source={`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1" viewBox="0 0 1600 1" preserveAspectRatio="none"><rect width="1600" height="1" fill="${DASH_EDGE}"/></svg>`} alt="rule" width={1600} height={1} />
+                <Svg source={`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1" viewBox="0 0 1600 1" preserveAspectRatio="none"><rect width="1600" height="1" fill="${BRAND_EDGE}"/></svg>`} alt="rule" width={1600} height={1} />
               </Box>
             </Box>
           ) : null}
