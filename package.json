@@ -1,6 +1,6 @@
 {
   "name": "fxmind",
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Shared project memory and knowledge packs for teams of AI agents — domain skills (FiveM, Web), shared .fxmind/ memory, task gates and /fxmind commands",
   "bin": {
     "fxmind": "./scripts/install.js",

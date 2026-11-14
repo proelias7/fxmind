@@ -1,6 +1,6 @@
 {
   "name": "fxmind",
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Shared project memory for AI agents, plus a prompt refiner, automatic reasoning effort, cache countdown, handoff and agent panel. Ask: \"set up fxmind in this project\".",
   "author": {
     "name": "proelias7",
@@ -249,6 +249,20 @@
         "off",
         "block",
         "compact"
+      ]
+    },
+    "coldAt": {
+      "type": "string",
+      "title": "Cold from",
+      "description": "From how many thousand tokens of context a cold cache counts: the cold band shows and the prompt-in-a-cold-chat setting acts.",
+      "default": "100",
+      "options": [
+        "50",
+        "100",
+        "150",
+        "200",
+        "300",
+        "400"
       ]
     },
     "language": {

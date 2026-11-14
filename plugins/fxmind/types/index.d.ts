@@ -68,6 +68,8 @@ export type SettingsDraft = {
   gateV?: string
   /** A prompt typed into a cold chat: off (sent), block (held back), compact (compacted first, then sent). */
   coldPrompt?: string
+  /** From how many thousand tokens a cold cache counts. */
+  coldAt?: string
   bias?: string
   floor?: string
   ceiling?: string
@@ -104,6 +106,8 @@ export type SettingsDraft = {
   gateV?: string
   /** A prompt typed into a cold chat: off, block or compact. */
   coldPrompt?: string
+  /** From how many thousand tokens a cold cache counts. */
+  coldAt?: string
 }
 
 /** One step of the task the progress bar follows: a todo or a task. */

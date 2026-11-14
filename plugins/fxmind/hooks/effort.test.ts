@@ -1173,6 +1173,7 @@ describe('judge choice (plugin settings)', () => {
       refineSend: 'send',
       gateV: 'ask',
       coldPrompt: 'off',
+      coldAt: 100,
       appearance: 'auto',
     })
     expect(readConfig({ swampAt: '20' })).toMatchObject({ swampAt: 20 })
@@ -4319,5 +4320,8 @@ describe('prompt in a cold chat', () => {
     expect(readConfig({ coldPrompt: 'block' }).coldPrompt).toBe('block')
     expect(readConfig({ coldPrompt: 'compact' }).coldPrompt).toBe('compact')
     expect(readConfig({ coldPrompt: 'x' }).coldPrompt).toBe('off')
+    expect(readConfig({}).coldAt).toBe(100)
+    expect(readConfig({ coldAt: '200' }).coldAt).toBe(200)
+    expect(readConfig({ coldAt: '7' }).coldAt).toBe(100)
   })
 })

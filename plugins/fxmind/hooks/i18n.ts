@@ -95,7 +95,7 @@ const PT: Record<string, string> = {
   'Judge down': 'Juiz fora do ar', 'Open settings': 'Abrir configurações',
   'Running hot': 'Limite chegando', 'Save mode': 'Modo economia', 'Save mode on': 'Modo economia ligado',
   'Chat went cold': 'O chat esfriou', 'Not now': 'Agora não',
-  'Prompt in a cold chat': 'Prompt em chat frio', Block: 'Bloquear', 'Compact & resend': 'Compactar e reenviar',
+  'Prompt in a cold chat': 'Prompt em chat frio', 'Cold from': 'Frio a partir de', Block: 'Bloquear', 'Compact & resend': 'Compactar e reenviar',
   'fxmind: the chat went cold, compacting first; your prompt is sent right after': 'fxmind: o chat esfriou, compactando antes; seu prompt é enviado logo depois',
   'fxmind: the chat went cold, prompt held. Compact or hand off first, or send it again to send as is': 'fxmind: o chat esfriou, prompt bloqueado. Compacte ou faça handoff antes, ou envie de novo para mandar assim mesmo',
   'Chat is getting swamped': 'O chat está ficando pesado',

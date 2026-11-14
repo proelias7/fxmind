@@ -665,9 +665,14 @@ export type JudgeConfig = {
   /** A prompt typed once the cache went cold on a big chat. off: sent as is. block: held back, left in the prompt box
    * (sending it again sends it). compact: the chat is compacted first, then the prompt goes in by itself. */
   coldPrompt: 'off' | 'block' | 'compact'
+  /** From how many thousand tokens of context a cold cache counts: the cold band and the cold-prompt guard. */
+  coldAt: number
   /** auto: light when Claude Code's own theme is light. dark and light fix it. */
   appearance: 'auto' | 'dark' | 'light'
 }
+
+/** The cold thresholds the settings offer, in thousands of tokens of context. */
+export const COLD_STEPS = [50, 100, 150, 200, 300, 400] as const
 
 /** The swamp thresholds the settings offer, in percent of the context window. */
 export const SWAMP_STEPS = [10, 20, 30, 40, 50, 60, 70, 80] as const
@@ -702,6 +707,7 @@ let config: JudgeConfig = {
   refineSend: 'send',
   gateV: 'ask',
   coldPrompt: 'off',
+  coldAt: 100,
   appearance: 'auto',
 }
 
@@ -735,6 +741,7 @@ export function readConfig(options: unknown): JudgeConfig {
     refineSend: refiner.send,
     gateV: str(o.gateV) === 'auto' ? 'auto' : 'ask',
     coldPrompt: (['block', 'compact'] as const).find(c => c === str(o.coldPrompt)) ?? 'off',
+    coldAt: COLD_STEPS.includes(Number(str(o.coldAt)) as (typeof COLD_STEPS)[number]) ? Number(str(o.coldAt)) : 100,
     appearance: (['dark', 'light'] as const).find(a => a === str(o.appearance)) ?? 'auto',
     // The judge's line is off until switched on; an empty string saved from the panel means everything shows.
     hide: (o.hide === undefined ? 'reason' : str(o.hide))
@@ -1278,8 +1285,9 @@ async function toggleSave($: EngineInterface): Promise<string> {
   return saving ? 'save mode off' : 'save mode on, Auto stays at medium or below until the limit resets'
 }
 
-/** Below this a cold cache costs too little to warn about: the next message rereads the chat at full price once. */
-const COLD_MIN_TOKENS = 400_000
+/** Below this (config.coldAt, in thousands) a cold cache costs too little to act on: the next message rereads the
+ * chat at full price once. */
+const coldMinTokens = () => config.coldAt * 1000
 
 /** The context's tokens when the cold band is worth showing: the cache is cold, the band not closed, and the chat big
  * enough that rereading it matters. Null otherwise, and while the size is not known yet. */
@@ -1287,7 +1295,7 @@ async function coldWorth($: EngineInterface): Promise<number | null> {
   if ((await read($, cacheLeft)) !== 0 || config.hide.includes('cold') || (await read($, isColdHidden))) return null
   const tokens = lastContext?.tokens
   if (coldForced) return tokens ?? 0
-  return tokens !== undefined && tokens >= COLD_MIN_TOKENS ? tokens : null
+  return tokens !== undefined && tokens >= coldMinTokens() ? tokens : null
 }
 
 /** The cold-prompt guard (config.coldPrompt): the prompt last held back, so sending it again sends it as is. */
@@ -1298,7 +1306,7 @@ async function coldNow($: EngineInterface): Promise<boolean> {
   if ((await read($, cacheLeft)) !== 0 || (await read($, isCompacting))) return false
   if (coldForced) return true
   const tokens = lastContext?.tokens
-  return tokens !== undefined && tokens >= COLD_MIN_TOKENS
+  return tokens !== undefined && tokens >= coldMinTokens()
 }
 
 /**
@@ -1927,6 +1935,7 @@ const SETTING_FIELDS = {
   refineSend: 'refineSend',
   gateV: 'gateV',
   coldPrompt: 'coldPrompt',
+  coldAt: 'coldAt',
 } as const
 
 async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELDS, value: string) {
@@ -1965,6 +1974,7 @@ async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELD
     refineSend: config.refineSend,
     gateV: config.gateV,
     coldPrompt: config.coldPrompt,
+    coldAt: String(config.coldAt),
     [SETTING_FIELDS[field]]: value,
   }
   config = { ...readConfig(raw), typesafeKey: config.typesafeKey }
@@ -4846,6 +4856,7 @@ Saved to ${out}.md and .json` }
         refineSend: draft.refineSend ?? config.refineSend,
         gateV: draft.gateV ?? config.gateV,
         coldPrompt: draft.coldPrompt ?? config.coldPrompt,
+        coldAt: draft.coldAt ?? String(config.coldAt),
       }
       // The Helpers switch slides like Auto's: the time it flipped, seen by the draw after the click.
       const helpersNow = await $.clock.now()
@@ -5144,6 +5155,7 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-swamp", label: "Compact alert at", value: shown.swampAt, options: SWAMP_STEPS.map(n => ({ value: String(n), label: `${n}%` })), onSelect: set('swampAt') }),
             pick({ key: "settings-handoff-button", label: "Handoff button", value: shown.handoffButton, options: [{ value: 'advised', label: 'When advised' }, { value: 'always', label: 'Always' }], onSelect: set('handoffButton') }),
             pick({ key: "settings-cold-prompt", label: "Prompt in a cold chat", value: shown.coldPrompt, options: [{ value: 'off', label: 'Send' }, { value: 'block', label: 'Block' }, { value: 'compact', label: 'Compact & resend' }], onSelect: set('coldPrompt') }),
+            pick({ key: "settings-cold-at", label: "Cold from", value: shown.coldAt, options: COLD_STEPS.map(n => ({ value: String(n), label: `${n}k` })), onSelect: set('coldAt') }),
             ...alertToggles,
 ]) : [
             ...(bare
