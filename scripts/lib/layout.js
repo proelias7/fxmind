@@ -133,6 +133,7 @@ const PROJECT_GITIGNORE_LINES = [
   ".fxmind/corrections/README.md",
   ".fxmind/corrections/correction.template.md",
   ".fxmind/audits/README.md",
+  ".fxmind/audits/procedure.md",
   // fxmind's own agent wiring, copied in again by every install/update: hooks, commands, rules, subagents. Files a
   // person also edits (.claude/settings.json, .mcp.json, .cursor/hooks.json, .cursor/mcp.json, .vscode/tasks.json) stay.
   ".claude/hooks/claude-adapter.js",
@@ -173,7 +174,7 @@ const GENERATED_AGENT_FILES = PROJECT_GITIGNORE_LINES
 /** The team's knowledge under .fxmind/: written by agents and people, shared through git. */
 const SHARED_FXMIND_DIRS = ["memory", "corrections", "audits", "designs", "playbooks", "reports"];
 /** Files fxmind itself installs inside those folders: rewritten by every update, so kept out of git. */
-const INSTALLED_IN_SHARED = [".fxmind/corrections/README.md", ".fxmind/corrections/correction.template.md", ".fxmind/audits/README.md"];
+const INSTALLED_IN_SHARED = [".fxmind/corrections/README.md", ".fxmind/corrections/correction.template.md", ".fxmind/audits/README.md", ".fxmind/audits/procedure.md"];
 
 /** What stays in git under .fxmind/ (every other tracked file there is untracked on install/update). */
 function sharedFxmindFile(file) {
@@ -220,6 +221,7 @@ const WORKTREE_INCLUDE = [...new Set([
   ".fxmind/templates/",
   ".fxmind/skills/",
   ".fxmind/audits/README.md",
+  ".fxmind/audits/procedure.md",
   ".fxmind/corrections/README.md",
   ".fxmind/corrections/correction.template.md",
   ".claude/skills/fxmind/",

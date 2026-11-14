@@ -19,6 +19,7 @@ describe("project .gitignore: only fxmind knowledge is shared", () => {
       ".fxmind/corrections/2026-01-fix.md": "c",
       ".fxmind/audits/robberys.md": "a",
       ".fxmind/audits/README.md": "r",
+      ".fxmind/audits/procedure.md": "p",
       ".fxmind/designs/bancada.md": "d",
       ".fxmind/playbooks/new-shop.md": "p",
       ".fxmind/reference.md": "ref",
