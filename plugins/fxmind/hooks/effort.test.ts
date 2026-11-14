@@ -1,7 +1,7 @@
 import { describe, expect, mock, test as baseTest } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
-import { SETUP_PROMPT, helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
+import { SETUP_PROMPT, behindHint, helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
 import { ART_COLUMNS, artFrame, artPixel, MOVING } from './art'
 import { MARK_SVG } from './brand-mark'
 import { setLanguage, tr } from './i18n'
@@ -4405,5 +4405,15 @@ describe('a repository without fxmind', () => {
     await $.session.start({ cwd: '/r/src', surface: 'desktop', isInteractive: true } as never)
     await mocked.advance(2000)
     expect(texts).toEqual([SETUP_PROMPT])
+  })
+})
+
+describe('an update that did not land', () => {
+  test('behindHint names the local folder the marketplace reads, and how to fix it', () => {
+    const hint = behindHint('1.2.0', '1.2.16', 'F:/proj/fxmind')
+    expect(hint).toContain('Still 1.2.0, not 1.2.16')
+    expect(hint).toContain('F:/proj/fxmind')
+    expect(hint).toContain('git pull')
+    expect(behindHint('1.2.0', '1.2.16')).toContain('Try again')
   })
 })

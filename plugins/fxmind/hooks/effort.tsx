@@ -313,7 +313,8 @@ async function introShows($: EngineInterface, kind: string): Promise<boolean> {
 const TITLE_MARK_SIZE = 16
 
 /** A card's title with the fxmind mark where the ✦ stood; the ✦ stays where the surface draws no images. */
-function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: string, color: string, title: string, mark = MARK_SVG) {
+// The mark takes the colour of its card's title: orange on the running-hot card, ice on the cold one, the theme's on the rest.
+function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: string, color: string, title: string, mark = MARK_SVG.replace('#a79cf7', color)) {
   const { Box: B, Text: T, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Text: (p: Record<string, unknown>) => unknown; Svg?: (p: Record<string, unknown>) => unknown }
   if (!S) return <T key={key} color={color} bold wrap="truncate">{title}</T>
   return (
@@ -3173,9 +3174,17 @@ async function runUpdate($: EngineInterface, card: UpdateCard) {
     if (r.exitCode !== 0) throw new Error(updateFailure(r.stderr || r.stdout) || `claude ${args.join(' ')} failed`)
   }
   try {
+    // A marketplace added from a folder (a local clone) is read as it is on disk: `marketplace update` fetches nothing,
+    // and the update reinstalled the old version while the card said it had updated. A clean clone on main is
+    // fast-forwarded first; any other is left alone, and the check below says what to do.
+    const folder = await localMarketplace($).catch(() => undefined)
+    if (folder) await pullClone($, folder)
     // This install's own marketplace: fxmind for users, fxmind-effort-dev on the dev channel.
     await step(['plugin', 'marketplace', 'update', pluginId($).split('@')[1]])
     await step(['plugin', 'update', pluginId($)])
+    // What the app actually installed: below the offered version, the update did not happen, whatever the CLI said.
+    const got = await recordedVersion($).catch(() => undefined)
+    if (got && isNewer(card.version, got)) throw new Error(behindHint(got, card.version, folder))
   } catch (error) {
     const message = String(error instanceof Error ? error.message : error)
     // No CLI anywhere (a desktop-only install): say what to install, not the engine's ENOENT.
@@ -3197,6 +3206,37 @@ async function runUpdate($: EngineInterface, card: UpdateCard) {
   // Still this code's words after a while: the reload did not load the new version, so a new chat has to.
   $.clock.after(UPDATE_LOAD_WAIT_MS, () => void update($, updateCard, c => (c && c.at === now && c.detail === UPDATE_LOADING ? { ...c, detail: 'Installed. Open a new chat to load it.' } : c)))
 }
+/** The marketplace this install updates from, when it is a folder on disk rather than GitHub: its path. */
+async function localMarketplace($: EngineInterface): Promise<string | undefined> {
+  const home = $.plugin.root.replace(/[\\/]cache[\\/].*$/, '')
+  const known = JSON.parse(String(await $.fs.read(`${home}/known_marketplaces.json`))) as Record<string, { source?: { source?: string; path?: unknown } }>
+  const entry = known[pluginId($).split('@')[1]!]
+  return entry?.source?.source === 'directory' && typeof entry.source.path === 'string' ? entry.source.path : undefined
+}
+
+/** Fast-forwards a local clone on main with no changes to tracked files; anything else is left as it is. */
+async function pullClone($: EngineInterface, dir: string) {
+  const git = (...args: string[]) => $.process.run(['git', '-C', dir, ...args], { timeoutMs: 120_000 })
+  if ((await git('rev-parse', '--abbrev-ref', 'HEAD').catch(() => null))?.stdout?.trim() !== 'main') return
+  if ((await git('status', '--porcelain', '--untracked-files=no').catch(() => null))?.stdout?.trim() !== '') return
+  await git('pull', '--ff-only', '-q', 'origin', 'main').catch(() => undefined)
+}
+
+/** The version installed_plugins.json records for this plugin now. */
+async function recordedVersion($: EngineInterface): Promise<string | undefined> {
+  const home = $.plugin.root.replace(/[\\/]cache[\\/].*$/, '')
+  const record = JSON.parse(String(await $.fs.read(`${home}/installed_plugins.json`))) as { plugins?: Record<string, { version?: unknown }[]> }
+  const versions = (record.plugins?.[pluginId($)] ?? []).map(x => x.version).filter((v): v is string => typeof v === 'string')
+  return versions.sort((a, b) => (isNewer(a, b) ? -1 : 1))[0]
+}
+
+/** Why the update stopped short of the offered version, and what to do. */
+export function behindHint(got: string, wanted: string, folder?: string): string {
+  return folder
+    ? `Still ${got}, not ${wanted}: fxmind installs from the folder ${folder}, which is behind GitHub. Run git pull there, or switch to GitHub: /plugin marketplace remove fxmind, then /plugin marketplace add proelias7/fxmind.`
+    : `Still ${got}, not ${wanted}: the marketplace has not caught up yet. Try again in a few minutes.`
+}
+
 /** The command that puts the installed version's files over the running copy, or nothing when they are the same folder or
  * either is not a plugin cache folder (a working copy is never written over). */
 export function syncPlan(running: string, installed: string | undefined): string[] | undefined {
