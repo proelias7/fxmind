@@ -706,7 +706,7 @@ let config: JudgeConfig = {
   refineClear: 'on',
   refineSend: 'send',
   gateV: 'ask',
-  coldPrompt: 'off',
+  coldPrompt: 'compact',
   coldAt: 100,
   appearance: 'auto',
 }
@@ -740,7 +740,7 @@ export function readConfig(options: unknown): JudgeConfig {
     refineClear: refiner.clear ? 'on' : 'off',
     refineSend: refiner.send,
     gateV: str(o.gateV) === 'auto' ? 'auto' : 'ask',
-    coldPrompt: (['block', 'compact'] as const).find(c => c === str(o.coldPrompt)) ?? 'off',
+    coldPrompt: (['off', 'block'] as const).find(c => c === str(o.coldPrompt)) ?? 'compact',
     coldAt: COLD_STEPS.includes(Number(str(o.coldAt)) as (typeof COLD_STEPS)[number]) ? Number(str(o.coldAt)) : 100,
     appearance: (['dark', 'light'] as const).find(a => a === str(o.appearance)) ?? 'auto',
     // The judge's line is off until switched on; an empty string saved from the panel means everything shows.

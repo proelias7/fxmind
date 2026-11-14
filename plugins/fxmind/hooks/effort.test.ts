@@ -13,8 +13,9 @@ import { afterPrompt, currentStep, phaseAtTurnEnd, progressShare, progressShows,
 // Most tests below were written for the footer's buttons: they run in the minimal look unless they name another.
 // The dashboard's own tests pass { layout: 'default' }.
 type Opts = Parameters<typeof baseTest>[1]
-// The prompt refiner is off here: it would hold back the prompts these tests send (its own tests: refine.test.ts, beside this file).
-const minimal = (o?: Record<string, unknown>) => ({ ...(o ?? {}), options: { layout: 'minimal', refine: 'off', language: 'en', theme: 'violet', ...((o?.options as object) ?? {}) } })
+// The prompt refiner and the cold-chat guard are off here: they would hold back the prompts these tests send (their own
+// tests: refine.test.ts, and 'prompt in a cold chat' below).
+const minimal = (o?: Record<string, unknown>) => ({ ...(o ?? {}), options: { layout: 'minimal', refine: 'off', coldPrompt: 'off', language: 'en', theme: 'violet', ...((o?.options as object) ?? {}) } })
 const test = ((name: string, a: unknown, b?: unknown) =>
   b === undefined
     ? baseTest(name, minimal() as Opts, a as never)
@@ -1172,7 +1173,7 @@ describe('judge choice (plugin settings)', () => {
       refineClear: 'on',
       refineSend: 'send',
       gateV: 'ask',
-      coldPrompt: 'off',
+      coldPrompt: 'compact',
       coldAt: 100,
       appearance: 'auto',
     })
@@ -4295,7 +4296,7 @@ describe('prompt in a cold chat', () => {
     expect(submitted).toEqual(['fix the login'])
   })
 
-  test('compact: the chat is compacted, then the prompt is sent by itself', { options: { coldPrompt: 'compact' } } as never, async ($, on) => {
+  test('compact, the default: the chat is compacted, then the prompt is sent by itself', { options: { coldPrompt: 'compact' } } as never, async ($, on) => {
     const { ran, submitted } = coldEngine(on)
     const mocked = mock.clock(on)
     await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
@@ -4307,7 +4308,7 @@ describe('prompt in a cold chat', () => {
     expect(submitted).toEqual(['fix the login'])
   })
 
-  test('off, the default: a cold chat takes the prompt as before', async ($, on) => {
+  test('off: a cold chat takes the prompt as before', { options: { coldPrompt: 'off' } } as never, async ($, on) => {
     const { submitted } = coldEngine(on)
     await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
     await $.command.run({ command: 'fxmind-effort', args: 'cold' })
@@ -4315,11 +4316,12 @@ describe('prompt in a cold chat', () => {
     expect(submitted).toEqual(['fix the login'])
   })
 
-  test('readConfig: coldPrompt is off unless block or compact', () => {
-    expect(readConfig({}).coldPrompt).toBe('off')
+  test('readConfig: coldPrompt is compact unless off or block', () => {
+    expect(readConfig({}).coldPrompt).toBe('compact')
+    expect(readConfig({ coldPrompt: 'off' }).coldPrompt).toBe('off')
     expect(readConfig({ coldPrompt: 'block' }).coldPrompt).toBe('block')
     expect(readConfig({ coldPrompt: 'compact' }).coldPrompt).toBe('compact')
-    expect(readConfig({ coldPrompt: 'x' }).coldPrompt).toBe('off')
+    expect(readConfig({ coldPrompt: 'x' }).coldPrompt).toBe('compact')
     expect(readConfig({}).coldAt).toBe(100)
     expect(readConfig({ coldAt: '200' }).coldAt).toBe(200)
     expect(readConfig({ coldAt: '7' }).coldAt).toBe(100)
