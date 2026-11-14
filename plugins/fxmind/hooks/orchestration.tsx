@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, RenderInput } from 'claude-code'
+import type { EngineInterface, RenderInput } from 'claude-code'
 
 import type { OrchestrationConfig, OrchestrationRoutingRule, OrchestrationSession, OrchestrationSubtask } from '../types'
 import { AGENTS_PANE } from './agents'
@@ -7,7 +7,6 @@ import { projectRoot } from './project-root'
 import type { RefineFrame } from './refine'
 import { themedEls } from './theme'
 
-type On = Parameters<Register>[0]
 
 const STATE_REL_PATH = '.fxmind/state/orchestrations.json'
 const CONFIG_REL_PATH = '.fxmind/orchestration.json'
@@ -38,14 +37,12 @@ export const DEFAULT_ORCHESTRATION_CONFIG: OrchestrationConfig = {
 
 // Cache by path + mtimeMs (with raw string fallback when $.fs.stat is unavailable).
 let cachedPath = ''
-let cachedMtimeMs = -1
 let cachedRaw = ''
 let cachedSession: OrchestrationSession | null = null
 let autoOpenedForId = ''
 let pollTimer: { cancel: () => void } | undefined
 
 function resetCache() {
-  cachedMtimeMs = -1
   cachedRaw = ''
 }
 
@@ -104,31 +101,9 @@ export async function syncOrchestration($: EngineInterface): Promise<Orchestrati
   }
 
   const filePath = `${root}/${STATE_REL_PATH}`
-  const fsWithStat = $.fs as typeof $.fs & { stat?: (p: string) => Promise<{ mtimeMs?: number }> }
-
-  if (typeof fsWithStat.stat === 'function') {
-    const st = await fsWithStat.stat(filePath).catch(() => null)
-    if (!st) {
-      cachedPath = filePath
-      cachedMtimeMs = -1
-      cachedRaw = ''
-      cachedSession = null
-      if ((await read($, orchestrationState)) !== null) {
-        await update($, orchestrationState, () => null)
-        $.ui.invalidate('ui.render')
-      }
-      return null
-    }
-    if (cachedPath === filePath && typeof st.mtimeMs === 'number' && st.mtimeMs === cachedMtimeMs) {
-      return cachedSession
-    }
-    cachedMtimeMs = typeof st.mtimeMs === 'number' ? st.mtimeMs : -1
-  }
-
   const rawText = await $.fs.read(filePath).catch(() => null)
   if (rawText === null || rawText === undefined) {
     cachedPath = filePath
-    cachedMtimeMs = -1
     cachedRaw = ''
     cachedSession = null
     if ((await read($, orchestrationState)) !== null) {
@@ -198,7 +173,6 @@ async function cancelOrchestrationAction($: EngineInterface, session: Orchestrat
  * (`mode: "confirm"`), using the shared FXMind band frame.
  */
 export async function orchestrationBand($: EngineInterface, e: RenderInput<'AbovePrompt'>, frame: RefineFrame) {
-  await syncOrchestration($)
   const session = await read($, orchestrationState)
   if (!session || session.status !== 'awaiting_approval') return null
 
@@ -298,42 +272,33 @@ export async function writeProjectOrchestrationConfig($: EngineInterface, nextCo
 
 const ORCH_TOOL_RE = /fxmind_orchestrate|fxmind_orchestration_status|fxmind_orchestration_control/
 
-export function registerOrchestration(on: On, _options: unknown) {
+/**
+ * Claude only permits one unfiltered handler per event. Lifecycle hooks are
+ * registered by effort.tsx, which calls these helpers: a second session.start,
+ * tool.call, or turn.complete causes the whole mod to fail validation/load.
+ */
+export function startOrchestrationSession($: EngineInterface) {
   resetCache()
   cachedSession = null
   autoOpenedForId = ''
-
-  on('session.start', async ($, e, next) => {
+  if (pollTimer) {
+    pollTimer.cancel()
+    pollTimer = undefined
+  }
+  void syncOrchestration($).catch(() => undefined)
+  pollTimer = $.clock.every(POLL_INTERVAL_MS, () => {
     void syncOrchestration($).catch(() => undefined)
-    if (pollTimer) {
-      pollTimer.cancel()
-      pollTimer = undefined
-    }
-    pollTimer = $.clock.every(POLL_INTERVAL_MS, () => {
-      void syncOrchestration($).catch(() => undefined)
-    })
-    return next(e)
   })
+}
 
-  on('tool.call', async ($, e, next) => {
-    const toolName = String(e.tool || '')
-    if (!ORCH_TOOL_RE.test(toolName)) return next(e)
+export function orchestrationToolStart($: EngineInterface, toolName: string) {
+  if (/fxmind_orchestrate$/.test(toolName)) {
+    void $.ui.open({ id: AGENTS_PANE, title: 'Agents' }).catch(() => undefined)
+  }
+}
 
-    if (/fxmind_orchestrate$/.test(toolName)) {
-      void $.ui.open({ id: AGENTS_PANE, title: 'Agents' }).catch(() => undefined)
-    }
-
-    const result = await next(e)
-    resetCache()
-    await syncOrchestration($).catch(() => undefined)
-    return result
-  })
-
-  on('turn.complete', async ($, e, next) => {
-    const result = await next(e)
-    if (!e.agentId) {
-      void syncOrchestration($).catch(() => undefined)
-    }
-    return result
-  })
+export function orchestrationToolFinished($: EngineInterface, toolName: string) {
+  if (!ORCH_TOOL_RE.test(toolName)) return
+  resetCache()
+  void syncOrchestration($).catch(() => undefined)
 }

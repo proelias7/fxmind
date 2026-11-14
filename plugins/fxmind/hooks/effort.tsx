@@ -5,7 +5,7 @@ import type { EngineInterface, ModelForkResult, Register, RenderInput } from 'cl
 
 import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, ModelKey, OrchestrationConfig, Pick, SettingsDraft, Spent } from '../types'
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
-import { DEFAULT_ORCHESTRATION_CONFIG, orchestrationBand, orchestrationState, readProjectOrchestrationConfig, syncOrchestration, writeProjectOrchestrationConfig } from './orchestration'
+import { DEFAULT_ORCHESTRATION_CONFIG, orchestrationBand, orchestrationToolFinished, orchestrationToolStart, readProjectOrchestrationConfig, startOrchestrationSession, syncOrchestration, writeProjectOrchestrationConfig } from './orchestration'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
 import { MARK_SVG, TEXTURE_SVG, TEXTURE_TALL_SVG } from './brand-mark'
 import { projectRoot } from './project-root'
@@ -241,6 +241,7 @@ const agentsOpen = atom({ plugin: 'fxmind', key: 'agentsOpen' } as const, null)
 const agentFiles = atom({ plugin: 'fxmind', key: 'agentFiles' } as const, [])
 const agentSteps = atom({ plugin: 'fxmind', key: 'agentSteps' } as const, null)
 const agentsModule = atom({ plugin: 'fxmind', key: 'agentsModule' } as const, null)
+const orchestrationPaneState = atom({ plugin: 'fxmind', key: 'orchestration' } as const, null)
 // Save mode: Auto picks at most medium until this time (ms), when the limit resets.
 const saveUntil = atom({ plugin: 'fxmind', key: 'saveUntil' } as const, null)
 const isColdHidden = atom({ plugin: 'fxmind', key: 'isColdHidden' } as const, false)
@@ -1916,10 +1917,16 @@ async function loadInstalledSkills($: EngineInterface) {
 
 /** Opens the fxmind settings panel above the prompt: the app does not let a plugin open its /plugin dialog. */
 async function openPluginSettings($: EngineInterface) {
-  await loadInstalledSkills($)
   orchDraft = null
-  orchConfigLoaded = await readProjectOrchestrationConfig($)
+  orchConfigLoaded = DEFAULT_ORCHESTRATION_CONFIG
+  // Draw the panel first; listing commands and probing project config can be
+  // slow in Claude desktop and must never hold its first frame open.
   await update($, settingsOpen, () => true)
+  void loadInstalledSkills($).then(() => $.ui.invalidate('ui.render')).catch(() => undefined)
+  void readProjectOrchestrationConfig($).then(cfg => {
+    orchConfigLoaded = cfg
+    $.ui.invalidate('ui.render')
+  }).catch(() => undefined)
   // Before a chat's first message the app may start the mod's session afresh for each command, and the state with
   // it: the request also goes to the store, which outlives that, and the next drawing picks it up.
   // The store is shared by every chat, so the request names this one: another chat must not open its panel too.
@@ -4213,6 +4220,7 @@ export const register: Register = (on, options) => {
     // The footer line this mod once wrote (memories, task gates) lives in the side panel now: clear any left behind.
     try { void Promise.resolve($.ui.status(undefined)).catch(() => undefined) } catch { /* no footer to clear */ }
     void refineStart($).catch(() => undefined)
+    startOrchestrationSession($)
     // Gate V may ask the person in the band: the server waits on a fresh marker, and a question may already be waiting.
     void markGateV($).then(() => readGateVAsk($)).catch(() => undefined)
     // A repository without fxmind's memory: offered the install in the band (or installed, per the setting).
@@ -4831,6 +4839,7 @@ Saved to ${out}.md and .json` }
   })
 
   on('tool.call', async ($, e, next) => {
+    orchestrationToolStart($, String(e.tool || ''))
     const id = e.agentId
     const input = e as unknown as Record<string, unknown>
     const touch = touchOf(e.tool, input)
@@ -4840,6 +4849,7 @@ Saved to ${out}.md and .json` }
       const plain = await next(e)
       // Gate V may have left its question for the person: the band shows it as soon as the call returns.
       if (/fxmind_record_gate$/.test(String(e.tool))) await readGateVAsk($).catch(() => undefined)
+      orchestrationToolFinished($, String(e.tool || ''))
       return plain
     }
     if (known && id !== undefined) {
@@ -4861,14 +4871,14 @@ Saved to ${out}.md and .json` }
       const steps = ok && e.tool === 'TodoWrite' ? stepsFromTodos(e.todos) : undefined
       await agentSet($, id, a => ({ ...a, toolSince: undefined, file: undefined, state: a.state === 'waiting' ? 'running' : a.state, ...(steps ? { steps } : {}) }))
     }
+    orchestrationToolFinished($, String(e.tool || ''))
     return result
   })
 
   on('ui.render', { component: 'Pane', requestId: 'fxmind-effort-agents' }, async ($, e) => {
     const els = themedEls($.ui.resolve(e))
-    await syncOrchestration($)
     const agents = await read($, agentsState)
-    const orchestration = await read($, orchestrationState)
+    const orchestration = await read($, orchestrationPaneState)
     const open = await read($, agentsOpen)
     const rows = Math.max(12, e.props.scroll.bodyRows)
     return agentsPane(
