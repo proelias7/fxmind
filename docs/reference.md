@@ -19,8 +19,8 @@ FXMIND ships a portable Agent Plugin. Install its **skills-only** integration pe
 ## Quick start
 
 ```bash
-# From your project root
-npx --yes github:proelias7/fxmind -y
+# From your project root (--project: without it, a folder with no .fxmind is left untouched)
+npx --yes github:proelias7/fxmind --project -y
 
 # After creating memories with /fxmind learn
 npx --yes github:proelias7/fxmind graph
@@ -30,7 +30,7 @@ Optional global install (faster day-to-day):
 
 ```bash
 npm install -g github:proelias7/fxmind
-fxmind -y
+fxmind --project -y
 ```
 
 Restart your agent IDE/CLI after install or update.

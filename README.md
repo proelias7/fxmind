@@ -29,7 +29,7 @@ Requires [Node.js](https://nodejs.org) 20.9+. Pick one way:
 
 ```text
 Install fxmind in this project. Check that Node.js 20.9+ is installed, then run in the project root:
-npx --yes github:proelias7/fxmind --claude -y
+npx --yes github:proelias7/fxmind --claude --project -y
 (replace --claude with the flag for the agent you are: --codex, --cursor, --gemini, --opencode or --copilot).
 It installs the fxmind runtime globally so its MCP and hooks keep working. Show me the summary and tell me to restart you; then I will run /fxmind init.
 ```
@@ -76,8 +76,9 @@ Codex uses `$fxmind`, Gemini uses `/fxmind:learn`.
 ## Options
 
 ```bash
-npx --yes github:proelias7/fxmind --claude -y        # pick the agent: --cursor --claude --codex --gemini --opencode --copilot
-npx --yes github:proelias7/fxmind --pack web -y      # pick the pack: web, fivem (default: detected)
+npx --yes github:proelias7/fxmind --claude -y                  # global only (CLI + mod): no folder is touched
+npx --yes github:proelias7/fxmind --claude --project -y        # also this project's .fxmind; agents: --cursor --claude --codex --gemini --opencode --copilot
+npx --yes github:proelias7/fxmind --project --pack web -y      # pick the pack: web, fivem (default: detected)
 ```
 
 Everything else — MCP tools, hooks, web panel, global install, custom packs — is in the [full reference](docs/reference.md).

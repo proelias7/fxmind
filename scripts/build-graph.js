@@ -744,7 +744,7 @@ function buildGraphData(projectRoot, options = {}) {
 
   if (!fs.existsSync(localFxmindDir)) {
     throw new Error(
-      `Missing ${SHARED_DIR}/ — run fxmind -y from the project root first.`,
+      `Missing ${SHARED_DIR}/ — run fxmind --project -y from the project root first.`,
     );
   }
 

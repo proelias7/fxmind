@@ -2079,7 +2079,7 @@ export function gateVMessage(decision: 'review' | 'skip', label?: string): strin
 }
 
 /** What the agent is asked to do in a repository with no .fxmind yet: the plugin's fxmind-setup skill, then init. */
-export const SETUP_PROMPT = 'Set up fxmind in this project: use the fxmind-setup skill (it runs `npx --yes github:proelias7/fxmind --claude -y` in this repository and keeps any memories). Then tell me to restart Claude Code and run /fxmind init.'
+export const SETUP_PROMPT = 'Set up fxmind in this project: use the fxmind-setup skill (it runs `npx --yes github:proelias7/fxmind --claude --project -y` in this repository and keeps any memories). Then tell me to restart Claude Code and run /fxmind init.'
 
 /** The git repository the session is in when it has no .fxmind yet; null in one that has it, or outside a repository. */
 export async function repoWithoutFxmind($: EngineInterface): Promise<string | null> {

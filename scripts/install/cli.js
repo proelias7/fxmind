@@ -57,7 +57,8 @@ Without global install:
   ${npxInstall("init")}               Interactive mode (packs, agents, skills, Jev)
   ${npxInstall("-y")}                Core + detected pack (Cursor only)
   ${npxInstall("--cursor -y")}       Cursor only (explicit)
-  ${npxInstall("--claude -y")}       Claude Code only
+  ${npxInstall("--claude -y")}       Claude Code: global only (CLI + mod); touches no folder
+  ${npxInstall("--claude --project -y")}  Claude Code + this project's .fxmind
   ${npxInstall("--codex -y")}        Codex only
   ${npxInstall("--gemini -y")}       Gemini CLI only
   ${npxInstall("--opencode -y")}     OpenCode only (skills + explore/reader/general/scout)
@@ -113,7 +114,9 @@ Options:
   --fivem-dev        Install/refresh local FiveM RCON + fivem-start task
   --no-fivem-dev     Skip local FiveM RCON / fivem-start wiring
   --replace-agents   Replace agent set (remove fxmind from agents not selected this run)
-  --target <dir>     Project root (default: current directory)
+  --project          Install fxmind into the current folder (.fxmind, skills, hooks, MCP). Without it, a folder
+                     with no .fxmind is left untouched: only the global parts (CLI, Claude Code mod) are installed
+  --target <dir>     Project root (default: current directory; implies --project)
   --pack <id>        Knowledge pack to install (e.g. fivem)
   --packs <list>     Comma-separated packs (e.g. fivem)
   --all-packs        Install every available knowledge pack
@@ -177,6 +180,8 @@ function parseArgs(argv) {
     fivem: null,
     replaceAgents: false,
     noSelfUpdate: false,
+    project: false,
+    explicitTarget: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -298,6 +303,11 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--project") {
+      options.project = true;
+      continue;
+    }
+
     if (arg === "--no-self-update") {
       options.noSelfUpdate = true;
       continue;
@@ -339,6 +349,7 @@ function parseArgs(argv) {
     }
 
     if (arg === "--target") {
+      options.explicitTarget = true;
       options.target = path.resolve(argv[i + 1] || "");
       i += 1;
       continue;

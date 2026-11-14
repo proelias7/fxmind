@@ -89,6 +89,35 @@ function generatePanelBuild(reason) {
   return result;
 }
 
+/** The global install: the CLI (already refreshed by the self-update) and the user-scoped plugins. No project files. */
+function installGlobalOnly(options) {
+  const agents = options.agents && options.agents.length ? options.agents : [...DEFAULT_AGENTS];
+  const skipPlugins = options.noPlugin || process.env.NODE_TEST_CONTEXT || process.env.FXMIND_SKIP_PLUGIN === "1";
+  console.log(`\nfxmind ${getPackageVersion()} (global)`);
+  console.log(`No .fxmind in ${options.target}: this folder was left untouched.`);
+  for (const id of agents) {
+    if (skipPlugins) break;
+    if (id === "claude") {
+      const mod = require("./plugin-cli").ensureClaudeMod();
+      if (mod.status === "failed") {
+        console.log("  ! Claude Code mod: " + mod.reason);
+        console.log("    In Claude Code: /plugin marketplace add proelias7/fxmind, then /plugin install fxmind@fxmind");
+      } else {
+        console.log("  ✓ Claude Code mod (user scope)");
+      }
+    } else if (id === "cursor" || id === "codex") {
+      try {
+        require("./plugin-cli").installPlugin(id, { log: () => undefined });
+        console.log(`  ✓ ${AGENTS[id]?.label || id} plugin (user scope)`);
+      } catch (error) {
+        console.log(`  ! ${AGENTS[id]?.label || id} plugin: ${error.message}`);
+      }
+    }
+  }
+  console.log("To add fxmind to a project, run in its folder: fxmind init  (or " + npxInstall("--project -y") + ")");
+  console.log("Restart your agent IDE/CLI or open a new session.");
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const initializing = argv[0] === "init";
@@ -262,6 +291,13 @@ async function main() {
 
   // Also on a first `npx` install: the MCP and hooks it writes run the global runtime.
   maybeSelfUpdateAndReexec(argv, options);
+
+  // fxmind is global: a folder is only touched when it already has .fxmind, or when asked (init, --project, --target).
+  if (!initializing && !options.project && !options.explicitTarget &&
+      !fs.existsSync(require("path").join(options.target, ".fxmind"))) {
+    installGlobalOnly(options);
+    return;
+  }
 
   if (options.update) {
     if (options.interactive || options.allPacks || options.noPacks) {
@@ -672,7 +708,7 @@ async function main() {
   console.log("Done.");
   console.log("Restart your agent IDE/CLI or open a new session.");
   console.log(`Update packs/skills: ${npxInstall("--update -y")}  (or after global: fxmind --update -y)`);
-  console.log(`Reinstall from scratch: ${npxInstall("-y")}  (or after global: fxmind -y)`);
+  console.log(`Reinstall from scratch: ${npxInstall("--project -y")}  (or after global: fxmind --project -y)`);
   console.log(
     "Cursor/Claude/OpenCode: /fxmind  |  Codex: $fxmind  |  Gemini: /fxmind, /fxmind:init, /fxmind:audit, /fxmind:learn, /fxmind:memory, /fxmind:graph",
   );

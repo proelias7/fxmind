@@ -26,7 +26,7 @@ The builder reads `.fxmind/memory/_index.md`, `.fxmind/memory/*.md`, and `.fxmin
 
 Report what the builder printed (learned / catalog / links / tokens counts) and the paths to `knowledge-graph.json` and `knowledge-graph.html`. Remind the user to re-run after `/fxmind learn`, and that `/fxmind query` uses the graph for retrieval.
 
-If `.fxmind/` is missing → tell the user to run `fxmind -y` first.
+If `.fxmind/` is missing → tell the user to run `fxmind --project -y` first.
 
 ## Graph rules
 

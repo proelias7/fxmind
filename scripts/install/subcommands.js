@@ -513,7 +513,7 @@ Also ensures .fxmind/audits/ exists with README.
 
   const fxmindDir = path.join(options.target, SHARED_DIR);
   if (!fs.existsSync(fxmindDir)) {
-    console.error(`Error: missing ${SHARED_DIR}/ — run fxmind -y first.`);
+    console.error(`Error: missing ${SHARED_DIR}/ — run fxmind --project -y first.`);
     return 1;
   }
 

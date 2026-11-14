@@ -10,7 +10,7 @@ On new Cursor sessions, the `sessionStart` hook may inject context when a newer 
 
 ### Step 1 — Verify install
 
-If `.fxmind/packs.json` is missing → tell user to run `npx github:proelias7/fxmind -y` (or `fxmind -y` if installed globally) from the project root; stop.
+If `.fxmind/packs.json` is missing → tell user to run `npx github:proelias7/fxmind --project -y` (or `fxmind --project -y` if installed globally) from the project root; stop.
 
 ### Step 2 — Run update CLI
 
