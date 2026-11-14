@@ -12,6 +12,7 @@ const {
   lastUserTextFromTranscript,
   lastAssistantTextFromTranscript,
   claimSessionNag,
+  gateVAwaitingUser,
   shouldFollowup,
 } = require("./stop-followup");
 
@@ -159,5 +160,35 @@ describe("claimSessionNag", () => {
     assert.equal(claimSessionNag(tmpDir, "sess-1"), true);
     assert.equal(claimSessionNag(tmpDir, "sess-1"), false);
     assert.equal(claimSessionNag(tmpDir, "sess-2"), true);
+  });
+});
+
+describe("gateVAwaitingUser", () => {
+  let dir;
+  const write = (name, value) => {
+    fs.mkdirSync(path.join(dir, ".fxmind", "state"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".fxmind", "state", name), JSON.stringify(value));
+  };
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-gatev-"));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("is false with no pending question", () => {
+    assert.equal(gateVAwaitingUser(dir, "task-1"), false);
+  });
+
+  it("is true while the panel question for this task is unanswered", () => {
+    write("gate-v-pending.json", { sessionId: "task-1" });
+    assert.equal(gateVAwaitingUser(dir, "task-1"), true);
+  });
+
+  it("is false once the person answered, or for another task", () => {
+    write("gate-v-pending.json", { sessionId: "task-1" });
+    assert.equal(gateVAwaitingUser(dir, "task-2"), false);
+    write("gate-v-choice.json", { sessionId: "task-1", decision: "skip" });
+    assert.equal(gateVAwaitingUser(dir, "task-1"), false);
   });
 });

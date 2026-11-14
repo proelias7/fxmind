@@ -18,6 +18,7 @@ const {
   lastUserTextFromPayload,
   lastAssistantTextFromPayload,
   claimSessionNag,
+  gateVAwaitingUser,
   GATE_V_REMINDER,
   GATE_C_REMINDER,
 } = require("./lib/stop-followup.js");
@@ -148,6 +149,11 @@ async function main() {
       lastAssistantText,
     })
   ) {
+    noop();
+  }
+
+  // Gate V is asking the person in the fxmind panel: wait for their answer, never push the agent past it.
+  if (!v && gateVAwaitingUser(PROJECT_ROOT, gates.sessionId)) {
     noop();
   }
 

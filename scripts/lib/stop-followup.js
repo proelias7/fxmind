@@ -220,6 +220,26 @@ function claimSessionNag(projectRoot, sessionId) {
   return true;
 }
 
+/**
+ * Gate V is waiting on the person in the fxmind panel (gate-v-ask.js): the server left its question for this task
+ * and no answer exists yet. The agent was told to end its turn; a reminder would push it past the person's choice.
+ */
+function gateVAwaitingUser(projectRoot, sessionId) {
+  const state = path.join(projectRoot, ".fxmind", "state");
+  const read = (name) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(state, name), "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const pending = read("gate-v-pending.json");
+  if (!pending || !pending.sessionId) return false;
+  if (sessionId && pending.sessionId !== sessionId) return false;
+  const choice = read("gate-v-choice.json");
+  return !(choice && choice.sessionId === pending.sessionId);
+}
+
 function shouldFollowup(input = {}) {
   const status = String(input.status || "completed").toLowerCase();
   if (status === "aborted" || status === "error" || status === "cancelled" || status === "canceled") {
@@ -252,6 +272,7 @@ module.exports = {
   lastAssistantTextFromTranscript,
   lastAssistantTextFromPayload,
   claimSessionNag,
+  gateVAwaitingUser,
   nagStatePath,
   shouldFollowup,
 };
