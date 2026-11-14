@@ -1172,6 +1172,7 @@ describe('judge choice (plugin settings)', () => {
       refineClear: 'on',
       refineSend: 'send',
       gateV: 'ask',
+      coldPrompt: 'off',
       appearance: 'auto',
     })
     expect(readConfig({ swampAt: '20' })).toMatchObject({ swampAt: 20 })
@@ -4247,5 +4248,76 @@ describe('Gate V asks in the band', () => {
     expect(await drawn(band)).toContain('Revisar')
     expect(await drawn(band)).toContain('Pular')
     await band.unmount()
+  })
+})
+
+describe('prompt in a cold chat', () => {
+  function coldEngine(on: On) {
+    mock.store(on)
+    mock.env(on, { FXMIND_EFFORT_MODEL_UI: '1' })
+    on('ui.status', () => ({ value: undefined }))
+    on('ui.toast', () => ({ value: undefined }) as never)
+    on('session.messages', () => ({ value: [] }) as never)
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    on('command.list', () => ({ value: [] as never }))
+    on('session.start', (_$, e) => ({ cwd: e.cwd }) as never)
+    on('command.register', () => ({ value: undefined }) as never)
+    const ran: string[] = []
+    on('command.run', (_$, e) => {
+      ran.push(`${e.command} ${e.args ?? ''}`.trim())
+      return { text: 'ok' }
+    })
+    const submitted: string[] = []
+    on('prompt.submit', (_$, e) => {
+      submitted.push(e.text)
+      return { text: e.text }
+    })
+    const filled: string[] = []
+    on('prompt.fill', (_$, e) => {
+      filled.push(e.text)
+      return { isFilled: true }
+    })
+    return { ran, submitted, filled }
+  }
+
+  test('block: the prompt is held and left in the box; sent again, it goes in', { options: { coldPrompt: 'block' } } as never, async ($, on) => {
+    const { submitted, filled } = coldEngine(on)
+    const mocked = mock.clock(on)
+    await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
+    await $.command.run({ command: 'fxmind-effort', args: 'cold' })
+    const first = await $.prompt.submit({ text: 'fix the login', wait: false, origin: { kind: 'composer' } })
+    expect(String((first as { drop?: string }).drop)).toContain('went cold')
+    await mocked.advance(10)
+    expect(filled).toEqual(['fix the login'])
+    expect(submitted).toEqual([])
+    await $.prompt.submit({ text: 'fix the login', wait: false, origin: { kind: 'composer' } })
+    expect(submitted).toEqual(['fix the login'])
+  })
+
+  test('compact: the chat is compacted, then the prompt is sent by itself', { options: { coldPrompt: 'compact' } } as never, async ($, on) => {
+    const { ran, submitted } = coldEngine(on)
+    const mocked = mock.clock(on)
+    await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
+    await $.command.run({ command: 'fxmind-effort', args: 'cold' })
+    const first = await $.prompt.submit({ text: 'fix the login', wait: false, origin: { kind: 'composer' } })
+    expect(String((first as { drop?: string }).drop)).toContain('compacting first')
+    await mocked.advance(10)
+    expect(ran).toContain('compact')
+    expect(submitted).toEqual(['fix the login'])
+  })
+
+  test('off, the default: a cold chat takes the prompt as before', async ($, on) => {
+    const { submitted } = coldEngine(on)
+    await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
+    await $.command.run({ command: 'fxmind-effort', args: 'cold' })
+    await $.prompt.submit({ text: 'fix the login', wait: false, origin: { kind: 'composer' } })
+    expect(submitted).toEqual(['fix the login'])
+  })
+
+  test('readConfig: coldPrompt is off unless block or compact', () => {
+    expect(readConfig({}).coldPrompt).toBe('off')
+    expect(readConfig({ coldPrompt: 'block' }).coldPrompt).toBe('block')
+    expect(readConfig({ coldPrompt: 'compact' }).coldPrompt).toBe('compact')
+    expect(readConfig({ coldPrompt: 'x' }).coldPrompt).toBe('off')
   })
 })

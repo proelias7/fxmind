@@ -1,6 +1,6 @@
 {
   "name": "fxmind",
-  "version": "1.2.10",
+  "version": "1.2.11",
   "description": "Project memory and on-demand task workflows with FXMIND MCP.",
   "author": { "name": "FXMIND" },
   "license": "MIT"

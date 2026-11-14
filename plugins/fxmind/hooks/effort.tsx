@@ -662,6 +662,9 @@ export type JudgeConfig = {
   /** ask: Gate V asks in the band above the prompt whether to run the independent review, and with which agent.
    * auto: it runs at once, on the agent fxmind picks. */
   gateV: 'ask' | 'auto'
+  /** A prompt typed once the cache went cold on a big chat. off: sent as is. block: held back, left in the prompt box
+   * (sending it again sends it). compact: the chat is compacted first, then the prompt goes in by itself. */
+  coldPrompt: 'off' | 'block' | 'compact'
   /** auto: light when Claude Code's own theme is light. dark and light fix it. */
   appearance: 'auto' | 'dark' | 'light'
 }
@@ -698,6 +701,7 @@ let config: JudgeConfig = {
   refineClear: 'on',
   refineSend: 'send',
   gateV: 'ask',
+  coldPrompt: 'off',
   appearance: 'auto',
 }
 
@@ -730,6 +734,7 @@ export function readConfig(options: unknown): JudgeConfig {
     refineClear: refiner.clear ? 'on' : 'off',
     refineSend: refiner.send,
     gateV: str(o.gateV) === 'auto' ? 'auto' : 'ask',
+    coldPrompt: (['block', 'compact'] as const).find(c => c === str(o.coldPrompt)) ?? 'off',
     appearance: (['dark', 'light'] as const).find(a => a === str(o.appearance)) ?? 'auto',
     // The judge's line is off until switched on; an empty string saved from the panel means everything shows.
     hide: (o.hide === undefined ? 'reason' : str(o.hide))
@@ -1283,6 +1288,59 @@ async function coldWorth($: EngineInterface): Promise<number | null> {
   const tokens = lastContext?.tokens
   if (coldForced) return tokens ?? 0
   return tokens !== undefined && tokens >= COLD_MIN_TOKENS ? tokens : null
+}
+
+/** The cold-prompt guard (config.coldPrompt): the prompt last held back, so sending it again sends it as is. */
+let coldHeld: string | null = null
+
+/** Whether a prompt typed now meets a cold cache on a chat big enough to matter: the band's test, without its ✕. */
+async function coldNow($: EngineInterface): Promise<boolean> {
+  if ((await read($, cacheLeft)) !== 0 || (await read($, isCompacting))) return false
+  if (coldForced) return true
+  const tokens = lastContext?.tokens
+  return tokens !== undefined && tokens >= COLD_MIN_TOKENS
+}
+
+/**
+ * Holds back a prompt typed into a cold chat, per config.coldPrompt. block: it stays in the prompt box, and the same
+ * prompt sent again goes in as is. compact: the chat is compacted (the app's own /compact), then the prompt is sent by
+ * itself. A prompt with attachments is only held, since a resend carries the text alone. Undefined lets it through.
+ */
+export async function coldGuard(
+  $: EngineInterface,
+  e: { text: string; origin: { kind: string }; turnId?: string; attachments?: readonly unknown[] },
+): Promise<{ drop: string } | undefined> {
+  if (config.coldPrompt === 'off' || e.origin.kind !== 'composer' || e.turnId !== undefined) return undefined
+  const text = e.text
+  if (!text.trim() || text.trim().startsWith('/')) return undefined
+  if (!(await coldNow($))) {
+    coldHeld = null
+    return undefined
+  }
+  if (coldHeld === text) {
+    coldHeld = null
+    return undefined
+  }
+  if (config.coldPrompt === 'compact' && !e.attachments?.length) {
+    coldHeld = null
+    $.clock.after(0, () => void compactThenSend($, text))
+    return { drop: tr('fxmind: the chat went cold, compacting first; your prompt is sent right after') }
+  }
+  coldHeld = text
+  $.clock.after(0, () => void $.prompt.fill({ text, mode: 'replace' }).catch(() => undefined))
+  return { drop: tr('fxmind: the chat went cold, prompt held. Compact or hand off first, or send it again to send as is') }
+}
+
+async function compactThenSend($: EngineInterface, text: string) {
+  await compactCold($)
+  // compactCold clears the countdown once /compact landed; while it still reads cold, the compact failed (its toast
+  // says why) and the prompt goes back in the box instead of being sent over the cold chat.
+  if ((await read($, cacheLeft)) === 0) {
+    coldHeld = text
+    await $.prompt.fill({ text, mode: 'replace' }).catch(() => undefined)
+    return
+  }
+  await $.prompt.submit({ text, asUser: true })
 }
 
 /** The countdown's colour for whole minutes left (rounded up, as cacheMinutes gives): none (grey), yellow or red. */
@@ -1868,6 +1926,7 @@ const SETTING_FIELDS = {
   refineClear: 'refineClear',
   refineSend: 'refineSend',
   gateV: 'gateV',
+  coldPrompt: 'coldPrompt',
 } as const
 
 async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELDS, value: string) {
@@ -1905,6 +1964,7 @@ async function saveSetting($: EngineInterface, field: keyof typeof SETTING_FIELD
     refineClear: config.refineClear,
     refineSend: config.refineSend,
     gateV: config.gateV,
+    coldPrompt: config.coldPrompt,
     [SETTING_FIELDS[field]]: value,
   }
   config = { ...readConfig(raw), typesafeKey: config.typesafeKey }
@@ -4250,6 +4310,9 @@ Saved to ${out}.md and .json` }
     // The prompt refiner goes first (./refine): a demand to build is held back, clarified and rewritten.
     const held = await refineSubmit($, e)
     if (held) return held
+    // A prompt typed into a cold chat: held back, or the chat compacted first (Settings → Handoff & alerts).
+    const cold = await coldGuard($, e)
+    if (cold) return cold
     await setTurnBusy($, true)
     turnCost = 0
     // A landed handoff's card goes once the next message is sent.
@@ -4782,6 +4845,7 @@ Saved to ${out}.md and .json` }
         refineClear: draft.refineClear ?? config.refineClear,
         refineSend: draft.refineSend ?? config.refineSend,
         gateV: draft.gateV ?? config.gateV,
+        coldPrompt: draft.coldPrompt ?? config.coldPrompt,
       }
       // The Helpers switch slides like Auto's: the time it flipped, seen by the draw after the click.
       const helpersNow = await $.clock.now()
@@ -5079,6 +5143,7 @@ Saved to ${out}.md and .json` }
               ], onSelect: v => set('handoffSkill')(v === '-' ? '' : v) }),
             pick({ key: "settings-swamp", label: "Compact alert at", value: shown.swampAt, options: SWAMP_STEPS.map(n => ({ value: String(n), label: `${n}%` })), onSelect: set('swampAt') }),
             pick({ key: "settings-handoff-button", label: "Handoff button", value: shown.handoffButton, options: [{ value: 'advised', label: 'When advised' }, { value: 'always', label: 'Always' }], onSelect: set('handoffButton') }),
+            pick({ key: "settings-cold-prompt", label: "Prompt in a cold chat", value: shown.coldPrompt, options: [{ value: 'off', label: 'Send' }, { value: 'block', label: 'Block' }, { value: 'compact', label: 'Compact & resend' }], onSelect: set('coldPrompt') }),
             ...alertToggles,
 ]) : [
             ...(bare

@@ -66,6 +66,8 @@ export type GateVPending = {
 export type SettingsDraft = {
   /** ask: Gate V asks above the prompt whether to review and with which agent; auto: it reviews at once. */
   gateV?: string
+  /** A prompt typed into a cold chat: off (sent), block (held back), compact (compacted first, then sent). */
+  coldPrompt?: string
   bias?: string
   floor?: string
   ceiling?: string
@@ -100,6 +102,8 @@ export type SettingsDraft = {
   refineSend?: string
   /** Gate V's independent review: ask (in the band, with a pick of agent) or auto. */
   gateV?: string
+  /** A prompt typed into a cold chat: off, block or compact. */
+  coldPrompt?: string
 }
 
 /** One step of the task the progress bar follows: a todo or a task. */
