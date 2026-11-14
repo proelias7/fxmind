@@ -7,7 +7,7 @@ import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, Model
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
 import { DEFAULT_ORCHESTRATION_CONFIG, orchestrationBand, orchestrationToolFinished, orchestrationToolStart, readProjectOrchestrationConfig, startOrchestrationSession, syncOrchestration, writeProjectOrchestrationConfig } from './orchestration'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
-import { MARK_SVG, TEXTURE_SVG, TEXTURE_TALL_SVG } from './brand-mark'
+import { MARK_SVG, textureSvg } from './brand-mark'
 import { projectRoot } from './project-root'
 import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
 import type { RefineFrame } from './refine'
@@ -332,14 +332,15 @@ function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: str
   )
 }
 
-/** The fxmind texture under a panel's art, in the art's own box (right-anchored, full height): none where no images
- * are drawn. The settings panel passes its taller one. */
+/** One full-surface texture for cards and every settings subview. */
 function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = false) {
   if (!els.Svg) return null
   const { Box: B, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Svg: (p: Record<string, unknown>) => unknown }
+  const height = tall ? 160 : 96
   return (
-    <B key={`${key}-texture`} position="absolute" top={-1} right={0} bottom={-1} overflow="hidden">
-      <S source={tall ? TEXTURE_TALL_SVG : TEXTURE_SVG} alt="" width={tall ? 1600 : 880} height={tall ? 448 : 128} />
+    <B key={`${key}-texture`} position="absolute" top={0} bottom={0} left={0} right={0}
+      overflow="hidden" alignItems="flex-end" justifyContent="center">
+      <S source={textureSvg(960, height, BRAND_EDGE)} alt="" width={960} height={height} />
     </B>
   )
 }
@@ -4971,9 +4972,9 @@ Saved to ${out}.md and .json` }
       // button remains the interactive hit target; ink and background never
       // depend on the host's button variant colors.
       const panelAction = (key: string, label: string, press: () => unknown, hotkey?: string) => term ? (
-        <Button key={key} variant="primary" color="#0b1610" backgroundColor="#f5f8f5" label={label} hotkey={hotkey} onPress={() => Promise.resolve(press()).then(() => undefined)} />
+        <Button key={key} variant="primary" label={label} hotkey={hotkey} onPress={() => Promise.resolve(press()).then(() => undefined)} />
       ) : (
-        <Box key={key + '-surface'} position="relative" flexDirection="row" alignItems="center"
+        <Box key={key + '-surface'} position="relative" flexDirection="row" alignItems="center" height={1.65}
           overflow="hidden" paddingX={1} borderStyle="round" borderColor="#cedbd2"
           backgroundColor="#f5f8f5" hover={{ backgroundColor: "#e4eee6", borderColor: "#ffffff" }}>
           <Text color="#0b1610" bold>{label}</Text>

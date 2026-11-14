@@ -11,30 +11,41 @@ export const MARK_SVG =
   '<text x="50" y="60" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="800" letter-spacing="1" fill="#fff">FX</text>' +
   '</mask></defs><g mask="url(#kem)"><rect width="100" height="100" fill="#a79cf7"/></g></svg>'
 
-// The fxmind texture, one for every panel: a fine net of thoughts (small nodes joined by hairlines) with the mark,
-// large and faint, near the right edge. Built the way the panels' own art is (which the app draws): the same <style>
-// head, a right-anchored slice, one plain pattern (no transform, no mask), at one pixel per unit, so it is laid out
-// and drawn like that art, in the same right-anchored box.
-const NET =
-  '<pattern id="fxnet" width="30" height="26" patternUnits="userSpaceOnUse">' +
-  '<path d="M4 5L19 11L10 22M19 11L30 3M10 22L-2 28M0 3L4 5M30 28L26 26" fill="none" stroke="#fff" stroke-opacity=".19" stroke-width="1"/>' +
-  '<circle cx="4" cy="5" r="1.3" fill="#fff" fill-opacity=".34"/><circle cx="19" cy="11" r="1.6" fill="#fff" fill-opacity=".38"/>' +
-  '<circle cx="10" cy="22" r="1.2" fill="#fff" fill-opacity=".28"/></pattern>'
+// Shared texture for all FXMIND panels. Coordinates follow the *visible*
+// panel, not a large off-screen SVG. The SDK clips absolute layers to the
+// actual Box; a 448px high image hid the watermark in a ~130px modal.
 const MARK_INNER = MARK_SVG.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '').replace('fill="#a79cf7"', 'fill="#ffffff"')
 
-/** The texture at width by height pixels: the net over all of it, the mark near the right, centred on the height. */
-export function textureSvg(width: number, height: number): string {
-  const size = Math.min(170, Math.round(height * 1.25))
-  const x = width - size - 40
-  const y = Math.round(height / 2 - size / 2)
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMaxYMid slice">` +
-    '<style>:root{color-scheme:light dark}html,body{margin:0}svg{background:transparent;display:block}</style>' +
-    `<defs>${NET}<pattern id="fxmicro" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".6" fill="#c6ffdf" opacity=".19"/></pattern><radialGradient id="fxglow"><stop stop-color="#7ee0b4" stop-opacity=".10"/><stop offset="1" stop-color="#7ee0b4" stop-opacity="0"/></radialGradient></defs>` +
-    `<rect width="${width}" height="${height}" fill="url(#fxnet)"/><rect width="${width}" height="${height}" fill="url(#fxmicro)"/>` +
-    `<ellipse cx="${Math.round(width*.85)}" cy="0" rx="${Math.round(width*.52)}" ry="${Math.round(height*.90)}" fill="url(#fxglow)"/>` +
-    `<svg x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 100 100" opacity=".12"><g transform="rotate(-12 50 50)">${MARK_INNER}</g></svg>` +
+const textureCache = new Map<string, string>()
+
+/** Compact, theme-aware microcircuit texture, consistent across every view. */
+export function textureSvg(width: number, height: number, accent = '#92b9a8'): string {
+  const key = `${width}:${height}:${accent}`
+  const cached = textureCache.get(key)
+  if (cached) return cached
+  const logoSize = Math.min(106, Math.round(height * .72))
+  const x = width - logoSize - 48
+  const y = Math.round((height - logoSize) / 2)
+  const circuits = Array.from({ length: 18 }, (_, i) => {
+    const cx = 12 + i * 54
+    const cy = (i * 37 + 16) % height
+    const nx = cx + 26
+    const ny = (cy + (i % 2 ? 19 : -16) + height) % height
+    return `<path d="M${cx} ${cy}L${nx} ${ny}l19 ${i % 2 ? 8 : -9}" fill="none" stroke="#d0e9db" stroke-opacity=".19" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="1.25" fill="#e0f7eb" fill-opacity=".38"/><circle cx="${nx}" cy="${ny}" r=".75" fill="#e0f7eb" fill-opacity=".30"/>`
+  }).join('')
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMaxYMid slice">` +
+    '<defs><pattern id="fxdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".65" fill="#e5f5e9" opacity=".20"/></pattern>' +
+    `<linearGradient id="fxwash"><stop stop-color="${accent}" stop-opacity=".015"/><stop offset=".48" stop-color="${accent}" stop-opacity=".045"/><stop offset="1" stop-color="${accent}" stop-opacity=".16"/></linearGradient>` +
+    '<radialGradient id="fxhalo"><stop stop-color="#f4fff6" stop-opacity=".10"/><stop offset="1" stop-color="#e2ffe8" stop-opacity="0"/></radialGradient></defs>' +
+    `<rect width="${width}" height="${height}" fill="url(#fxwash)"/><rect width="${width}" height="${height}" fill="url(#fxdots)"/>` +
+    `<g>${circuits}</g><ellipse cx="${Math.round(width * .84)}" cy="${Math.round(height * .5)}" rx="${Math.round(width * .36)}" ry="${Math.round(height * .85)}" fill="url(#fxhalo)"/>` +
+    `<svg x="${x}" y="${y}" width="${logoSize}" height="${logoSize}" viewBox="0 0 100 100" opacity=".15"><g transform="rotate(-12 50 50)">${MARK_INNER}</g></svg>` +
     '</svg>'
+  if (textureCache.size >= 16) textureCache.clear()
+  textureCache.set(key, svg)
+  return svg
 }
-/** The size every band's art is drawn at (FROST_WIDTH * 2 by FROST_HEIGHT * 2), and the settings panel's taller one. */
-export const TEXTURE_SVG = textureSvg(880, 128)
-export const TEXTURE_TALL_SVG = textureSvg(1600, 448)
+
+// Same material, scaled to the panel's real height.
+export const TEXTURE_SVG = textureSvg(960, 96)
+export const TEXTURE_TALL_SVG = textureSvg(960, 160)

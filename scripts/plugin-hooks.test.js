@@ -50,9 +50,9 @@ test("All settings pages share a full-panel FXMIND texture", () => {
   const ui = read("effort.tsx");
   const art = read("brand-mark.ts");
   assert.match(ui, /textureLayer\(\{ Box, Svg \}, [\x27"]settings[\x27"], true\)/);
-  assert.match(ui, /width=\{tall \? 1600 : 880\}/);
-  assert.match(art, /TEXTURE_TALL_SVG = textureSvg\(1600, 448\)/);
-  assert.match(art, /fxmicro/);
+  assert.match(ui, /textureSvg\(960, height, BRAND_EDGE\)/);
+  assert.match(art, /TEXTURE_TALL_SVG = textureSvg\(960, 160\)/);
+  assert.match(art, /fxdots/);
 });
 test("Settings actions and navigation use light surfaces with dark labels", () => {
   const ui = read("effort.tsx");
@@ -62,4 +62,17 @@ test("Settings actions and navigation use light surfaces with dark labels", () =
   for (const key of ["settings-check-update", "settings-back", "settings-save", "settings-judge-test", "settings-model-"]) {
     assert.ok(ui.includes("panelAction(") && ui.includes(key), key);
   }
+});
+
+
+test("FXMIND texture SVG is visibly nonempty at modal dimensions", async () => {
+  const { textureSvg } = require('../plugins/fxmind/hooks/brand-mark.ts');
+  const sharp = require('sharp');
+  const svg = textureSvg(960, 160, '#9d5642');
+  const { data, info } = await sharp(Buffer.from(svg)).extract({ left: 180, top: 15, width: 760, height: 130 }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let visible = 0;
+  for (let i = 3; i < data.length; i += info.channels) if (data[i] > 24) visible++;
+  assert.ok(visible / (info.width * info.height) > .10, 'texture should cover a visible portion of the actual modal area');
+  assert.match(svg, /fxdots/);
+  assert.match(svg, /#9d5642/);
 });
