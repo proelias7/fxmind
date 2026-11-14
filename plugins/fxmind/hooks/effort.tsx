@@ -45,6 +45,7 @@ function applyTheme() {
   BRAND_BG = tintHex('#15121f')
   BRAND_EDGE = tintHex('#4a3f80')
   BRAND_HEAD = tintHex('#221c3a')
+  PANEL_EDGE = tintHex('#2e2650')
   FLASH_COLOR = tintHex('#9b7bff')
   // The panel greys lean blue beside the violet; with Claude orange they are the app's own neutral greys.
   // The fxmind theme takes the site's own ink for its panels (docs/index.html: --ink, --ink-2).
@@ -370,6 +371,13 @@ const UPDATED_GLOW_SVG = BRAND_SVG
   .replace('</defs>', '</defs><g transform="translate(360 0) scale(-1 1)">').replace('</svg>', '</g></svg>')
   .replace(/#7c6cf0/g, '#2f9a5e').replace(/#8f7ff0/g, '#3fae6e').replace(/#b3a6ff/g, '#7fe0a4').replace(/#c9bdff/g, '#a8ecc2').replace(/#9a86ff/g, '#4cbf7c')
   .replace(/stop-opacity="([0-9.]+)"/g, (_m, v: string) => `stop-opacity="${(Number(v) * 0.6).toFixed(3)}"`)
+// The settings panel wears the Updated card's look: near black, a dim edge in the theme's hue, the brand art mirrored
+// to the left behind the title (the theme tints its violet), and the texture on the right.
+const PANEL_GLOW_SVG = BRAND_SVG
+  .replace('preserveAspectRatio="xMaxYMid slice"', 'preserveAspectRatio="xMinYMid slice"')
+  .replace('</defs>', '</defs><g transform="translate(360 0) scale(-1 1)">').replace('</svg>', '</g></svg>')
+  .replace(/stop-opacity="([0-9.]+)"/g, (_m, v: string) => `stop-opacity="${(Number(v) * 0.6).toFixed(3)}"`)
+let PANEL_EDGE = '#2e2650'
 // The Share icon: an arrow leaving a tray, white like the GitHub mark beside it.
 const SHARE_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16"><path fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M8 10V1.8M4.8 4.8L8 1.6l3.2 3.2M2.5 8.5v4.8c0 .4.3.7.7.7h9.6c.4 0 .7-.3.7-.7V8.5"/></svg>`
 // A thin vertical line between the links on the Updated card.
@@ -5041,21 +5049,19 @@ Saved to ${out}.md and .json` }
         // made them busy). The entrance
         // sweep plays once, behind everything, as the panel opens.
         <Box key="settings" position="relative" flexDirection="column" gap={roomy && !term ? 1 : 0} paddingX={term ? 1 : 2} overflow="hidden"
-          backgroundColor={DASH_BG} borderStyle="round" borderColor={DASH_EDGE}>
-          {/* The bar's own art, the brand's at 40%, on the right behind everything: the panel reads as the bar opened
-              up. The rows lift over it with their empty absolute child. */}
+          backgroundColor={term ? DASH_BG : UPDATED_BG} borderStyle="round" borderColor={term ? DASH_EDGE : PANEL_EDGE}>
+          {/* The Updated card's look over the whole panel: one near-black surface, the texture on the right and the
+              brand glow behind the title. No wash stretched over the rows (it ended partway down, a block of colour). */}
           {term ? null : textureLayer({ Box, Svg }, 'settings', true)}
           {term ? null : (
-            <Box key="settings-art" position="absolute" top={-1} right={0} bottom={-1}>
-              {/* Stretched over the panel, not sliced: the cards wrap onto a second row in a longer language, and a fixed
-                  height left the wash ending halfway down. */}
-              <Svg source={DASH_SVG.replace('xMaxYMid slice', 'none')} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 4} />
+            <Box key="settings-art" position="absolute" top={-1} left={0} height={FROST_HEIGHT * 2}>
+              <Svg source={PANEL_GLOW_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
             </Box>
           )}
           {term ? null : introLayer({ Box, Svg }, 'settings', await introShows($, 'settings'))}
           {/* The top bar: barely a shade lighter than the band, holding the title, Save and the cross. */}
           {!term ? (
-            <Box key="settings-bar" position="absolute" top={-1} left={0} right={0} height={3.5} overflow="hidden" backgroundColor={DASH_HEAD}>
+            <Box key="settings-bar" position="absolute" top={-1} left={0} right={0} height={3.5} overflow="hidden">
               {/* A hairline along the bar's bottom: a one-pixel image stretched across (a Box cannot draw one pixel). */}
               <Box key="settings-rule" position="absolute" bottom={0} left={0} right={0} height={1} alignItems="flex-end">
                 <Svg source={`<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1" viewBox="0 0 1600 1" preserveAspectRatio="none"><rect width="1600" height="1" fill="${DASH_EDGE}"/></svg>`} alt="rule" width={1600} height={1} />
