@@ -130,6 +130,7 @@ const PROJECT_GITIGNORE_LINES = [
   "!.fxmind/playbooks/",
   "!.fxmind/reports/",
   "!.fxmind/reference.md",
+  "!.fxmind/orchestration.json",
   ".fxmind/corrections/README.md",
   ".fxmind/corrections/correction.template.md",
   ".fxmind/audits/README.md",
@@ -180,7 +181,7 @@ const INSTALLED_IN_SHARED = [".fxmind/corrections/README.md", ".fxmind/correctio
 function sharedFxmindFile(file) {
   const rel = String(file).replace(/\\/g, "/");
   if (INSTALLED_IN_SHARED.includes(rel)) return false;
-  if (rel === ".fxmind/reference.md") return true;
+  if (rel === ".fxmind/reference.md" || rel === ".fxmind/orchestration.json") return true;
   return SHARED_FXMIND_DIRS.some((dir) => rel.startsWith(`.fxmind/${dir}/`));
 }
 

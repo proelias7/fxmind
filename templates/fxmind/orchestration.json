@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "mode": "auto",
+  "strategy": "smart",
+  "maxConcurrent": 3,
+  "routing": {
+    "rules": [
+      { "match": "explore|search|find|read|scout", "provider": "opencode", "model": null, "effort": "low" },
+      { "match": "review|audit|verify|check", "provider": "claude", "model": null, "effort": "high" },
+      { "match": "implement|code|refactor|write|fix", "provider": "codex", "model": null, "effort": "medium" },
+      { "match": "test|unit-test|benchmark", "provider": "opencode", "model": null, "effort": "medium" },
+      { "match": "query|memory|explain", "provider": null, "model": null, "effort": "low" }
+    ],
+    "defaultProvider": null,
+    "defaultModel": null,
+    "defaultEffort": "medium"
+  },
+  "allowedProviders": null,
+  "autoOpenBrowser": true
+}

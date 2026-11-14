@@ -1,4 +1,4 @@
-import type { AgentRec, AgentState, FileTouch, Progress, ProgressStep } from '../types'
+import type { AgentRec, AgentState, FileTouch, OrchestrationSession, OrchestrationSubtask, Progress, ProgressStep } from '../types'
 import { MARK_SVG } from './brand-mark'
 import { accent, tintHex } from './theme'
 import { ART_H, ART_W, looks, PILL_H, progressArtSvg, progressShare, progressTrackSvg, THINK_W, thinkingSvg } from './progress'
@@ -375,6 +375,8 @@ export type AgentsDraw = {
   steps: readonly ProgressStep[] | null
   module: string | null
   onModule: (key: string) => unknown
+  /** Active or latest multi-agent orchestration session from FXMind. */
+  orchestration?: OrchestrationSession | null
 }
 
 const TEXT = '#d4d4d8'
@@ -384,12 +386,38 @@ const DIM = '#8b8b93'
 const CARD_BG = '#141416'
 const CARD_EDGE = '#2a2a2f'
 
+function orchSubtaskAsAgent(st: OrchestrationSubtask, nowMs: number): AgentRec {
+  const state: AgentState =
+    st.status === 'running' ? 'running'
+    : st.status === 'done' ? 'done'
+    : st.status === 'failed' || st.status === 'cancelled' ? 'failed'
+    : 'picking'
+  const startedAt = st.startedAt ? Date.parse(st.startedAt) || nowMs : nowMs
+  const endedAt = st.endedAt ? Date.parse(st.endedAt) || undefined : undefined
+  return {
+    id: `orch-${st.id}`,
+    type: st.provider || st.type || 'agent',
+    task: st.description,
+    state,
+    startedAt,
+    endedAt,
+    model: st.model ?? undefined,
+    effort: st.effort,
+  }
+}
+
+function combinedAgents(agents: readonly AgentRec[], orchestration: OrchestrationSession | null | undefined, nowMs: number): AgentRec[] {
+  if (!orchestration?.subtasks?.length) return [...agents]
+  return [...agents, ...orchestration.subtasks.map(st => orchSubtaskAsAgent(st, nowMs))]
+}
+
 /** The header: the dashboard's card, saying how the chat's agents stand. Mark, one bold word, the ring and its share. */
 function header(d: AgentsDraw, agents: readonly AgentRec[]) {
   const { Box, Text, Svg } = d
-  const mood = moodOf(agents)
+  const all = combinedAgents(agents, d.orchestration, d.nowMs)
+  const mood = moodOf(all)
   const color = mood === 'waiting' ? looks('asking').color : mood === 'done' ? looks('done').color : TEXT
-  const pct = d.steps && d.steps.length > 1 ? Math.round(progressShare(d.steps) * 100) : overallPercent(agents)
+  const pct = d.steps && d.steps.length > 1 ? Math.round(progressShare(d.steps) * 100) : overallPercent(all)
   return (
     <Box key="agents-head" position="relative" flexDirection="column" paddingX={1} overflow="hidden"
       backgroundColor={CARD_BG} borderStyle="round" borderColor={CARD_EDGE}>
@@ -405,15 +433,15 @@ function header(d: AgentsDraw, agents: readonly AgentRec[]) {
             <Svg source={MARK_SVG} alt="fxmind" width={18} height={18} />
           </Box>
         ) : <Text color={accent()} bold>✦ </Text>}
-        <Text color={color} bold>{moodWord(agents)}</Text>
-        {Svg && agents.length ? (
+        <Text color={color} bold>{moodWord(all)}</Text>
+        {Svg && all.length ? (
           <Box flexShrink={0} marginLeft={2} flexDirection="row" gap={1} alignItems="center">
             <Svg source={d.ringSvg(pct, color)} alt={`${pct}% done`} width={16} height={16} />
             <Text color={TEXT}>{`${pct}%`}</Text>
           </Box>
         ) : null}
         <Box flexGrow={1} flexShrink={1} minWidth={0} marginLeft={2} overflow="hidden">
-          <Text dimColor wrap="truncate">{agents.length ? `${agents.length} agent${agents.length > 1 ? 's' : ''}` : d.title}</Text>
+          <Text dimColor wrap="truncate">{all.length ? `${all.length} agent${all.length > 1 ? 's' : ''}` : d.title}</Text>
         </Box>
       </Box>
       {Svg && d.steps && d.steps.length > 1 ? (
@@ -546,14 +574,106 @@ function doneCard(d: AgentsDraw, done: readonly AgentRec[]) {
   )
 }
 
+function orchSubtaskLook(status: OrchestrationSubtask['status']) {
+  if (status === 'failed' || status === 'cancelled') return { look: FAILED, phase: null }
+  if (status === 'done') return { look: looks('done'), phase: 'done' as const }
+  if (status === 'running') return { look: looks('working'), phase: 'working' as const }
+  return { look: looks('planning'), phase: 'planning' as const }
+}
+
+function orchestrationSubtaskCard(d: AgentsDraw, st: OrchestrationSubtask, session: OrchestrationSession) {
+  const { Box, Text, Button, Svg } = d
+  const { look, phase } = orchSubtaskLook(st.status)
+  const cardKey = `orch-${st.id}`
+  const isOpen = d.open === cardKey
+  const providerBadge = `${st.provider || 'agent'}${st.model ? `/${st.model}` : ''} · ${st.effort || 'medium'}`
+  const depsText = st.dependsOn.length ? `after ${st.dependsOn.join(', ')}` : ''
+  const elapsed =
+    st.status === 'done' || st.status === 'failed' || st.status === 'cancelled'
+      ? st.durationMs > 0
+        ? clockText(st.durationMs)
+        : st.startedAt && st.endedAt
+          ? clockText(Date.parse(st.endedAt) - Date.parse(st.startedAt))
+          : ''
+      : st.status === 'running' && st.startedAt
+        ? clockText(d.nowMs - Date.parse(st.startedAt))
+        : ''
+  const statusLine =
+    st.status === 'running'
+      ? `running · ${providerBadge}${depsText ? ` · ${depsText}` : ''}`
+      : st.status === 'done'
+        ? `done · ${providerBadge}`
+        : st.status === 'failed'
+          ? `failed · ${providerBadge}`
+          : st.status === 'cancelled'
+            ? `cancelled · ${providerBadge}`
+            : session.status === 'awaiting_approval'
+              ? `awaiting approval · ${providerBadge}${depsText ? ` · ${depsText}` : ''}`
+              : `queued · ${providerBadge}${depsText ? ` · ${depsText}` : ''}`
+
+  return (
+    <Box key={cardKey} position="relative" flexDirection="column" paddingX={1} overflow="hidden"
+      backgroundColor={look.bg} borderStyle="round" borderColor={look.edge}>
+      {Svg && phase ? (
+        <Box key={`${cardKey}-art`} position="absolute" top={0} left={0} right={0} bottom={0}>
+          <Svg source={cardArtSvg(phase)} alt={`${st.provider} ${st.status}`} width={ART_W} height={CARD_ART_H} />
+        </Box>
+      ) : null}
+      <Box position="relative" flexDirection="column">
+        <Box position="absolute" top={0} left={0} />
+        <Box flexDirection="row">
+          <Text color={look.color} bold>{`#${st.index} ${st.type}`}</Text>
+          <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+            <Text color={TEXT} wrap="truncate">{`  ${st.description}`}</Text>
+          </Box>
+          {elapsed ? <Text color={DIM}>{`  ${elapsed}`}</Text> : null}
+        </Box>
+        <Text dimColor wrap="truncate">{statusLine}</Text>
+        {isOpen && (st.error || st.result) ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text color={st.error ? look.color : DIM} wrap="truncate">
+              {(st.error || st.result || '').replace(/\s+/g, ' ').slice(0, 180)}
+            </Text>
+          </Box>
+        ) : null}
+      </Box>
+      <Box position="absolute" top={0} left={0} right={0} bottom={0}>
+        <Button key={`${cardKey}-press`} plain label={' '.repeat(60)} hover={{ backgroundColor: '#00000000' }} onPress={() => d.onOpen(cardKey)} />
+      </Box>
+    </Box>
+  )
+}
+
+function orchestrationBanner(d: AgentsDraw, session: OrchestrationSession) {
+  const { Box, Text } = d
+  const doneCount = session.subtasks.filter(s => s.status === 'done').length
+  const total = session.subtasks.length
+  const statusTag =
+    session.status === 'awaiting_approval' ? 'awaiting approval'
+    : session.status === 'running' ? `running ${doneCount}/${total}`
+    : `${session.status} ${doneCount}/${total}`
+  return (
+    <Box key="agents-orch-head" flexDirection="column" paddingX={1} backgroundColor={CARD_BG} borderStyle="round" borderColor={CARD_EDGE}>
+      <Box flexDirection="row">
+        <Text color={accent()} bold>Orchestration</Text>
+        <Box flexGrow={1} />
+        <Text dimColor>{`${session.strategy} · ${statusTag}`}</Text>
+      </Box>
+      <Text color={TEXT} wrap="truncate">{session.task}</Text>
+    </Box>
+  )
+}
+
 /**
  * The whole pane: the mood's wash and the corner mark behind, the header, a card per agent still going, the finished
  * ones folded into one. Nothing else unless pressed open.
  */
 export function agentsPane(d: AgentsDraw, agents: readonly AgentRec[]) {
   const { Box, Text, Svg } = d
+  const orch = d.orchestration ?? null
+  const all = combinedAgents(agents, orch, d.nowMs)
   const { live, done } = splitAgents(agents)
-  const mood = moodOf(agents)
+  const mood = moodOf(all)
   // One row of the desktop pane is about 19 px; the background is drawn a little taller than the body.
   const tall = Math.max(240, (d.rows + 2) * 19)
   return (
@@ -572,9 +692,11 @@ export function agentsPane(d: AgentsDraw, agents: readonly AgentRec[]) {
         <Box position="absolute" top={0} left={0} />
         {header(d, agents)}
         {d.files.length ? mapCard(d, modulesOf(d.files, agents), moduleLinks(d.files)) : null}
+        {orch ? orchestrationBanner(d, orch) : null}
+        {orch ? orch.subtasks.map(st => orchestrationSubtaskCard(d, st, orch)) : null}
         {live.map(a => agentCard(d, a))}
         {done.length ? doneCard(d, done) : null}
-        {!agents.length ? <Text dimColor>  Agents show here when Claude sends some off.</Text> : null}
+        {!agents.length && !orch ? <Text dimColor>  Agents show here when Claude sends some off.</Text> : null}
       </Box>
     </Box>
   )

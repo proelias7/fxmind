@@ -758,6 +758,116 @@ const TOOL_DEFS = [
       required: ["agent", "prompt"],
     },
   },
+  {
+    name: "fxmind_orchestrate",
+    description:
+      "Decompose a complex task into a DAG of subtasks and dispatch them across configured multi-provider CLI agents (OpenCode, Claude, Codex, Cursor Agent, Hermes).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "Overall orchestration goal." },
+        strategy: {
+          type: "string",
+          enum: ["smart", "parallel", "sequential"],
+          description: "Execution strategy (defaults to configured strategy).",
+        },
+        wait: {
+          type: "boolean",
+          description: "Wait for completion before returning consolidated subtask outputs (default: true).",
+        },
+        timeoutMs: {
+          type: "number",
+          description: "Maximum wait timeout in milliseconds (default: 300000).",
+        },
+        subtasks: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              description: { type: "string" },
+              type: {
+                type: "string",
+                enum: ["explore", "implement", "review", "test", "query"],
+              },
+              provider: { type: "string", description: "Optional CLI provider override." },
+              model: { type: "string", description: "Optional model id override." },
+              effort: {
+                type: "string",
+                enum: ["low", "medium", "high", "max"],
+              },
+              dependsOn: {
+                type: "array",
+                items: { type: "string" },
+                description: "Subtask IDs that must complete before this subtask starts.",
+              },
+              readOnly: {
+                type: "boolean",
+                description: "Force read-only mode for this subtask.",
+              },
+            },
+            required: ["id", "description"],
+          },
+        },
+      },
+      required: ["task", "subtasks"],
+    },
+  },
+  {
+    name: "fxmind_orchestration_status",
+    description:
+      "Get progress, subtask states, and partial/final outputs for an orchestration session (or the active/latest session).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orchestrationId: {
+          type: "string",
+          description: "Optional orchestration id; omit for active or most recent session.",
+        },
+      },
+    },
+  },
+  {
+    name: "fxmind_orchestration_control",
+    description:
+      "Approve an orchestration awaiting confirmation or cancel a running orchestration.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        orchestrationId: { type: "string", description: "Target orchestration id." },
+        action: {
+          type: "string",
+          enum: ["approve", "cancel"],
+          description: "Control action to apply.",
+        },
+      },
+      required: ["orchestrationId", "action"],
+    },
+  },
+  {
+    name: "fxmind_orchestration_config",
+    description:
+      "Read or update multi-agent orchestration settings (mode, strategy, maxConcurrent, routing rules, allowedProviders).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["get", "set"],
+          description: "Read ('get') or update ('set') configuration.",
+        },
+        scope: {
+          type: "string",
+          enum: ["project", "global"],
+          description: "Target config scope when action is 'set' (default: 'project').",
+        },
+        config: {
+          type: "object",
+          description: "Partial orchestration configuration fields to merge when action is 'set'.",
+        },
+      },
+    },
+  },
   // Desktop agent (Windows): core tools, always listed.
   ...desktopAgent.TOOL_DEFS,
 ];
@@ -1213,6 +1323,69 @@ async function dispatchTool(name, args) {
       });
     }
 
+    case "fxmind_orchestrate": {
+      const { engine } = require("./lib/orchestration-engine");
+      const started = engine.startOrchestration(
+        {
+          task: args.task || "",
+          strategy: args.strategy,
+          subtasks: Array.isArray(args.subtasks) ? args.subtasks : [],
+        },
+        {
+          projectRoot: root,
+          timeoutMs: args.timeoutMs,
+        },
+      );
+      if (!started.ok || started.awaitingApproval || args.wait === false) {
+        return started;
+      }
+      return engine.waitForOrchestration(started.orchestrationId, args.timeoutMs);
+    }
+
+    case "fxmind_orchestration_status": {
+      const { engine } = require("./lib/orchestration-engine");
+      if (args.orchestrationId) {
+        const found = engine.getOrchestration(String(args.orchestrationId), root);
+        return found
+          ? { ok: true, orchestration: found }
+          : { ok: false, error: `Orchestration not found: ${args.orchestrationId}` };
+      }
+      const active = engine.getActiveOrchestration(root);
+      return {
+        ok: true,
+        orchestration: active,
+        recent: engine.listOrchestrations(5, root),
+      };
+    }
+
+    case "fxmind_orchestration_control": {
+      const { engine } = require("./lib/orchestration-engine");
+      const orchId = String(args.orchestrationId || "").trim();
+      if (!orchId) return { ok: false, error: "orchestrationId is required" };
+      if (args.action === "approve") {
+        return engine.approveOrchestration(orchId);
+      }
+      if (args.action === "cancel") {
+        return engine.cancelOrchestration(orchId);
+      }
+      return { ok: false, error: `Unknown control action: ${args.action}` };
+    }
+
+    case "fxmind_orchestration_config": {
+      const panelOrch = require("./lib/panel-orchestration");
+      const action = args.action || "get";
+      if (action === "get") {
+        return panelOrch.getOrchestrationSettings(root);
+      }
+      if (action === "set") {
+        return panelOrch.putOrchestrationSettings(root, {
+          scope: args.scope || "project",
+          config: args.config || {},
+        });
+      }
+      return { ok: false, error: `Unknown config action: ${action}` };
+    }
+
     default:
       return { ok: false, error: `Unknown tool: ${name}` };
   }
@@ -1238,7 +1411,10 @@ const TOOL_GROUPS = {
   storage: (name) => name === "fxmind_storage_upload_image",
   fivem: (name) => name.startsWith("fxmind_fivem_"),
   db: (name) => name.startsWith("fxmind_db_") && name !== "fxmind_db_status",
-  panel: (name) => name.startsWith("fxmind_panel_") || name === "fxmind_subagent_run",
+  panel: (name) =>
+    name.startsWith("fxmind_panel_") ||
+    name === "fxmind_subagent_run" ||
+    name.startsWith("fxmind_orchestrat"),
 };
 
 function toolGroupOf(name) {
@@ -1296,6 +1472,7 @@ const READONLY_TOOLS = new Set([
   "fxmind_db_sample",
   "fxmind_db_explore",
   "fxmind_db_analyze",
+  "fxmind_orchestration_status",
 ]);
 
 function isReadonly(env = process.env) {

@@ -176,6 +176,71 @@ export type FileTouch = {
   imports: string[]
 }
 
+/** One subtask in a multi-agent FXMind orchestration session. */
+export type OrchestrationSubtask = {
+  id: string
+  index: number
+  description: string
+  type: 'explore' | 'implement' | 'review' | 'test' | 'query' | string
+  readOnly?: boolean
+  provider: string
+  model: string | null
+  effort: 'low' | 'medium' | 'high' | 'max' | string
+  dependsOn: string[]
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled'
+  result: string | null
+  error: string | null
+  startedAt: string | null
+  endedAt: string | null
+  durationMs: number
+  threadId: string | null
+}
+
+/** A multi-agent orchestration session persisted in .fxmind/state/orchestrations.json. */
+export type OrchestrationSession = {
+  id: string
+  task: string
+  status: 'awaiting_approval' | 'running' | 'done' | 'failed' | 'cancelled'
+  mode?: 'auto' | 'confirm' | 'off'
+  strategy: 'smart' | 'parallel' | 'sequential' | string
+  createdAt: string
+  updatedAt: string
+  completedAt: string | null
+  projectRoot?: string
+  progress?: number
+  subtasks: OrchestrationSubtask[]
+  summary: {
+    total: number
+    completed: number
+    failed: number
+    cancelled: number
+    durationMs: number
+    status: string
+  } | null
+}
+
+export type OrchestrationRoutingRule = {
+  match: string
+  provider: string | null
+  model: string | null
+  effort: 'low' | 'medium' | 'high' | 'max' | string
+}
+
+export type OrchestrationConfig = {
+  enabled: boolean
+  mode: 'auto' | 'confirm' | 'off'
+  strategy: 'smart' | 'parallel' | 'sequential'
+  maxConcurrent: number
+  routing: {
+    rules: OrchestrationRoutingRule[]
+    defaultProvider: string | null
+    defaultModel: string | null
+    defaultEffort: string
+  }
+  allowedProviders: string[] | null
+  autoOpenBrowser?: boolean
+}
+
 declare module 'claude-code' {
   interface PluginState {
     fxmind: {
@@ -206,7 +271,7 @@ declare module 'claude-code' {
       judgeDownHidden: string | null
       /** The fxmind effort settings panel is open above the prompt. */
       settingsOpen: boolean
-      settingsCard: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | null
+      settingsCard: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'orchestration' | null
       /** Changes made in the settings panel and not saved yet. */
       settingsDraft: SettingsDraft
       /** The user and plugin skills, read when the settings panel opens. */
@@ -270,6 +335,8 @@ declare module 'claude-code' {
       agentSteps: ProgressStep[] | null
       /** The module (folder) opened in the panel's list, or null. */
       agentsModule: string | null
+      /** Active or latest multi-agent orchestration session from .fxmind/state/orchestrations.json. */
+      orchestration: OrchestrationSession | null
       /** The Settings header's "Check for updates": idle, checking, newest, or "found <version>". */
       updateCheck: string
     }

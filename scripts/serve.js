@@ -19,6 +19,8 @@ const panelPortspace = require("./lib/panel-portspace");
 const panelBuild = require("./lib/panel-build");
 const panelSubagents = require("./lib/panel-subagents");
 const panelProviders = require("./lib/panel-providers");
+const panelOrchestration = require("./lib/panel-orchestration");
+const { engine: orchestrationEngine } = require("./lib/orchestration-engine");
 
 let workspaceRoot = panel.bindWorkspaceRoot(process.env.FXMIND_TARGET || process.cwd(), { exact: true });
 let workspaceIsExplicit = true;
@@ -327,6 +329,144 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, result);
     } catch {
       return sendJson(res, 400, { error: "invalid JSON body" });
+    }
+  }
+
+  if (pathname === "/api/orchestration" || pathname.startsWith("/api/orchestration/")) {
+    const resolveOrchRoot = (body = {}) => {
+      const pid = body.projectId || url.searchParams.get("projectId");
+      if (pid) {
+        const resolved = panel.resolveProjectRoot(pid, workspaceRoot, {
+          exact: workspaceIsExplicit,
+        });
+        if (!resolved.ok) return resolved;
+        return { ok: true, root: resolved.root };
+      }
+      const explicitRoot = body.root || url.searchParams.get("root");
+      if (explicitRoot) {
+        return { ok: true, root: path.resolve(String(explicitRoot)) };
+      }
+      return { ok: true, root: workspaceRoot };
+    };
+
+    if (req.method === "GET" && pathname === "/api/orchestration/config") {
+      const resolved = resolveOrchRoot();
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+      return sendJson(res, 200, panelOrchestration.getOrchestrationSettings(resolved.root));
+    }
+
+    if (req.method === "PUT" && pathname === "/api/orchestration/config") {
+      try {
+        const body = await readBody(req);
+        const resolved = resolveOrchRoot(body);
+        if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+        return sendJson(res, 200, panelOrchestration.putOrchestrationSettings(resolved.root, body));
+      } catch {
+        return sendJson(res, 400, { error: "invalid JSON body" });
+      }
+    }
+
+    if (req.method === "POST" && pathname === "/api/orchestration/run") {
+      try {
+        const body = await readBody(req);
+        const resolved = resolveOrchRoot(body);
+        if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+        const result = orchestrationEngine.startOrchestration(
+          {
+            task: body.task || "",
+            strategy: body.strategy,
+            subtasks: Array.isArray(body.subtasks) ? body.subtasks : [],
+          },
+          {
+            projectRoot: resolved.root,
+            mode: body.mode,
+            approved: body.approved,
+            timeoutMs: body.timeoutMs,
+          },
+        );
+        if (!result.ok) return sendJson(res, 400, result);
+        return sendJson(res, 201, result);
+      } catch {
+        return sendJson(res, 400, { error: "invalid JSON body" });
+      }
+    }
+
+    if (req.method === "GET" && pathname === "/api/orchestration/active") {
+      const resolved = resolveOrchRoot();
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+      return sendJson(res, 200, {
+        ok: true,
+        orchestration: orchestrationEngine.getActiveOrchestration(resolved.root),
+      });
+    }
+
+    if (req.method === "GET" && pathname === "/api/orchestration/history") {
+      const resolved = resolveOrchRoot();
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+      const limit = Number.parseInt(url.searchParams.get("limit"), 10) || 20;
+      return sendJson(res, 200, {
+        ok: true,
+        orchestrations: orchestrationEngine.listOrchestrations(limit, resolved.root),
+      });
+    }
+
+    if (req.method === "GET" && pathname === "/api/orchestration/stream") {
+      const resolved = resolveOrchRoot();
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+      const orchestrationId = url.searchParams.get("orchestrationId");
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+      if (res.socket) res.socket.setNoDelay(true);
+      const snapshot = orchestrationId
+        ? orchestrationEngine.getOrchestration(orchestrationId, resolved.root)
+        : orchestrationEngine.getActiveOrchestration(resolved.root);
+      writeSse(res, { type: "snapshot", orchestration: snapshot });
+      const unsub = orchestrationId
+        ? orchestrationEngine.subscribe(orchestrationId, (event) => writeSse(res, event))
+        : orchestrationEngine.subscribeAll((event) => writeSse(res, event));
+      const ping = setInterval(() => {
+        if (res.writableEnded) return;
+        res.write(": ping\n\n");
+      }, 12000);
+      req.on("close", () => {
+        clearInterval(ping);
+        unsub();
+      });
+      return;
+    }
+
+    const orchApproveMatch = pathname.match(/^\/api\/orchestration\/([^/]+)\/approve$/);
+    if (orchApproveMatch && req.method === "POST") {
+      const id = decodeURIComponent(orchApproveMatch[1]);
+      const result = orchestrationEngine.approveOrchestration(id);
+      if (!result.ok) {
+        return sendJson(res, result.error === "Orchestration not found" ? 404 : 400, result);
+      }
+      return sendJson(res, 200, result);
+    }
+
+    const orchCancelMatch = pathname.match(/^\/api\/orchestration\/([^/]+)\/cancel$/);
+    if (orchCancelMatch && req.method === "POST") {
+      const id = decodeURIComponent(orchCancelMatch[1]);
+      const result = orchestrationEngine.cancelOrchestration(id);
+      if (!result.ok) {
+        return sendJson(res, result.error === "Orchestration not found" ? 404 : 400, result);
+      }
+      return sendJson(res, 200, result);
+    }
+
+    const orchDetailMatch = pathname.match(/^\/api\/orchestration\/([^/]+)$/);
+    if (orchDetailMatch && req.method === "GET") {
+      const resolved = resolveOrchRoot();
+      if (!resolved.ok) return sendJson(res, resolved.status || 400, { error: resolved.error });
+      const id = decodeURIComponent(orchDetailMatch[1]);
+      const found = orchestrationEngine.getOrchestration(id, resolved.root);
+      if (!found) return sendJson(res, 404, { error: "Orchestration not found" });
+      return sendJson(res, 200, { ok: true, orchestration: found });
     }
   }
 

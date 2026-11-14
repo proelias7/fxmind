@@ -3,8 +3,9 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelForkResult, Register, RenderInput } from 'claude-code'
 
-import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, ModelKey, Pick, SettingsDraft, Spent } from '../types'
+import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, ModelKey, OrchestrationConfig, Pick, SettingsDraft, Spent } from '../types'
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
+import { DEFAULT_ORCHESTRATION_CONFIG, orchestrationBand, orchestrationState, readProjectOrchestrationConfig, syncOrchestration, writeProjectOrchestrationConfig } from './orchestration'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
 import { MARK_SVG, TEXTURE_SVG, TEXTURE_TALL_SVG } from './brand-mark'
 import { projectRoot } from './project-root'
@@ -203,13 +204,16 @@ const installedSkills = atom({ plugin: 'fxmind', key: 'installedSkills' } as con
 const settingsDraft = atom({ plugin: 'fxmind', key: 'settingsDraft' } as const, {})
 const judgeDown = atom({ plugin: 'fxmind', key: 'judgeDown' } as const, null)
 // Which part of the settings panel is open: null for the cards.
-type SettingsCard = 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show'
+type SettingsCard = 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'orchestration'
 const settingsCard = atom({ plugin: 'fxmind', key: 'settingsCard' } as const, null)
+let orchConfigLoaded: OrchestrationConfig = DEFAULT_ORCHESTRATION_CONFIG
+let orchDraft: OrchestrationConfig | null = null
 /** The settings panel's parts: a card each on the overview, by name alone. The panel is kept quiet: no line under a
  * card saying what it is set to, no sentence on what a part is for. */
 const CARDS: readonly { id: SettingsCard; title: string }[] = [
   // fxmind's own: the prompt refiner and the memory's actions.
   { id: 'fxmind', title: 'fxmind' },
+  { id: 'orchestration', title: 'Orchestration' },
   { id: 'effort', title: 'Effort' },
   { id: 'model', title: 'Model' },
   { id: 'handoff', title: 'Handoff & alerts' },
@@ -1913,6 +1917,8 @@ async function loadInstalledSkills($: EngineInterface) {
 /** Opens the fxmind settings panel above the prompt: the app does not let a plugin open its /plugin dialog. */
 async function openPluginSettings($: EngineInterface) {
   await loadInstalledSkills($)
+  orchDraft = null
+  orchConfigLoaded = await readProjectOrchestrationConfig($)
   await update($, settingsOpen, () => true)
   // Before a chat's first message the app may start the mod's session afresh for each command, and the state with
   // it: the request also goes to the store, which outlives that, and the next drawing picks it up.
@@ -2161,6 +2167,12 @@ async function answerGateV($: EngineInterface, decision: 'review' | 'skip') {
 async function saveDraft($: EngineInterface) {
   const draft = await read($, settingsDraft)
   const { key, ...rest } = draft
+  if (orchDraft !== null) {
+    const savedOrch = orchDraft
+    orchDraft = null
+    orchConfigLoaded = savedOrch
+    await writeProjectOrchestrationConfig($, savedOrch)
+  }
   // The key goes to its file first; the settings then go through the store queue, since each one reloads the plugin.
   if (key?.trim()) await saveJevKey($, key, false)
   const changes: Record<string, string> = {}
@@ -2466,7 +2478,7 @@ export function settingsSvg(color: string): string {
 
 /** The settings rows' icons, drawn in the cog's outline style (14 px, 1.3 stroke) rather than font glyphs, which
  * differ per font. */
-export function rowIconSvg(kind: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'quick' | 'full', color: string): string {
+export function rowIconSvg(kind: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'quick' | 'full' | 'orchestration', color: string): string {
   const shapes = {
     // A brain seen from above: two lobes and the line between them.
     fxmind: '<path d="M6.4 2.6C4.4 2 2.6 3.4 2.8 5.2 1.6 6 1.6 8 2.8 8.8 2.6 10.6 4.4 12 6.4 11.4Z"/><path d="M7.6 2.6C9.6 2 11.4 3.4 11.2 5.2 12.4 6 12.4 8 11.2 8.8 11.4 10.6 9.6 12 7.6 11.4Z"/>',
@@ -2480,6 +2492,8 @@ export function rowIconSvg(kind: 'fxmind' | 'effort' | 'model' | 'judge' | 'hand
     handoff: '<path d="M1.8 7H9.4M6.6 4.2L9.4 7L6.6 9.8"/><path d="M11.8 2.6V11.4"/>',
     // A pencil: customize. The tip down left, a line across the ferrule.
     show: '<path d="M9.6 2.1 11.9 4.4 4.9 11.4 2.1 11.9 2.6 9.1Z"/><path d="M8.1 3.6 10.4 5.9"/>',
+    // Branching nodes: multi-agent orchestration.
+    orchestration: '<circle cx="3.2" cy="7" r="1.4"/><circle cx="10.8" cy="3.6" r="1.4"/><circle cx="10.8" cy="10.4" r="1.4"/><path d="M4.5 6.4 9.5 4.2M4.5 7.6 9.5 9.8"/>',
     // Quick and Full are drawn solid below: an outline at 14 px was too thin to read.
     quick: '',
     full: '',
@@ -4852,7 +4866,9 @@ Saved to ${out}.md and .json` }
 
   on('ui.render', { component: 'Pane', requestId: 'fxmind-effort-agents' }, async ($, e) => {
     const els = themedEls($.ui.resolve(e))
+    await syncOrchestration($)
     const agents = await read($, agentsState)
+    const orchestration = await read($, orchestrationState)
     const open = await read($, agentsOpen)
     const rows = Math.max(12, e.props.scroll.bodyRows)
     return agentsPane(
@@ -4869,6 +4885,7 @@ Saved to ${out}.md and .json` }
         steps: await read($, agentSteps),
         module: await read($, agentsModule),
         onModule: (key: string) => update($, agentsModule, cur => (cur === key ? null : key)),
+        orchestration,
       },
       agents,
     )
@@ -4899,6 +4916,9 @@ Saved to ${out}.md and .json` }
     // The prompt refiner's band takes the slot while it works on a demand (./refine), in the bar's own frame.
     const refining = await refineBand($, e, band => refineFrame($, e, band))
     if (refining) return refining
+    // Multi-agent orchestration confirmation banner when mode === "confirm".
+    const orchPending = await orchestrationBand($, e, band => refineFrame($, e, band))
+    if (orchPending) return orchPending
     // Setup changes a reload cut off are saved from here: the reloaded plugin draws before anything else runs.
     void drainSetupSave($).catch(() => undefined)
     void afterLoad($).catch(() => undefined)
@@ -4943,6 +4963,7 @@ Saved to ${out}.md and .json` }
       // A plain button with its own handler: a dismiss-role button may be taken by the app before onPress runs.
       const checking = await read($, updateCheck)
       const close = async () => {
+        orchDraft = null
         await update($, settingsDraft, () => ({}))
         await update($, judgeTest, () => null)
         await update($, settingsCard, () => null)
@@ -4992,7 +5013,7 @@ Saved to ${out}.md and .json` }
       helpersSeen = shown.helpers
       // Dirty only while the draft differs from what is saved: a control set back to its saved value is no change.
       const sameSet = (a: string, b: string) => a.split(',').filter(Boolean).sort().join() === b.split(',').filter(Boolean).sort().join()
-      const dirty = Object.entries(draft).some(([field, value]) =>
+      const dirty = orchDraft !== null || Object.entries(draft).some(([field, value]) =>
         value === undefined ? false
         : field === 'key' ? Boolean(value.trim())
         : field === 'hide' ? !sameSet(value, config.hide.join(','))
@@ -5284,7 +5305,74 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-cold-prompt", label: "Prompt in a cold chat", value: shown.coldPrompt, options: [{ value: 'off', label: 'Send' }, { value: 'block', label: 'Block' }, { value: 'compact', label: 'Compact & resend' }], onSelect: set('coldPrompt') }),
             pick({ key: "settings-cold-at", label: "Cold from", value: shown.coldAt, options: COLD_STEPS.map(n => ({ value: String(n), label: `${n}k` })), onSelect: set('coldAt') }),
             ...alertToggles,
-]) : [
+]) : card === 'orchestration' ? (bare ? [] : (() => {
+            const orchShown = orchDraft ?? orchConfigLoaded
+            const setOrch = (patch: Partial<OrchestrationConfig>) => {
+              orchDraft = { ...orchShown, ...patch }
+              $.ui.invalidate('ui.render')
+            }
+            const setRuleProvider = (idx: number, provider: string) => {
+              const nextRules = orchShown.routing.rules.map((r, i) =>
+                i === idx ? { ...r, provider: provider === 'default' ? null : provider } : r,
+              )
+              setOrch({ routing: { ...orchShown.routing, rules: nextRules } })
+            }
+            const providerOpts = [
+              { value: 'default', label: 'Default CLI' },
+              { value: 'opencode', label: 'OpenCode' },
+              { value: 'claude', label: 'Claude' },
+              { value: 'codex', label: 'Codex' },
+              { value: 'cursor-agent', label: 'Cursor Agent' },
+              { value: 'hermes', label: 'Hermes' },
+            ]
+            return [
+              pick({
+                key: "settings-orch-enabled",
+                label: "Orchestration",
+                value: orchShown.enabled ? 'on' : 'off',
+                options: [{ value: 'on', label: 'Enabled' }, { value: 'off', label: 'Disabled' }],
+                onSelect: v => setOrch({ enabled: v === 'on' }),
+              }),
+              pick({
+                key: "settings-orch-mode",
+                label: "Mode",
+                value: orchShown.mode,
+                options: [
+                  { value: 'auto', label: 'Auto' },
+                  { value: 'confirm', label: 'Confirm first' },
+                  { value: 'off', label: 'Off' },
+                ],
+                onSelect: v => setOrch({ mode: v as OrchestrationConfig['mode'] }),
+              }),
+              pick({
+                key: "settings-orch-strategy",
+                label: "Strategy",
+                value: orchShown.strategy,
+                options: [
+                  { value: 'smart', label: 'Smart DAG' },
+                  { value: 'parallel', label: 'Parallel' },
+                  { value: 'sequential', label: 'Sequential' },
+                ],
+                onSelect: v => setOrch({ strategy: v as OrchestrationConfig['strategy'] }),
+              }),
+              pick({
+                key: "settings-orch-concurrent",
+                label: "Max concurrent",
+                value: String(orchShown.maxConcurrent),
+                options: ['1', '2', '3', '4', '5', '6', '8', '10'].map(n => ({ value: n, label: n })),
+                onSelect: v => setOrch({ maxConcurrent: Number(v) || 3 }),
+              }),
+              ...orchShown.routing.rules.map((rule, idx) =>
+                pick({
+                  key: `settings-orch-rule-${idx}`,
+                  label: rule.match.split('|')[0] || `Rule ${idx + 1}`,
+                  value: rule.provider || 'default',
+                  options: providerOpts,
+                  onSelect: v => setRuleProvider(idx, v),
+                }),
+              ),
+            ]
+          })()) : [
             ...(bare
               ? []
               : [

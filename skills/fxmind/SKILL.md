@@ -49,6 +49,14 @@ Several agents (IDE tabs, CLIs, panel threads, subagents, teammates) may work on
 - Delegated subagents (`fxmind_subagent_run`) work inside your claimed scope and report back; you record the gates.
 - Memory is shared: query before you learn, extend or correct an existing fact instead of creating a near-duplicate, and never delete another agent's memory without evidence that it is wrong.
 
+## Agent orchestration
+
+Use `fxmind_orchestrate` when a task decomposes cleanly into 2+ scoped subtasks (e.g., parallel codebase exploration, independent file changes, or multi-stage `explore` → `implement` → `review`/`test` pipelines across configured CLI providers). Execute directly instead of orchestrating for small, single-file, or tightly coupled edits where coordination overhead exceeds the gain.
+
+- **DAG dependencies (`dependsOn`):** Assign short stable `id`s (e.g. `"st_explore"`, `"st_impl"`, `"st_test"`) and declare `dependsOn` whenever a subtask needs findings or edits from an earlier step; the engine passes upstream outputs automatically.
+- **File lease safety (`fxmind_claim_paths`):** Claim all target files after Gate B before dispatching write subtasks. Subtasks running in parallel (`dependsOn: []`) MUST edit disjoint file sets — if two subtasks touch the same file, chain them via `dependsOn` so they never race. Mark read-only subtasks (`explore`, `review`, `query`) with `readOnly: true`.
+- **Control & settings:** If `mode` is `"confirm"` (`awaiting_approval: true`), wait for user confirmation or call `fxmind_orchestration_control` (`approve` / `cancel`) after approval. Use `fxmind_orchestration_status` to poll asynchronous runs (`wait: false`) and `fxmind_orchestration_config` to inspect/update routing rules, `strategy` (`smart` | `parallel` | `sequential`), or `maxConcurrent`. The main agent still owns task gates (`A → B → V → C`).
+
 ## Domain routing
 
 Read only installed entries from `.fxmind/skills/_index.md`. `.fxmind/policy/domain-routing.md` is the installed packs' routing, unit of work, stack detection, tool and verification rules for this project — follow it. The pack principles it names under `.fxmind/policy/` (e.g. `fivem-principles.md`, `web-principles.md`) are binding; cite their IDs at Gate A/B and in the Gate V review.
