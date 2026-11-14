@@ -34,3 +34,14 @@ test("Settings opens before loading slow project config and CLI skills", () => {
   assert.ok(settings.indexOf("await update($, settingsOpen, () => true)") <
             settings.indexOf("void readProjectOrchestrationConfig($)"));
 });
+
+test("Gate V Skip never submits a synthetic user message", () => {
+  const source = read("effort.tsx");
+  const start = source.indexOf("async function answerGateV(");
+  const end = source.indexOf("async function saveDraft(", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = source.slice(start, end);
+  assert.match(handler, /if \(decision === [\x27"]review[\x27"]\) await \$\.prompt\.submit\(/);
+  assert.equal((handler.match(/\$\.prompt\.submit\(/g) || []).length, 1);
+  assert.match(handler, /gate-v-choice\.json/);
+});

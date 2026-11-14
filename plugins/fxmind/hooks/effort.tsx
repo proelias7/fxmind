@@ -2168,7 +2168,8 @@ async function answerGateV($: EngineInterface, decision: 'review' | 'skip') {
     await $.fs.write(`${root}/${GATE_V_STATE}/gate-v-choice.json`, JSON.stringify({ sessionId: ask.sessionId, decision, cliId, at }) + '\n').catch(() => undefined)
   }
   const label = ask.reviewers.find(r => r.id === cliId)?.label
-  await $.prompt.submit({ text: gateVMessage(decision, label), asUser: true })
+  // Skipping review is a state change, not a new user message.
+  if (decision === 'review') await $.prompt.submit({ text: gateVMessage(decision, label), asUser: true })
 }
 
 async function saveDraft($: EngineInterface) {

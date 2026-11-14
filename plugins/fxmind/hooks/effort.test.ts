@@ -4226,7 +4226,8 @@ describe('Gate V asks in the band', () => {
     const band = await $.ui.mount(DESK_BAND)
     await band.press({ key: 'gatev-skip' })
     expect(JSON.parse(files['/p/.fxmind/state/gate-v-choice.json']!)).toMatchObject({ sessionId: 'task-1', decision: 'skip', cliId: null })
-    expect(texts.at(-1)).toContain('skip the independent review')
+    // Skipping Gate V never fabricates a user message.
+    expect(texts).toEqual([])
     await band.unmount()
   })
 
