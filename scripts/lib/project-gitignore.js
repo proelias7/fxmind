@@ -57,6 +57,16 @@ function untrackGeneratedFxmindFiles(targetRoot) {
     .map((entry) => entry.replace(/\\/g, "/").trim())
     .filter(Boolean)
     .filter((file) => !sharedFxmindFile(file)))];
+
+  // dev/dev.cfg is untracked only when fxmind wrote it: a team's own dev config stays in git (the ignore line only
+  // keeps a new one out).
+  const devCfg = path.join(root, "dev", "dev.cfg");
+  try {
+    if (fs.existsSync(devCfg) && /^# Created by fxmind/.test(fs.readFileSync(devCfg, "utf8")) &&
+        runGit(root, ["ls-files", "--", "dev/dev.cfg"]).trim()) {
+      tracked.push("dev/dev.cfg");
+    }
+  } catch { /* not tracked or unreadable */ }
   if (tracked.length === 0) {
     return [];
   }

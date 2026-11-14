@@ -1,6 +1,6 @@
 {
   "name": "fxmind",
-  "version": "1.2.13",
+  "version": "1.2.14",
   "description": "Shared project memory for AI agents, plus a prompt refiner, automatic reasoning effort, cache countdown, handoff and agent panel. Ask: \"set up fxmind in this project\".",
   "author": {
     "name": "proelias7",

@@ -127,7 +127,42 @@ const PROJECT_GITIGNORE_LINES = [
   "!.fxmind/corrections/",
   ".fxmind/corrections/README.md",
   ".fxmind/corrections/correction.template.md",
+  // fxmind's own agent wiring, copied in again by every install/update: hooks, commands, rules, subagents. Files a
+  // person also edits (.claude/settings.json, .mcp.json, .cursor/hooks.json, .cursor/mcp.json, .vscode/tasks.json) stay.
+  ".claude/hooks/claude-adapter.js",
+  ".claude/hooks/drift-watcher.js",
+  ".claude/hooks/gate-guard.js",
+  ".claude/hooks/learn-prompt.js",
+  ".claude/hooks/lib/",
+  ".claude/commands/fxmind.md",
+  ".cursor/hooks/cwd-bootstrap.js",
+  ".cursor/hooks/drift-watcher.js",
+  ".cursor/hooks/gate-guard.js",
+  ".cursor/hooks/graph-freshness.js",
+  ".cursor/hooks/learn-prompt.js",
+  ".cursor/hooks/memory-first.js",
+  ".cursor/hooks/pre-commit.js",
+  ".cursor/hooks/update-notifier.js",
+  ".cursor/hooks/lib/",
+  ".cursor/commands/fxmind.md",
+  ".cursor/rules/fxmind-auto-task.mdc",
+  ".opencode/agents/explore.md",
+  ".opencode/agents/general.md",
+  ".opencode/agents/reader.md",
+  ".opencode/agents/reviewer.md",
+  ".opencode/agents/scout.md",
+  ".opencode/commands/fxmind.md",
+  ".opencode/instructions/delegate-io.md",
+  ".opencode/instructions/fxmind-tools-only.md",
+  ".vscode/fivem-start.ps1",
+  // Local FXServer config with a generated rcon_password: never committed.
+  "dev/dev.cfg",
 ];
+
+/** Generated agent-wiring files to drop from the git index, as listed above (folders without the slash). */
+const GENERATED_AGENT_FILES = PROJECT_GITIGNORE_LINES
+  .filter((line) => /^\.(?:claude|cursor|opencode|vscode)\//.test(line))
+  .map((line) => line.replace(/\/$/, ""));
 
 /** What stays in git under .fxmind/ (every other tracked file there is untracked on install/update). */
 function sharedFxmindFile(file) {
@@ -158,6 +193,7 @@ const PROJECT_GITIGNORE_UNTRACK = [
   ".opencode/skills/fxmind",
   ".codex/config.toml",
   "opencode.json",
+  ...GENERATED_AGENT_FILES,
 ];
 
 function fxmindDir(root) {
