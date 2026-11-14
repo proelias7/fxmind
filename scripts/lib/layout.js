@@ -125,8 +125,14 @@ const PROJECT_GITIGNORE_LINES = [
   ".fxmind/*",
   "!.fxmind/memory/",
   "!.fxmind/corrections/",
+  "!.fxmind/audits/",
+  "!.fxmind/designs/",
+  "!.fxmind/playbooks/",
+  "!.fxmind/reports/",
+  "!.fxmind/reference.md",
   ".fxmind/corrections/README.md",
   ".fxmind/corrections/correction.template.md",
+  ".fxmind/audits/README.md",
   // fxmind's own agent wiring, copied in again by every install/update: hooks, commands, rules, subagents. Files a
   // person also edits (.claude/settings.json, .mcp.json, .cursor/hooks.json, .cursor/mcp.json, .vscode/tasks.json) stay.
   ".claude/hooks/claude-adapter.js",
@@ -164,12 +170,17 @@ const GENERATED_AGENT_FILES = PROJECT_GITIGNORE_LINES
   .filter((line) => /^\.(?:claude|cursor|opencode|vscode)\//.test(line))
   .map((line) => line.replace(/\/$/, ""));
 
+/** The team's knowledge under .fxmind/: written by agents and people, shared through git. */
+const SHARED_FXMIND_DIRS = ["memory", "corrections", "audits", "designs", "playbooks", "reports"];
+/** Files fxmind itself installs inside those folders: rewritten by every update, so kept out of git. */
+const INSTALLED_IN_SHARED = [".fxmind/corrections/README.md", ".fxmind/corrections/correction.template.md", ".fxmind/audits/README.md"];
+
 /** What stays in git under .fxmind/ (every other tracked file there is untracked on install/update). */
 function sharedFxmindFile(file) {
   const rel = String(file).replace(/\\/g, "/");
-  if (rel.startsWith(".fxmind/memory/")) return true;
-  if (!rel.startsWith(".fxmind/corrections/")) return false;
-  return !/\/(?:README\.md|correction\.template\.md)$/.test(rel);
+  if (INSTALLED_IN_SHARED.includes(rel)) return false;
+  if (rel === ".fxmind/reference.md") return true;
+  return SHARED_FXMIND_DIRS.some((dir) => rel.startsWith(`.fxmind/${dir}/`));
 }
 
 /** Already-tracked generated files to drop from the git index (`git rm --cached`). */
@@ -208,7 +219,7 @@ const WORKTREE_INCLUDE = [...new Set([
   ".fxmind/policy/",
   ".fxmind/templates/",
   ".fxmind/skills/",
-  ".fxmind/audits/",
+  ".fxmind/audits/README.md",
   ".fxmind/corrections/README.md",
   ".fxmind/corrections/correction.template.md",
   ".claude/skills/fxmind/",

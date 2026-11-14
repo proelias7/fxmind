@@ -45,12 +45,36 @@ function resolveAgents(agentNames) {
 function readInstalledManifest(targetRoot) {
   const manifestPath = path.join(targetRoot, SHARED_DIR, "packs.json");
   if (!fs.existsSync(manifestPath)) {
+    // packs.json is gitignored (it is installed, not shared): a fresh clone or a pull that dropped it from git still
+    // has the project's memory. Rebuild from the lockfile or the project's own files instead of refusing.
+    const recovered = recoverManifest(targetRoot);
+    if (recovered) return recovered;
     throw new Error(
       `No fxmind install found (.fxmind/packs.json missing). Run ${npxInstall("-y")} first.`,
     );
   }
 
   return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+}
+
+/** A manifest for a project that has fxmind's shared data but lost packs.json: packs from the lockfile, else detected. */
+function recoverManifest(targetRoot) {
+  const fxmind = path.join(targetRoot, SHARED_DIR);
+  if (!fs.existsSync(path.join(fxmind, "memory")) && !fs.existsSync(path.join(fxmind, "packs.lock.json"))) return null;
+  let ids = [];
+  try {
+    const lock = JSON.parse(fs.readFileSync(path.join(fxmind, "packs.lock.json"), "utf8"));
+    ids = (lock.packs || []).map((pack) => pack.id).filter(Boolean);
+  } catch { /* no lockfile */ }
+  if (!ids.length) ids = require("../packs").detectPackIds(targetRoot);
+  if (!ids.length) return null;
+  // The agents whose MCP config is still in git (these files are shared); Claude Code when none is.
+  const byConfig = [
+    [".mcp.json", "claude"], [".cursor/mcp.json", "cursor"], [".codex/config.toml", "codex"], ["opencode.json", "opencode"],
+  ].filter(([file]) => fs.existsSync(path.join(targetRoot, file))).map(([, id]) => id);
+  const agents = byConfig.length ? byConfig : ["claude"];
+  console.log(`[FXMIND] .fxmind/packs.json was missing; reinstalling packs ${ids.join(", ")} for ${agents.join(", ")}`);
+  return { packs: ids.map((id) => ({ id })), agents, command: true };
 }
 
 function hasAgentInstall(targetRoot, agent) {
