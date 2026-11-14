@@ -13,6 +13,7 @@ const path = require("path");
 const {
   PROJECT_GITIGNORE_LINES,
   PROJECT_GITIGNORE_UNTRACK,
+  WORKTREE_INCLUDE,
   sharedFxmindFile,
 } = require("./layout");
 
@@ -86,6 +87,28 @@ function untrackGeneratedFxmindFiles(targetRoot) {
   return tracked;
 }
 
+const WORKTREE_BEGIN = "# >>> fxmind (installed files a new worktree needs; managed by fxmind)";
+const WORKTREE_END = "# <<< fxmind";
+
+/** Keeps fxmind's block in `.worktreeinclude`, so every worktree Claude Code creates gets fxmind's installed files
+ * (they are gitignored, so a fresh checkout lacks them). Lines outside the block are the team's and stay. */
+function ensureWorktreeInclude(targetRoot) {
+  const file = path.join(path.resolve(targetRoot), ".worktreeinclude");
+  const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n") : "";
+  const block = [WORKTREE_BEGIN, ...WORKTREE_INCLUDE, WORKTREE_END].join("\n");
+  const start = current.indexOf(WORKTREE_BEGIN);
+  const end = current.indexOf(WORKTREE_END, start);
+  let next;
+  if (start >= 0 && end > start) {
+    next = current.slice(0, start) + block + current.slice(end + WORKTREE_END.length);
+  } else {
+    next = current + (current && !current.endsWith("\n") ? "\n" : "") + (current ? "\n" : "") + block + "\n";
+  }
+  if (next === current) return false;
+  fs.writeFileSync(file, next, "utf8");
+  return true;
+}
+
 function ensureProjectGitignore(targetRoot) {
   const gitignorePath = path.join(path.resolve(targetRoot), ".gitignore");
   let content = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, "utf8") : "";
@@ -105,10 +128,13 @@ function ensureProjectGitignore(targetRoot) {
   }
 
   const untracked = untrackGeneratedFxmindFiles(targetRoot);
-  return { path: ".gitignore", added, untracked };
+  let worktreeInclude = false;
+  try { worktreeInclude = ensureWorktreeInclude(targetRoot); } catch { /* best effort */ }
+  return { path: ".gitignore", added, untracked, worktreeInclude };
 }
 
 module.exports = {
   ensureProjectGitignore,
+  ensureWorktreeInclude,
   untrackGeneratedFxmindFiles,
 };

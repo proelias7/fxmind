@@ -196,6 +196,33 @@ const PROJECT_GITIGNORE_UNTRACK = [
   ...GENERATED_AGENT_FILES,
 ];
 
+/** What a new git worktree needs copied from the main checkout (`.worktreeinclude`, read by Claude Code for
+ * --worktree, subagent and desktop worktrees): fxmind's installed files, gitignored and so missing from a fresh
+ * checkout. Memory and corrections are in git and come with the checkout; session state and the graph stay behind. */
+const WORKTREE_INCLUDE = [...new Set([
+  ".fxmind/fxmind.md",
+  ".fxmind/packs.json",
+  ".fxmind/packs.lock.json",
+  ".fxmind/store.json",
+  ".fxmind/modes/",
+  ".fxmind/policy/",
+  ".fxmind/templates/",
+  ".fxmind/skills/",
+  ".fxmind/audits/",
+  ".fxmind/corrections/README.md",
+  ".fxmind/corrections/correction.template.md",
+  ".claude/skills/fxmind/",
+  ".cursor/skills/fxmind/",
+  ".agents/skills/fxmind/",
+  ".codex/skills/fxmind/",
+  ".opencode/skills/fxmind/",
+  ".codex/config.toml",
+  "opencode.json",
+  // The agent wiring as the ignore list names it (folders keep their slash).
+  ...PROJECT_GITIGNORE_LINES.filter((line) => /^\.(?:claude|cursor|opencode|vscode)\//.test(line)),
+  "dev/dev.cfg",
+])];
+
 function fxmindDir(root) {
   return path.join(path.resolve(root), SHARED_DIR);
 }
@@ -398,6 +425,7 @@ module.exports = {
   DEPRECATED_ROOT_FILES,
   PROJECT_GITIGNORE_LINES,
   PROJECT_GITIGNORE_UNTRACK,
+  WORKTREE_INCLUDE,
   sharedFxmindFile,
   fxmindDir,
   joinRel,

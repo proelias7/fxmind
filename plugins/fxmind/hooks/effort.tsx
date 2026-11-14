@@ -2083,12 +2083,23 @@ export async function repoWithoutFxmind($: EngineInterface): Promise<string | nu
   let dir = (await $.session.cwd()).replace(/\\/g, '/').replace(/\/+$/, '')
   for (let depth = 0; depth < 6; depth += 1) {
     if (await $.fs.exists(`${dir}/.fxmind/packs.json`)) return null
-    if (await $.fs.exists(`${dir}/.git`)) return dir
+    if (await $.fs.exists(`${dir}/.git`)) return (await worktreeOfFxmind($, dir)) ? null : dir
     const parent = dir.replace(/\/[^/]+$/, '')
     if (!parent || parent === dir) break
     dir = parent
   }
   return null
+}
+
+/** Whether `dir` is a linked git worktree (its .git is a file) of a checkout that has fxmind: a worktree misses
+ * fxmind's gitignored files until .worktreeinclude copies them, and it is the same project, never a new install. */
+export async function worktreeOfFxmind($: EngineInterface, dir: string): Promise<boolean> {
+  const text = await $.fs.read(`${dir}/.git`).catch(() => null)
+  const gitdir = typeof text === 'string' ? /^gitdir:\s*(.+)$/m.exec(text)?.[1]?.trim() : undefined
+  if (!gitdir) return false
+  const main = gitdir.replace(/\\/g, '/').replace(/\/\.git\/worktrees\/.*$/, '')
+  if (main === gitdir.replace(/\\/g, '/')) return false
+  return (await $.fs.exists(`${main}/.fxmind/packs.json`)) || (await $.fs.exists(`${dir}/.fxmind/memory`))
 }
 
 const storedRoots = async ($: EngineInterface, key: string): Promise<string[]> => {

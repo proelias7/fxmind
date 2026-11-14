@@ -4396,6 +4396,27 @@ describe('a repository without fxmind', () => {
     await band.unmount()
   })
 
+  test('a worktree of a project with fxmind is not offered the install', { options: { projectSetup: 'ask' } } as never, async ($, on) => {
+    mock.store(on)
+    mock.env(on, { FXMIND_EFFORT_MODEL_UI: '1' })
+    on('session.cwd', () => ({ value: '/r/.claude/worktrees/oak' }) as never)
+    on('fs.exists', (_$, e) => ({ value: e.path === '/r/.claude/worktrees/oak/.git' || e.path === '/r/.fxmind/packs.json' }) as never)
+    on('fs.read', (_$, e) => (e.path === '/r/.claude/worktrees/oak/.git' ? { value: 'gitdir: /r/.git/worktrees/oak\n' } : { deny: 'ENOENT' }) as never)
+    on('fs.write', () => ({ value: undefined }) as never)
+    on('ui.status', () => ({ value: undefined }))
+    on('session.messages', () => ({ value: [] }) as never)
+    on('session.model', () => ({ value: 'claude-opus-5-5' }))
+    on('command.list', () => ({ value: [] as never }))
+    on('session.start', (_$, e) => ({ cwd: e.cwd }) as never)
+    on('command.register', () => ({ value: undefined }) as never)
+    mock.clock(on)
+    await $.session.start({ cwd: '/r/.claude/worktrees/oak', surface: 'desktop', isInteractive: true } as never)
+    await closeSetup($)
+    const band = await $.ui.mount(DESK_BAND)
+    expect(await band.find({ key: 'setup-install' })).toBeUndefined()
+    await band.unmount()
+  })
+
   test('auto: the agent is asked to install it once', { options: { projectSetup: 'auto' } } as never, async ($, on) => {
     const texts = repo(on)
     const mocked = mock.clock(on)

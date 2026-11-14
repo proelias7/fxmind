@@ -6,7 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
-const { ensureProjectGitignore } = require("./project-gitignore");
+const { ensureProjectGitignore, ensureWorktreeInclude } = require("./project-gitignore");
 
 describe("project .gitignore: only fxmind knowledge is shared", () => {
   it("keeps memory and corrections in git, drops installed fxmind files", () => {
@@ -52,6 +52,7 @@ describe("project .gitignore: only fxmind knowledge is shared", () => {
       ".fxmind/memory/vehicles.md",
       ".gitignore",
       ".mcp.json",
+      ".worktreeinclude",
       "src/a.lua",
     ]);
   });
@@ -67,5 +68,21 @@ describe("project .gitignore: a team's own dev.cfg", () => {
     git("add", "-A");
     ensureProjectGitignore(root);
     assert.match(git("ls-files"), /dev\/dev\.cfg/);
+  });
+});
+
+describe(".worktreeinclude: a new worktree gets fxmind's installed files", () => {
+  it("keeps one fxmind block and the team's own lines", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-wti-"));
+    fs.writeFileSync(path.join(root, ".worktreeinclude"), ".env\n");
+    assert.equal(ensureWorktreeInclude(root), true);
+    const once = fs.readFileSync(path.join(root, ".worktreeinclude"), "utf8");
+    assert.match(once, /^\.env\n/);
+    for (const line of [".fxmind/packs.json", ".fxmind/modes/", ".claude/hooks/lib/", ".claude/hooks/gate-guard.js"]) {
+      assert.ok(once.split("\n").includes(line), line);
+    }
+    assert.ok(!once.includes(".fxmind/memory"));
+    assert.equal(ensureWorktreeInclude(root), false);
+    assert.equal(fs.readFileSync(path.join(root, ".worktreeinclude"), "utf8"), once);
   });
 });
