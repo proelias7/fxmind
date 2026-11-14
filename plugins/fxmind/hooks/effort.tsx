@@ -2038,6 +2038,9 @@ async function readStateJson($: EngineInterface, root: string, name: string): Pr
   }
 }
 
+/** Tasks the person already answered in the band: the band stays closed even if the choice file could not be written. */
+const answeredGateV = new Set<string>()
+
 /** The server's question, unless already answered: shown in the band above the prompt. Never throws. */
 async function readGateVAsk($: EngineInterface) {
   if (config.gateV !== 'ask') return
@@ -2045,7 +2048,7 @@ async function readGateVAsk($: EngineInterface) {
   if (!root) return
   const pending = await readStateJson($, root, 'gate-v-pending.json')
   const sessionId = typeof pending?.sessionId === 'string' ? pending.sessionId : ''
-  const answered = sessionId && (await readStateJson($, root, 'gate-v-choice.json'))?.sessionId === sessionId
+  const answered = sessionId && (answeredGateV.has(sessionId) || (await readStateJson($, root, 'gate-v-choice.json'))?.sessionId === sessionId)
   const ask: GateVPending | null = sessionId && !answered
     ? {
         sessionId,
@@ -2138,13 +2141,19 @@ async function answerSetup($: EngineInterface, answer: 'install' | 'later' | 'ne
 /** The person answered in the band: the choice goes to the server's file, the band closes, the agent is told. */
 async function answerGateV($: EngineInterface, decision: 'review' | 'skip') {
   const ask = await read($, gateVAsk)
-  const root = await projectRoot($).catch(() => null)
-  if (!ask || !root) return
+  if (!ask) return
+  // Close the band first: the answer must never hang on a file write or on the agent being busy.
+  answeredGateV.add(ask.sessionId)
   const cliId = decision === 'review' ? gateVReviewer(ask, await read($, gateVPick)) : null
-  const at = new Date(await $.clock.now().catch(() => Date.now())).toISOString()
-  await $.fs.write(`${root}/${GATE_V_STATE}/gate-v-choice.json`, JSON.stringify({ sessionId: ask.sessionId, decision, cliId, at }) + '\n')
   await update($, gateVAsk, () => null)
   await update($, gateVPick, () => null)
+  redrawSoon()
+  void Promise.resolve($.ui.invalidate('ui.render')).catch(() => undefined)
+  const root = await projectRoot($).catch(() => null)
+  if (root) {
+    const at = new Date(await $.clock.now().catch(() => Date.now())).toISOString()
+    await $.fs.write(`${root}/${GATE_V_STATE}/gate-v-choice.json`, JSON.stringify({ sessionId: ask.sessionId, decision, cliId, at }) + '\n').catch(() => undefined)
+  }
   const label = ask.reviewers.find(r => r.id === cliId)?.label
   await $.prompt.submit({ text: gateVMessage(decision, label), asUser: true })
 }
