@@ -1,3 +1,4 @@
+import { mountMemoryGraph } from './memory-graph.js';
 // FXMIND Dashboard. A management-only UI; conversations remain in CLI hosts.
 const apiBase = '/api';
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -7,7 +8,13 @@ const state = {
   agent: null, agentDraft: null, subagents: null, subagentDraft: null,
   providers: [], clis: [], models: {}, saving: false,
   scope: 'project', error: null, version: '—',
+  memoryTab: 'canvas', graphMode: 'memories', graph: null,
+  graphError: null, graphLoading: false, graphProjectId: null,
+  graphLoadedMode: null, graphSearch: '',
 };
+let memoryCanvas = null;
+let graphRequestId = 0;
+const activeProjectId = () => state.health?.workspaceId || state.workspace?.workspaceId || '';
 const pages = {
   overview: ['Visão geral', 'Panorama do ambiente e das automações'],
   orchestration: ['Orquestração', 'Controle de tarefas e roteamento de agentes'],
@@ -135,11 +142,84 @@ function providers() {
     +section('Integrações configuradas','As chaves são armazenadas localmente', '<div class="grid cols">'+state.providers.map(p=>'<div class="provider-card"><div class="section-head"><div><h2>'+esc(p.name||p.id)+'</h2><p>'+esc(p.envKey||p.id)+'</p></div><span class="tag '+(p.configured?'good':'neutral')+'">'+(p.configured?'Configurado':'Pendente')+'</span></div>'+textField('URL base',p.baseURL||'','provider.'+p.id+'.baseURL')+textField('Chave de API', '', 'provider.'+p.id+'.apiKey',{type:'password',placeholder:p.configured?'Configurada · inserir somente para substituir':'Inserir chave',autocomplete:'autocomplete="new-password"'})+'<div class="actions">'+btn('Salvar','save-provider','primary','data-id="'+attr(p.id)+'"')+'</div></div>').join('')+'</div>')
     +section('Credenciais fixas','Anthropic, OpenAI e Cursor podem ser configurados nas opções globais do agente','<div class="callout">Mantenha as chaves existentes se não quiser substituí-las. Evite compartilhá-las em capturas de tela.</div>');
 }
-function projects() {
-  return heading('CONTEXTO','Projetos e memória','Selecione o projeto usado pelos agentes. As memórias continuam no armazenamento FXMIND e não são modificadas pela dashboard.')
-    +section('Contexto atual','O mesmo escopo é usado na orquestração e nos subagentes','<div class="grid metrics" style="grid-template-columns:repeat(2,minmax(0,1fr))">'+metric('Memórias',fmt(state.health?.memoryCount||0),'No projeto ativo')+metric('Projetos registrados',fmt(state.projects.length),'Disponíveis no ambiente')+'</div><div class="callout">A gestão detalhada de memórias depende das ferramentas MCP do FXMIND. Esta tela mostra o contexto e permite alternar projetos sem alterar os arquivos.</div>')
-    +section('Projetos registrados','Alterne o escopo da dashboard','<div class="list">'+state.projects.map(p=>'<div class="list-row"><div><strong>'+esc(p.name||p.root||'Projeto')+'</strong><small>'+esc(p.root||'')+'</small></div><div class="right">'+(state.health?.workspaceId===p.id?'<span class="tag good">Ativo</span>':btn('Selecionar','select-project','','data-id="'+attr(p.id)+'"'))+'</div></div>').join('')+'</div>');
+function graphPanel() {
+  const graph = state.graph;
+  const same = graph && state.graphProjectId === activeProjectId() && state.graphLoadedMode === state.graphMode;
+  const meta = same ? graph.meta || {} : {};
+  const counts = same
+    ? fmt(meta.visibleNodes) + ' nós · ' + fmt(meta.visibleLinks) + ' ligações' + (meta.truncated ? ' · amostra' : '')
+    : '';
+  let visual = '';
+  if (state.graphLoading) {
+    visual = '<div class="graph-canvas-status"><strong>Carregando conexões…</strong><span>Preparando a visualização de memórias</span></div>';
+  } else if (state.graphError) {
+    visual = '<div class="graph-canvas-status"><strong>Canvas indisponível</strong><span>' + esc(state.graphError) + '</span>'
+      + btn('Gerar grafo','graph-rebuild','primary') + '</div>';
+  } else if (same && graph.nodes?.length) {
+    visual = '<div class="memory-network-wrap" id="memory-graph">'
+      + '<div class="memory-canvas-pane"><canvas tabindex="0" aria-label="Canvas interativo das ligações entre memórias"></canvas>'
+      + '<div class="graph-overlay-legend"><span><i class="graph-legend-dot" style="background:#7ee0b4"></i>Memórias</span>'
+      + (state.graphMode === 'fragments' ? '<span><i class="graph-legend-dot" style="background:#f2b45a"></i>Fragmentos</span><span><i class="graph-legend-dot" style="background:#8797e7"></i>Recursos</span>' : '')
+      + '</div></div><aside class="graph-details-pane" data-graph-details><div class="graph-detail-empty">Selecione uma memória para ver suas conexões e origem.</div></aside></div>';
+  } else if (same) {
+    visual = '<div class="graph-canvas-status"><strong>Sem memórias no grafo</strong><span>Gere o índice do projeto para visualizar as ligações.</span>'
+      + btn('Gerar grafo','graph-rebuild','primary') + '</div>';
+  } else {
+    visual = '<div class="graph-canvas-status">Preparando Canvas…</div>';
+  }
+  return section('Canvas de memórias',
+    'Conexões confirmadas entre os tópicos. Arraste para mover; use a roda do mouse ou os botões para aproximar.',
+    '<div class="memory-tools">'
+    + '<select id="memory-graph-mode" aria-label="Tipo de grafo">'
+    + '<option value="memories" ' + (state.graphMode==='memories'?'selected':'') + '>Memórias e ligações</option>'
+    + '<option value="fragments" ' + (state.graphMode==='fragments'?'selected':'') + '>Fragmentos detalhados</option></select>'
+    + '<input id="memory-graph-search" type="search" placeholder="Buscar memória ou tópico" aria-label="Buscar nós no Canvas" value="' + attr(state.graphSearch) + '" />'
+    + btn('−','graph-zoom-out','','aria-label="Diminuir zoom"')
+    + btn('+','graph-zoom-in','','aria-label="Aumentar zoom"')
+    + btn('Centralizar','graph-fit')
+    + '<span class="graph-counts">' + esc(counts) + '</span></div>'
+    + visual
+    + '<div class="graph-canvas-hint">Apenas relações confirmadas pelo FXMIND. A visualização detalhada mostra até 300 nós por vez para manter a interface leve.</div>');
 }
+function projects() {
+  const viewTabs = '<div class="memory-view-tabs">'
+    + btn('Canvas','view-canvas',state.memoryTab==='canvas'?'primary':'')
+    + btn('Projetos','view-list',state.memoryTab==='list'?'primary':'') + '</div>';
+  const projectList = section('Projetos registrados','Alterne o escopo da dashboard',
+    '<div class="list">'+state.projects.map(p=>'<div class="list-row"><div><strong>'+esc(p.name||p.root||'Projeto')+'</strong><small>'+esc(p.root||'')+'</small></div><div class="right">'+(activeProjectId()===p.id?'<span class="tag good">Ativo</span>':btn('Selecionar','select-project','','data-id="'+attr(p.id)+'"'))+'</div></div>').join('')+'</div>');
+  return heading('CONTEXTO','Projetos e memória',
+      'Explore memórias, fragmentos e suas conexões ou selecione outro projeto.')
+    +section('Contexto atual','Memórias e projetos associados ao ambiente',
+      '<div class="grid metrics" style="grid-template-columns:repeat(2,minmax(0,1fr))">'
+      + metric('Memórias',fmt(state.health?.memoryCount||0),'No projeto ativo')
+      + metric('Projetos registrados',fmt(state.projects.length),'Disponíveis no ambiente')+'</div>')
+    +viewTabs
+    +(state.memoryTab==='canvas'?graphPanel():projectList);
+}
+async function loadGraph() {
+  const id=activeProjectId();
+  if(!id || state.graphLoading)return;
+  const req=++graphRequestId;
+  state.graphLoading=true;state.graphError=null;state.graph=null;
+  const mode=state.graphMode;
+  state.graphProjectId=id;
+  render();
+  try{
+    const graph=await api('/projects/'+encodeURIComponent(id)+'/graph/view?mode='+encodeURIComponent(mode));
+    if(req!==graphRequestId)return;
+    state.graph=graph;
+    state.graphLoadedMode=mode;
+  }catch(e){
+    if(req!==graphRequestId)return;
+    state.graphError=e.message || 'Não foi possível carregar o grafo';
+  }finally{
+    if(req===graphRequestId){
+      state.graphLoading=false;
+      render();
+    }
+  }
+}
+
 function render() {
   const [title] = pages[state.page];
   $('#breadcrumb-current').textContent=title;
@@ -149,7 +229,17 @@ function render() {
   $('#sidebar-version').textContent='FXMIND · Dashboard';
   const cur=state.health?.workspaceId || state.workspace?.workspaceId || '';
   $('#project-select').innerHTML=state.projects.map(p=>'<option value="'+attr(p.id)+'" '+(p.id===cur?'selected':'')+'>'+esc(p.name||p.root)+'</option>').join('')||'<option value="">Nenhum projeto</option>';
+  memoryCanvas?.destroy();
+  memoryCanvas = null;
   $('#content').innerHTML=({overview,orchestration,agents,subagents,providers,projects}[state.page]||overview)();
+  if(state.page==='projects' && state.memoryTab==='canvas'){
+    if(state.graph && state.graphProjectId===activeProjectId() && state.graphLoadedMode===state.graphMode){
+      memoryCanvas=mountMemoryGraph($('#memory-graph'),state.graph);
+      memoryCanvas.setQuery(state.graphSearch);
+    }else if(!state.graphLoading && !state.graphError){
+      void loadGraph();
+    }
+  }
 }
 async function load() {
   const endpoints=[
@@ -248,10 +338,35 @@ async function save(action, id) {
   finally{state.saving=false;}
 }
 async function act(action,id) {
+  if(action==='view-canvas' || action==='view-list'){
+    state.memoryTab=action==='view-canvas'?'canvas':'list';
+    render();
+    return;
+  }
+  if(action==='graph-fit'){memoryCanvas?.fit();return;}
+  if(action==='graph-zoom-in'){memoryCanvas?.zoom(1.25);return;}
+  if(action==='graph-zoom-out'){memoryCanvas?.zoom(.8);return;}
+  if(action==='graph-rebuild'){
+    const projectId=activeProjectId();
+    if(!projectId)return;
+    state.graphLoading=true;state.graphError=null;render();
+    try{
+      await api('/projects/'+encodeURIComponent(projectId)+'/graph','POST',{});
+      state.graphLoading=false;state.graph=null;state.graphError=null;state.graphLoadedMode=null;
+      await loadGraph();
+      notify('Grafo atualizado');
+    }catch(e){state.graphLoading=false;state.graphError=e.message||'Falha ao gerar grafo';render();notify(state.graphError,true);}
+    return;
+  }
   if(action.startsWith('go-')){state.page=action.slice(3);render();window.scrollTo({top:0});return;}
   if(action.startsWith('save-')){await save(action,id);return;}
   if(action==='select-project'){
-    try{await api('/projects/'+encodeURIComponent(id)+'/select','POST',{});await load();notify('Projeto selecionado');}catch(e){notify(e.message,true)}
+    try{
+      await api('/projects/'+encodeURIComponent(id)+'/select','POST',{});
+      graphRequestId++;state.graphLoading=false;state.graph=null;state.graphError=null;state.graphProjectId=null;
+      state.graphLoadedMode=null;state.graphSearch='';
+      await load();notify('Projeto selecionado');
+    }catch(e){notify(e.message,true)}
     return;
   }
   if(action==='approve-run'||action==='cancel-run'){
@@ -266,11 +381,21 @@ document.addEventListener('click',e=>{
   if(button)void act(button.dataset.action,button.dataset.id);
 });
 document.addEventListener('change',e=>{
+  if(e.target.id==='memory-graph-mode'){
+    graphRequestId++;state.graphMode=e.target.value==='fragments'?'fragments':'memories';
+    state.graphLoading=false;state.graph=null;state.graphError=null;state.graphLoadedMode=null;
+    state.graphSearch='';render();return;
+  }
   if(e.target.id==='project-select'){void act('select-project',e.target.value);return;}
   const field=e.target.dataset.field;if(!field)return;
   updateModelDraft(field,e.target.type==='checkbox'?e.target.checked:e.target.value);
 });
 document.addEventListener('input',e=>{
+  if(e.target.id==='memory-graph-search'){
+    state.graphSearch=e.target.value;
+    memoryCanvas?.setQuery(state.graphSearch);
+    return;
+  }
   const field=e.target.dataset.field;
   if(!field)return;
   if(e.target.tagName==='INPUT'&&e.target.type!=='checkbox')updateModelDraft(field,e.target.value);

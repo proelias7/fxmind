@@ -1,0 +1,66 @@
+/* FXMIND knowledge graph canvas — shares official Nunito / mint tokens. */
+.memory-view-tabs { display:flex;align-items:center;gap:9px;margin-bottom:18px;flex-wrap:wrap; }
+.memory-view-tabs .btn { min-width:94px; }
+.memory-tools { display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px; }
+.memory-tools select,.memory-tools input {
+  min-height:36px;border:1px solid var(--line-2);border-radius:999px;
+  padding:7px 13px;background:#0c1016;color:var(--text);font:700 12px var(--font);
+}
+.memory-tools input { min-width:140px;max-width:290px;flex:1; }
+.memory-tools select:focus,.memory-tools input:focus { outline:2px solid var(--mint);outline-offset:2px; }
+.memory-tools .graph-counts {margin-left:auto;color:var(--muted);font:500 11px var(--mono);}
+.memory-tools .btn { padding:0 12px;min-width:36px; }
+.memory-network-wrap {
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,270px);
+  background:#0b1016;border:1px solid var(--line-2);
+  border-radius:16px;min-height:490px;overflow:hidden;
+}
+.memory-canvas-pane { position:relative;min-width:0; min-height:490px; }
+.memory-canvas-pane canvas {
+  width:100%;height:490px;display:block;touch-action:none;
+  cursor:grab;outline-offset:-3px;
+}
+.memory-canvas-pane canvas:active {cursor:grabbing;}
+.graph-overlay-legend {
+  position:absolute;pointer-events:none;left:16px;bottom:14px;
+  display:flex;gap:13px;align-items:center;flex-wrap:wrap;
+  color:var(--muted);font:500 10px var(--mono);padding:8px 10px;
+  background:rgba(13,15,20,.83);border:1px solid var(--line);
+  border-radius:999px;
+}
+.graph-legend-dot {display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;}
+.graph-details-pane {
+  border-left:1px solid var(--line);
+  padding:22px 17px 18px;
+  min-width:0;background:#121720;overflow-wrap:anywhere;
+}
+.graph-details-pane h3 {font:800 17px/1.3 var(--font);letter-spacing:-.025em;margin:10px 0;}
+.graph-detail-kicker {color:var(--mint);font:500 10px var(--mono);letter-spacing:1.2px;}
+.graph-detail-topic {color:var(--muted);font-size:12px;margin:4px 0;}
+.graph-detail-content {color:var(--text);white-space:pre-wrap;font-size:12px;line-height:1.65;max-height:230px;overflow-y:auto;margin:15px 0;}
+.graph-detail-source {margin:18px 0;border-top:1px solid var(--line);padding-top:14px;}
+.graph-detail-source>span {display:block;color:var(--faint);font:500 9px var(--mono);letter-spacing:.9px;margin-bottom:8px;}
+.graph-detail-source code {font:500 10px/1.5 var(--mono);color:var(--muted);}
+.graph-detail-empty {color:var(--muted);font-size:12px;line-height:1.8;}
+.graph-link-chip {
+  display:inline-block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:rgba(126,224,180,.07);border:1px solid rgba(126,224,180,.17);
+  border-radius:999px;color:#bcebd4;padding:4px 8px;margin:3px;
+  font-size:10px;line-height:1.4;
+}
+.graph-details-pane small {color:var(--faint);font-size:10px;}
+.graph-canvas-hint {color:var(--muted);font-size:11px;line-height:1.65;margin:12px 1px 0;}
+.graph-canvas-status {padding:34px;text-align:center;font-size:12px;color:var(--muted);min-height:230px;display:grid;place-content:center;gap:14px;}
+.graph-canvas-status strong {font-size:14px;color:var(--text);}
+@media(max-width:850px) {
+ .memory-network-wrap {grid-template-columns:1fr;}
+ .graph-details-pane {border-left:0;border-top:1px solid var(--line);min-height:135px;}
+ .memory-canvas-pane,.memory-canvas-pane canvas {height:450px;min-height:450px;}
+}
+@media(max-width:500px) {
+ .memory-tools {gap:7px;}
+ .memory-tools select,.memory-tools input {font-size:11px;min-width:105px;}
+ .memory-tools .graph-counts {width:100%;margin-left:0;order:4;}
+ .memory-canvas-pane,.memory-canvas-pane canvas {height:380px;min-height:380px;}
+ .graph-overlay-legend {left:7px;bottom:8px;font-size:9px;padding:6px 7px;gap:6px;}
+}

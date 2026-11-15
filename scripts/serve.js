@@ -8,6 +8,7 @@ const http = require("http");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const panel = require("./lib/panel-api");
+const { graphMemoryView } = require("./lib/panel-graph-view");
 const threads = require("./lib/panel-threads");
 const panelCli = require("./lib/panel-cli");
 const demandQueue = require("./lib/panel-demand-queue");
@@ -1078,6 +1079,20 @@ async function handleApi(req, res, url) {
     } catch {
       return sendJson(res, 400, { error: "invalid JSON body" });
     }
+  }
+
+  const graphViewMatch = pathname.match(/^\/api\/projects\/([^/]+)\/graph\/view$/);
+  if (graphViewMatch && req.method === "GET") {
+    const source = panel.getProjectGraph(graphViewMatch[1], workspaceRoot, {
+      exact: workspaceIsExplicit,
+    });
+    if (!source.ok) return sendJson(res, source.status || 500, { error: source.error });
+    const view = graphMemoryView(source, {
+      mode: url.searchParams.get("mode"),
+      query: url.searchParams.get("q"),
+      limit: url.searchParams.get("limit"),
+    });
+    return sendJson(res, 200, view);
   }
 
   const graphMatch = pathname.match(/^\/api\/projects\/([^/]+)\/graph$/);

@@ -43,3 +43,10 @@ A dashboard usa a identidade visual da página oficial em `docs/index.html`:
 - `dashboard.css`: somente layout e comportamento responsivo. As regras de identidade estão em `design-system.css`.
 
 Os testes em `scripts/lib/dashboard.test.js` verificam os tokens e a identidade dos arquivos de marca para impedir divergências futuras.
+## Canvas de memórias
+
+Em **Projetos e memória → Canvas**, é possível explorar ligações confirmadas das memórias do projeto. O modo **Memórias e ligações** mostra os tópicos principais; **Fragmentos detalhados** exibe fatos atômicos, sua proveniência e recursos relacionados. Interações: arrastar, zoom, busca, seleção de nó, painel com arquivo e linha de origem.
+
+O endpoint `GET /api/projects/:id/graph/view?mode=memories|fragments` produz uma projeção compacta do índice existente, limitada a 420 nós, sem enviar os milhares de símbolos de código ao navegador. O botão **Gerar grafo** só executa uma reconstrução por ação explícita.
+
+Arquivos: `scripts/lib/panel-graph-view.js`, `web/dashboard/memory-graph.js` e `memory-graph.css`.
