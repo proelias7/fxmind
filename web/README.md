@@ -34,3 +34,12 @@ A fonte de verdade continua sendo o FXMIND, sem duplicar ajustes no navegador:
 O plugin Claude mantém apenas suas preferências de chat, com um link **Painel** para a dashboard local.
 
 A dashboard é servida apenas no loopback, pela aplicação FXMIND. Não exponha essa API diretamente na internet sem autenticação e proteção apropriadas.
+
+## Design system
+
+A dashboard usa a identidade visual da página oficial em `docs/index.html`:
+- `web/dashboard/design-system.css`: tokens oficiais (`#0d0f14`, `#131821`, `#7ee0b4`), Nunito e Geist Mono, superfícies, navegação, campos e botões;
+- `web/dashboard/logo.png` e `favicon.png`: cópias byte a byte dos arquivos oficiais em `docs/assets/`;
+- `dashboard.css`: somente layout e comportamento responsivo. As regras de identidade estão em `design-system.css`.
+
+Os testes em `scripts/lib/dashboard.test.js` verificam os tokens e a identidade dos arquivos de marca para impedir divergências futuras.
