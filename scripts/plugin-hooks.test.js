@@ -57,8 +57,10 @@ test("All settings pages share a full-panel FXMIND texture", () => {
 test("Cards remain dark; only primary actions are light and readable on hover", () => {
   const ui = read("effort.tsx");
   const overview = ui.slice(ui.indexOf('key="settings-cards"'), ui.indexOf('key={`settings-${card}`}', ui.indexOf('key="settings-cards"')));
-  assert.match(overview, /backgroundColor=\{term \? DASH_BG : BRAND_HEAD\}/);
-  assert.match(overview, /hover=\{\{ backgroundColor: term \? CARD_HOVER : tintHex\("#342b50"\)/);
+  assert.match(overview, /backgroundColor=\{term \? DASH_BG : "#292220"\}/);
+  assert.match(overview, /borderColor=\{term \? DASH_EDGE : "#312b29"\}/);
+  assert.match(overview, /hover=\{\{ backgroundColor: term \? CARD_HOVER : "#342c29"/);
+  assert.doesNotMatch(overview, /backgroundColor=\{term \? DASH_BG : BRAND_HEAD\}/);
   assert.match(overview, /color="#eee9ef"/);
   assert.doesNotMatch(overview, /#f3f8f4|#e2eee5/);
   const action = ui.slice(ui.indexOf('const panelAction ='), ui.indexOf('const skillNames ='));

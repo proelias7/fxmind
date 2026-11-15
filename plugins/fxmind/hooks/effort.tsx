@@ -5219,9 +5219,9 @@ Saved to ${out}.md and .json` }
               <Box position="absolute" top={0} left={0} />
               {CARDS.map(c => (
                 <Box key={`card-${c.id}`} position="relative" flexDirection="column" flexGrow={1} width={0} minWidth={18}
-                   paddingX={1} backgroundColor={term ? DASH_BG : BRAND_HEAD} borderStyle="round"
-                   borderColor={term ? DASH_EDGE : BRAND_EDGE}
-                   hover={{ backgroundColor: term ? CARD_HOVER : tintHex("#342b50"), borderColor: term ? CARD_HOVER_EDGE : BRAND_EDGE }}>
+                   paddingX={1} backgroundColor={term ? DASH_BG : "#292220"} borderStyle="round"
+                   borderColor={term ? DASH_EDGE : "#312b29"}
+                   hover={{ backgroundColor: term ? CARD_HOVER : "#342c29", borderColor: term ? CARD_HOVER_EDGE : "#49403d" }}>
                   <Box flexDirection="row" gap={1} alignItems="center">
                     {Svg && !term ? <Svg source={rowIconSvg(c.id, "#ddd3d9")} alt={c.title} width={14} height={14} /> : null}
                     {/* The terminal draws the blank buttons below as real spaces over the card's text, so there the
