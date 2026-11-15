@@ -205,7 +205,7 @@ const installedSkills = atom({ plugin: 'fxmind', key: 'installedSkills' } as con
 const settingsDraft = atom({ plugin: 'fxmind', key: 'settingsDraft' } as const, {})
 const judgeDown = atom({ plugin: 'fxmind', key: 'judgeDown' } as const, null)
 // Which part of the settings panel is open: null for the cards.
-type SettingsCard = 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'orchestration'
+type SettingsCard = 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'orchestration' | 'system'
 const settingsCard = atom({ plugin: 'fxmind', key: 'settingsCard' } as const, null)
 let orchConfigLoaded: OrchestrationConfig = DEFAULT_ORCHESTRATION_CONFIG
 let orchDraft: OrchestrationConfig | null = null
@@ -220,6 +220,7 @@ const CARDS: readonly { id: SettingsCard; title: string }[] = [
   { id: 'model', title: 'Model' },
   { id: 'handoff', title: 'Handoff' },
   { id: 'show', title: 'Customize' },
+  { id: 'system', title: 'System' },
 ]
 // The Model card: the two ways to run. Effort follows the judge in both.
 const MODEL_CHOICES = [
@@ -2495,7 +2496,7 @@ export function settingsSvg(color: string): string {
 
 /** The settings rows' icons, drawn in the cog's outline style (14 px, 1.3 stroke) rather than font glyphs, which
  * differ per font. */
-export function rowIconSvg(kind: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'quick' | 'full' | 'orchestration', color: string): string {
+export function rowIconSvg(kind: 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show' | 'quick' | 'full' | 'orchestration' | 'system', color: string): string {
   const shapes = {
     // A brain seen from above: two lobes and the line between them.
     fxmind: '<path d="M6.4 2.6C4.4 2 2.6 3.4 2.8 5.2 1.6 6 1.6 8 2.8 8.8 2.6 10.6 4.4 12 6.4 11.4Z"/><path d="M7.6 2.6C9.6 2 11.4 3.4 11.2 5.2 12.4 6 12.4 8 11.2 8.8 11.4 10.6 9.6 12 7.6 11.4Z"/>',
@@ -2509,6 +2510,8 @@ export function rowIconSvg(kind: 'fxmind' | 'effort' | 'model' | 'judge' | 'hand
     handoff: '<path d="M1.8 7H9.4M6.6 4.2L9.4 7L6.6 9.8"/><path d="M11.8 2.6V11.4"/>',
     // A pencil: customize. The tip down left, a line across the ferrule.
     show: '<path d="M9.6 2.1 11.9 4.4 4.9 11.4 2.1 11.9 2.6 9.1Z"/><path d="M8.1 3.6 10.4 5.9"/>',
+    // System: gear for dashboard and updates.
+    system: '<circle cx="7" cy="7" r="2.1"/><path d="M7 1.4V3M7 11V12.6M1.4 7H3M11 7h1.6M3.1 3.1l1.2 1.2M9.7 9.7l1.2 1.2M10.9 3.1L9.7 4.3M4.3 9.7l-1.2 1.2"/>',
     // Branching nodes: multi-agent orchestration.
     orchestration: '<circle cx="3.2" cy="7" r="1.4"/><circle cx="10.8" cy="3.6" r="1.4"/><circle cx="10.8" cy="10.4" r="1.4"/><path d="M4.5 6.4 9.5 4.2M4.5 7.6 9.5 9.8"/>',
     // Quick and Full are drawn solid below: an outline at 14 px was too thin to read.
@@ -5144,16 +5147,7 @@ Saved to ${out}.md and .json` }
       const bugUrl = ownVersion ? `${REPORT_BUG_URL}?title=${encodeURIComponent(`[mod ${ownVersion}] `)}` : REPORT_BUG_URL
       // The version, the look for a new one and the bug report sit in the top bar, by Save and the cross; Uninstall
       // stays in Customize.
-      const upkeep = [
-         // Link is a browser action, never a synthetic chat instruction.
-         term ? <Text key="settings-dashboard-cli" dimColor>fxmind painel</Text> : (
-           // Secondary navigation, not a primary action or selected tab.
-           <Text key="settings-dashboard-link" color={config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight)
-             ? '#35554e' : config.theme === 'mint' ? '#7ee0b4' : DASH_DIM}>
-             <Link href="http://localhost:3847/" label="Painel" />
-           </Text>
-         ),
-        ...(ownVersion ? [<Text key="settings-version" color="#6b6b73">v{ownVersion}</Text>] : []),
+       const systemUpdate = (
         checking === 'checking' ? (
           <Text key="settings-checking" dimColor>Checking…</Text>
         ) : checking === 'newest' ? (
@@ -5167,15 +5161,18 @@ Saved to ${out}.md and .json` }
           })
         ) : (
           panelAction("settings-check-update", "Updates", () => checkUpdateNow($))
-        ),
+        )
+       )
+       const upkeep = [
+        ...(ownVersion ? [<Text key="settings-version" color="#6b6b73">v{ownVersion}</Text>] : []),
         // A terminal without link support prints the whole address after the label, so there it copies instead.
         term ? (
-          <Button key="settings-bug" plain dimColor label="Bug" onPress={async () => {
+          <Button key="settings-bug" plain dimColor label="Report" onPress={async () => {
             const r = await $.ui.copy({ text: bugUrl, surface: e.surface }).catch(() => ({ isCopied: false as const }))
             $.ui.toast(tr(r.isCopied ? `Bug report link copied: ${bugUrl}` : `fxmind: report a bug at ${bugUrl}`))
           }} />
         ) : (
-          <Text key="settings-bug-link" color="#9a9aa3"><Link href={bugUrl} label="Bug" /></Text>
+          <Text key="settings-bug-link" color="#9a9aa3"><Link href={bugUrl} label="Report" /></Text>
         ),
       ]
       return (
@@ -5236,17 +5233,17 @@ Saved to ${out}.md and .json` }
               <Box position="absolute" top={0} left={0} />
               {CARDS.map(c => (
                 <Box key={`card-${c.id}`} position="relative" flexDirection="column" flexGrow={1} width={0} minWidth={18}
-                   paddingX={1} backgroundColor={term ? DASH_BG : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#f1f4f6' : '#151b24'} borderStyle="round"
-                   borderColor={term ? DASH_EDGE : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#d1d9df' : '#2d3942'}
-                   hover={{ backgroundColor: term ? CARD_HOVER : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#e4ecec' : '#202a35', borderColor: term ? CARD_HOVER_EDGE : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#b6c8ca' : '#435a64' }}>
+                   paddingX={1} backgroundColor={term ? DASH_BG : DASH_HEAD} borderStyle="round"
+                   borderColor={DASH_EDGE}
+                   hover={{ backgroundColor: CARD_HOVER, borderColor: CARD_HOVER_EDGE }}>
                   <Box flexDirection="row" gap={1} alignItems="center">
-                    {Svg && !term ? <Svg source={rowIconSvg(c.id, config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#38564e' : '#7ee0b4')} alt={c.title} width={14} height={14} /> : null}
+                    {Svg && !term ? <Svg source={rowIconSvg(c.id, ACCENT)} alt={c.title} width={14} height={14} /> : null}
                     {/* The terminal draws the blank buttons below as real spaces over the card's text, so there the
                         title itself is the button. (Full-width padded buttons per row looked worse: a big lit block.) */}
                     {term ? (
                       <Button key={`settings-card-${c.id}`} plain label={`${c.title} ›`} onPress={openCard(c.id)} />
                     ) : (
-                      <Text color={config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#1f2e36' : '#eef1ef'} bold hover={{ color: config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#101c20' : '#ffffff' }}>{c.title}</Text>
+                      <Text color={DASH_TEXT} bold hover={{ color: DASH_TEXT }}>{c.title}</Text>
                     )}
                   </Box>
                   {/* The click takes the whole card: a button is one line high and centred in its box, whatever the box,
@@ -5282,7 +5279,27 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-refine-send", label: "Prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
             // Gate V confirmation belongs to the current chat.
              pick({ key: "settings-gate-v", label: "Gate V", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
- ]) : card === 'effort' ? [
+   ]) : card === 'system' ? (bare ? [] : [
+             <Text key="system-hint" dimColor>Dashboard e atualizações do FXMIND</Text>,
+             panelAction('settings-system-panel', 'Painel', async () => {
+               try {
+                 const dir = await $.session.cwd()
+                 const args = ['panel-open', '--cwd', dir]
+                 let result
+                 try {
+                   result = await $.process.run(['fxmind', ...args], { timeoutMs: 25_000 })
+                 } catch (failure) {
+                   if (!/^[A-Za-z]:[\\/]/.test(dir) || !/ENOENT|not found|unsafe location/i.test(String(failure))) throw failure
+                   result = await $.process.run(['fxmind.cmd', ...args], { timeoutMs: 25_000 })
+                 }
+                 if (result.exitCode !== 0) throw new Error((result.stderr || result.stdout || '').trim() || String(result.exitCode))
+                 $.ui.toast('FXMIND: painel aberto no navegador')
+               } catch (error) {
+                 $.ui.toast('FXMIND: não foi possível abrir o painel: ' + String(error).slice(0, 190))
+               }
+             }),
+             systemUpdate,
+  ]) : card === 'effort' ? [
             <Text key="cheap" dimColor>Cheaper</Text>,
             <Box key="track" flexDirection="row" alignItems="center">
               {track}

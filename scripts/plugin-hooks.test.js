@@ -57,12 +57,11 @@ test("All settings pages share a full-panel FXMIND texture", () => {
 test("Cards remain dark; only primary actions are light and readable on hover", () => {
   const ui = read("effort.tsx");
   const overview = ui.slice(ui.indexOf('key="settings-cards"'), ui.indexOf('key={`settings-${card}`}', ui.indexOf('key="settings-cards"')));
-  assert.match(overview, /backgroundColor=\{term \? DASH_BG : config\.appearance/);
-  assert.match(overview, /'#151b24'/);
-  assert.match(overview, /'#f1f4f6'/);
-  assert.match(overview, /'#2d3942'/);
-  assert.match(overview, /'#e4ecec'/);
-  assert.match(overview, /'#eef1ef'/);
+  assert.match(overview, /backgroundColor=\{term \? DASH_BG : DASH_HEAD\}/);
+  assert.match(overview, /borderColor=\{DASH_EDGE\}/);
+  assert.match(overview, /backgroundColor: CARD_HOVER, borderColor: CARD_HOVER_EDGE/);
+  assert.match(overview, /rowIconSvg\(c\.id, ACCENT\)/);
+  assert.match(overview, /color=\{DASH_TEXT\} bold/);
   assert.doesNotMatch(overview, /#292220|#30262c|#f3f8f4/);
   const action = ui.slice(ui.indexOf('const panelAction ='), ui.indexOf('const skillNames ='));
   assert.match(action, /backgroundColor="#f5f8f5"/);
@@ -113,8 +112,14 @@ test("Agents settings render per-role CLI and model pickers and a custom ID inpu
 test("Claude settings expose only chat preferences and a real link to management dashboard", () => {
   const source = read("effort.tsx");
   const cards = source.slice(source.indexOf("const CARDS:"), source.indexOf("const MODEL_CHOICES", source.indexOf("const CARDS:")));
-  for (const title of ["Prompt", "Effort", "Model", "Handoff", "Customize"]) assert.ok(cards.includes("title: '" + title + "'"));
+  for (const title of ["Prompt", "Effort", "Model", "Handoff", "Customize", "System"]) assert.ok(cards.includes("title: '" + title + "'"));
   for (const legacy of ["title: 'Judge'", "title: 'Agents'", "title: 'fxmind'"]) assert.ok(!cards.includes(legacy));
-  assert.match(source, /<Link href="http:\/\/localhost:3847\/" label="Painel"/);
+  assert.match(source, /card === 'system'/);
+  assert.match(source, /settings-system-panel/);
+  assert.match(source, /const args = \['panel-open', '--cwd', dir\]/);
+  assert.match(source, /\['fxmind', \.\.\.args\]/);
+  assert.match(source, /settings-check-update/);
+  assert.doesNotMatch(source, /<Link href="http:\/\/localhost:3847\/" label="Painel"/);
+  assert.match(source, /label="Report"/);
   assert.doesNotMatch(source.slice(source.indexOf("card === 'fxmind' ?"), source.indexOf("card === 'effort' ?", source.indexOf("card === 'fxmind' ?"))), /settings-project-setup|settings-fxmind-/);
 });

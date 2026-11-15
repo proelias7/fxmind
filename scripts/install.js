@@ -243,6 +243,12 @@ async function main() {
     process.exit(runMigrateCli(argv.slice(1)));
   }
 
+  if (argv[0] === "panel-open") {
+    const { runPanelOpen } = require("./lib/panel-open");
+    runPanelOpen(argv.slice(1)).then((code) => { process.exitCode = code; });
+    return;
+  }
+
   if (argv[0] === "painel" || argv[0] === "panel") {
     const { runServeCli, buildPainelArgs } = require("./serve");
     const code = runServeCli(buildPainelArgs(argv.slice(1)));

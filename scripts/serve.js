@@ -1402,5 +1402,7 @@ module.exports = {
   WEB_DIST,
   DEFAULT_PORT,
   isPanelUp,
+  attachWorkspace,
+  openBrowser,
   parseArgs,
 };

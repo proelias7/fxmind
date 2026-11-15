@@ -56,11 +56,12 @@ test("Impeccable: build contains all view modules and skin",()=>{
  }
 });
 
-test("Impeccable: Claude header Painel is secondary and cards adapt to appearance",()=>{
+test("Impeccable: Claude System card launches panel and all cards follow theme",()=>{
  const text=fs.readFileSync(path.join(root,"plugins/fxmind/hooks/effort.tsx"),"utf8");
- assert.match(text,/<Text key="settings-dashboard-link"/);
- assert.doesNotMatch(text,/<Box key="settings-dashboard-link" paddingX=\{1\} borderStyle="round"/);
- assert.match(text,/config\.appearance === 'auto' && claudeIsLight/);
- assert.match(text,/backgroundColor=\{term \? DASH_BG : config\.appearance/);
- assert.match(text,/href="http:\/\/localhost:3847\/" label="Painel"/);
+ assert.match(text,/card === 'system'/);
+ assert.match(text,/settings-system-panel/);
+ assert.doesNotMatch(text,/settings-dashboard-link/);
+ assert.match(text,/backgroundColor=\{term \? DASH_BG : DASH_HEAD\}/);
+ assert.match(text,/hover=\{\{ backgroundColor: CARD_HOVER, borderColor: CARD_HOVER_EDGE \}\}/);
+ assert.match(text,/label="Report"/);
 });

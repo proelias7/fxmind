@@ -39,7 +39,7 @@ const PT: Record<string, string> = {
   'Built in': 'Embutido', Minimal: 'Mínimo', Dashboard: 'Painel',
 
   // Short labels used by the compact settings panel.
-  Handoff: 'Transferir', Updates: 'Atualizar', Bug: 'Erro', Memory: 'Memórias',
+  Handoff: 'Transferir', Updates: 'Atualizar', Bug: 'Report', System: 'Sistema', Memory: 'Memórias',
   Economy: 'Economia', 'Save tokens': 'Economizar',
 
   // Settings: header and rows.
