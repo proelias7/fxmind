@@ -31,15 +31,15 @@ export function textureSvg(width: number, height: number, accent = '#92b9a8'): s
     const cy = (i * 37 + 16) % height
     const nx = cx + 26
     const ny = (cy + (i % 2 ? 19 : -16) + height) % height
-    return `<path d="M${cx} ${cy}L${nx} ${ny}l19 ${i % 2 ? 8 : -9}" fill="none" stroke="#d0e9db" stroke-opacity=".19" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="1.25" fill="#e0f7eb" fill-opacity=".38"/><circle cx="${nx}" cy="${ny}" r=".75" fill="#e0f7eb" fill-opacity=".30"/>`
+    return `<path d="M${cx} ${cy}L${nx} ${ny}l19 ${i % 2 ? 8 : -9}" fill="none" stroke="#d0e9db" stroke-opacity=".36" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="1.25" fill="#e0f7eb" fill-opacity=".55"/><circle cx="${nx}" cy="${ny}" r=".75" fill="#e0f7eb" fill-opacity=".46"/>`
   }).join('')
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMaxYMid slice">` +
-    '<defs><pattern id="fxdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".65" fill="#e5f5e9" opacity=".20"/></pattern>' +
-    `<linearGradient id="fxwash"><stop stop-color="${accent}" stop-opacity=".015"/><stop offset=".48" stop-color="${accent}" stop-opacity=".045"/><stop offset="1" stop-color="${accent}" stop-opacity=".16"/></linearGradient>` +
-    '<radialGradient id="fxhalo"><stop stop-color="#f4fff6" stop-opacity=".10"/><stop offset="1" stop-color="#e2ffe8" stop-opacity="0"/></radialGradient></defs>' +
+    '<defs><pattern id="fxdots" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r=".65" fill="#e5f5e9" opacity=".37"/></pattern>' +
+    `<linearGradient id="fxwash"><stop stop-color="${accent}" stop-opacity=".015"/><stop offset=".48" stop-color="${accent}" stop-opacity=".075"/><stop offset="1" stop-color="${accent}" stop-opacity=".22"/></linearGradient>` +
+    '<radialGradient id="fxhalo"><stop stop-color="#f4fff6" stop-opacity=".19"/><stop offset="1" stop-color="#e2ffe8" stop-opacity="0"/></radialGradient></defs>' +
     `<rect width="${width}" height="${height}" fill="url(#fxwash)"/><rect width="${width}" height="${height}" fill="url(#fxdots)"/>` +
     `<g>${circuits}</g><ellipse cx="${Math.round(width * .84)}" cy="${Math.round(height * .5)}" rx="${Math.round(width * .36)}" ry="${Math.round(height * .85)}" fill="url(#fxhalo)"/>` +
-    `<svg x="${x}" y="${y}" width="${logoSize}" height="${logoSize}" viewBox="0 0 100 100" opacity=".15"><g transform="rotate(-12 50 50)">${MARK_INNER}</g></svg>` +
+    `<svg x="${x}" y="${y}" width="${logoSize}" height="${logoSize}" viewBox="0 0 100 100" opacity=".30"><g transform="rotate(-12 50 50)">${MARK_INNER}</g></svg>` +
     '</svg>'
   if (textureCache.size >= 16) textureCache.clear()
   textureCache.set(key, svg)

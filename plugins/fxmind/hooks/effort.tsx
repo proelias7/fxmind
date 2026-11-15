@@ -3463,8 +3463,12 @@ export function handoffLook(percent: number, hovered = false): { fill: string; o
   return { fill: mix(HOVER_BOX, '#ececf0', k), opacity: 1, edge: mix('#3a3a40', '#ffffff', k), label: k > 0.45 ? '#141416' : '#ececf0' }
 }
 /** Handoff's box as drawn (see handoffLook). */
-export function handoffPillSvg(percent: number, hovered = false): string {
-  const l = handoffLook(percent, hovered)
+export function handoffPillSvg(percent: number, hovered = false, primary = false): string {
+  // Handoff is an explicit action even at low context: always light. Compact
+  // remains a secondary action, preserving the progressive legacy indicator.
+  const l = primary
+    ? { fill: hovered ? '#e5ece7' : '#f5f8f5', opacity: 1, edge: '#d2dcd4', label: '#111715' }
+    : handoffLook(percent, hovered)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${HANDOFF_PILL_W}" height="${HANDOFF_PILL_H}" viewBox="0 0 ${HANDOFF_PILL_W} ${HANDOFF_PILL_H}"><rect x=".5" y=".5" width="${HANDOFF_PILL_W - 1}" height="${HANDOFF_PILL_H - 1}" rx="6" fill="${l.fill}" fill-opacity="${l.opacity.toFixed(3)}" stroke="${l.edge}" stroke-opacity="${l.opacity.toFixed(3)}"/></svg>`
 }
 /** How hard the glow behind Handoff pulls: 0 below HANDOFF_LOUD_AT, then 1 to 5, one step per 10% of context. */
@@ -3742,16 +3746,17 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
               <Box key="dash-handoff-box" flexShrink={0} flexDirection="row" alignItems="center">
                 <Box width={9} height={1} flexShrink={0} />
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                  <els.Svg source={handoffPillSvg(handoffLevel())} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
+                  <els.Svg source={handoffPillSvg(handoffLevel(), false, handoffSlot())} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
                 </Box>
                 {/* Its hover: a lighter pill shown over the box, not the app's ghost fill, which is sized to the blank
                     label and sat off the drawn box. */}
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center"
                   display="none" hover={{ scope: 'handoff', display: 'flex' }}>
-                  <els.Svg source={handoffPillSvg(handoffLevel(), true)} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
+                  <els.Svg source={handoffPillSvg(handoffLevel(), true, handoffSlot())} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
                 </Box>
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                  <Text color={handoffLook(handoffLevel()).label} hover={{ scope: 'handoff', color: handoffLook(handoffLevel(), true).label }}>{handoffSlot() ? 'Handoff' : 'Compact'}</Text>
+                  <Text color={handoffSlot() ? '#111715' : handoffLook(handoffLevel()).label}
+                     hover={{ scope: 'handoff', color: handoffSlot() ? '#111715' : handoffLook(handoffLevel(), true).label }}>{handoffSlot() ? 'Handoff' : 'Compact'}</Text>
                 </Box>
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
                   <Button key="dash-handoff" plain label={' '.repeat(14)} hover={{ scope: 'handoff', backgroundColor: '#00000000' }} onPress={() => (handoffSlot() ? openHandoffBar($) : openCompact($, e))} />
@@ -4968,21 +4973,20 @@ Saved to ${out}.md and .json` }
       const roomy = (typeof e.props.maxRows === 'number' ? e.props.maxRows : 12) >= 12
       const { Input, Select } = themedEls($.ui.resolve(e))
       const opts = (values: readonly string[]) => values.map(value => ({ value, label: value }))
-      // A single action surface across all settings views. The actual SDK
-      // button remains the interactive hit target; ink and background never
-      // depend on the host's button variant colors.
+      // Primary actions only: Update, Back, Save and explicit commands. Keep
+      // their ink dark on hover; the transparent hit area must not repaint it.
       const panelAction = (key: string, label: string, press: () => unknown, hotkey?: string) => term ? (
         <Button key={key} variant="primary" label={label} hotkey={hotkey} onPress={() => Promise.resolve(press()).then(() => undefined)} />
       ) : (
         <Box key={key + '-surface'} position="relative" flexDirection="row" alignItems="center" height={1.65}
           overflow="hidden" paddingX={1} borderStyle="round" borderColor="#cedbd2"
           backgroundColor="#f5f8f5" hover={{ backgroundColor: "#e4eee6", borderColor: "#ffffff" }}>
-          <Text color="#0b1610" bold>{label}</Text>
+          <Text color="#0b1610" bold hover={{ color: "#0b1610" }}>{label}</Text>
           <Box position="absolute" top={0} left={0} right={0} bottom={0}
             flexDirection="row" alignItems="center" overflow="hidden">
             <Box flexShrink={0}>
               <Button key={key} plain hotkey={hotkey} label={' '.repeat(160)}
-                hover={{ backgroundColor: "#e4eee6" }}
+                hover={{ backgroundColor: "#00000000" }}
                 onPress={() => Promise.resolve(press()).then(() => undefined)} />
             </Box>
           </Box>
@@ -5215,17 +5219,17 @@ Saved to ${out}.md and .json` }
               <Box position="absolute" top={0} left={0} />
               {CARDS.map(c => (
                 <Box key={`card-${c.id}`} position="relative" flexDirection="column" flexGrow={1} width={0} minWidth={18}
-                  paddingX={1} backgroundColor={term ? DASH_BG : "#f3f8f4"} borderStyle="round"
-                   borderColor={term ? DASH_EDGE : "#c4d7c9"}
-                   hover={{ backgroundColor: term ? CARD_HOVER : "#e2eee5", borderColor: term ? CARD_HOVER_EDGE : "#ffffff" }}>
+                   paddingX={1} backgroundColor={term ? DASH_BG : BRAND_HEAD} borderStyle="round"
+                   borderColor={term ? DASH_EDGE : BRAND_EDGE}
+                   hover={{ backgroundColor: term ? CARD_HOVER : tintHex("#342b50"), borderColor: term ? CARD_HOVER_EDGE : BRAND_EDGE }}>
                   <Box flexDirection="row" gap={1} alignItems="center">
-                    {Svg && !term ? <Svg source={rowIconSvg(c.id, "#111d16")} alt={c.title} width={14} height={14} /> : null}
+                    {Svg && !term ? <Svg source={rowIconSvg(c.id, "#ddd3d9")} alt={c.title} width={14} height={14} /> : null}
                     {/* The terminal draws the blank buttons below as real spaces over the card's text, so there the
                         title itself is the button. (Full-width padded buttons per row looked worse: a big lit block.) */}
                     {term ? (
                       <Button key={`settings-card-${c.id}`} plain label={`${c.title} ›`} onPress={openCard(c.id)} />
                     ) : (
-                      <Text color="#101d14" bold hover={{ color: "#101d14" }}>{c.title}</Text>
+                      <Text color="#eee9ef" bold hover={{ color: "#ffffff" }}>{c.title}</Text>
                     )}
                   </Box>
                   {/* The click takes the whole card: a button is one line high and centred in its box, whatever the box,
@@ -5320,8 +5324,10 @@ Saved to ${out}.md and .json` }
 ]) : card === 'model' ? (bare ? [] : MODEL_CHOICES.map(c => (
             <Box key={`model-${c.value}`} flexDirection="column" flexGrow={1} flexShrink={1} minWidth={26}>
               <Box flexDirection="row" gap={1} alignItems="center">
-                                 {panelAction("settings-model-" + c.value, (shown.modelAuto === c.value ? "● " : "○ ") + c.label, () => set("modelAuto")(c.value))}
-{/* A warning in the cache countdown's yellow: this choice rarely pays. */}
+                <Button key={"settings-model-" + c.value} variant="secondary"
+                  label={(shown.modelAuto === c.value ? "● " : "○ ") + c.label}
+                  onPress={() => set("modelAuto")(c.value)} />
+                {/* A warning in the cache countdown's yellow: this choice rarely pays. */}
                 {c.tag ? <Text key={`model-tag-${c.value}`} color={YELLOW} bold>{`⚠ ${c.tag}`}</Text> : null}
               </Box>
             </Box>

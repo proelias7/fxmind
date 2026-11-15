@@ -1,7 +1,7 @@
 import { describe, expect, mock, test as baseTest } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
-import { SETUP_PROMPT, behindHint, helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
+import { SETUP_PROMPT, behindHint, helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, handoffPillSvg, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
 import { ART_COLUMNS, artFrame, artPixel, MOVING } from './art'
 import { MARK_SVG } from './brand-mark'
 import { setLanguage, tr } from './i18n'
@@ -3295,6 +3295,12 @@ describe('a chat opened again', () => {
 })
 
 describe('handoff look', () => {
+  test('primary Handoff is light at any context and on hover; Compact stays secondary', () => {
+    expect(handoffPillSvg(0, false, true)).toContain('fill="#f5f8f5"')
+    expect(handoffPillSvg(0, true, true)).toContain('fill="#e5ece7"')
+    expect(handoffPillSvg(0, false, true)).toContain('fill-opacity="1.000"')
+    expect(handoffPillSvg(0)).toContain('fill-opacity="0.000"')
+  })
   test('no box at 0%, the grey box at 15%, white at 30% where the glow starts, a step each percent', () => {
     expect(handoffLook(0).opacity).toBe(0)
     expect(handoffLook(15)).toMatchObject({ opacity: 1, fill: '#2b2b2f' })

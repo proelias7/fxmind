@@ -54,14 +54,30 @@ test("All settings pages share a full-panel FXMIND texture", () => {
   assert.match(art, /TEXTURE_TALL_SVG = textureSvg\(960, 160\)/);
   assert.match(art, /fxdots/);
 });
-test("Settings actions and navigation use light surfaces with dark labels", () => {
+test("Cards remain dark; only primary actions are light and readable on hover", () => {
   const ui = read("effort.tsx");
-  assert.match(ui, /backgroundColor="#f5f8f5"/);
-  assert.match(ui, /color="#0b1610"/);
-  assert.match(ui, /backgroundColor=\{term \? DASH_BG : "#f3f8f4"\}/);
-  for (const key of ["settings-check-update", "settings-back", "settings-save", "settings-judge-test", "settings-model-"]) {
-    assert.ok(ui.includes("panelAction(") && ui.includes(key), key);
+  const overview = ui.slice(ui.indexOf('key="settings-cards"'), ui.indexOf('key={`settings-${card}`}', ui.indexOf('key="settings-cards"')));
+  assert.match(overview, /backgroundColor=\{term \? DASH_BG : BRAND_HEAD\}/);
+  assert.match(overview, /hover=\{\{ backgroundColor: term \? CARD_HOVER : tintHex\("#342b50"\)/);
+  assert.match(overview, /color="#eee9ef"/);
+  assert.doesNotMatch(overview, /#f3f8f4|#e2eee5/);
+  const action = ui.slice(ui.indexOf('const panelAction ='), ui.indexOf('const skillNames ='));
+  assert.match(action, /backgroundColor="#f5f8f5"/);
+  assert.match(action, /color="#0b1610" bold hover=\{\{ color: "#0b1610" \}\}/);
+  assert.match(action, /hover=\{\{ backgroundColor: "#00000000" \}\}/);
+  for (const key of ["settings-check-update", "settings-back", "settings-save", "settings-judge-test", "settings-fxmind-"]) {
+    assert.ok(ui.includes('panelAction(') && ui.includes(key), key);
   }
+  assert.match(ui, /<Button key=\{"settings-model-" \+ c.value\} variant="secondary"/);
+  assert.doesNotMatch(ui, /panelAction\("settings-model-"/);
+});
+
+test("Handoff CTA stays white and text stays dark, while Compact remains secondary", () => {
+  const ui = read("effort.tsx");
+  assert.match(ui, /handoffPillSvg\(handoffLevel\(\), false, handoffSlot\(\)\)/);
+  assert.match(ui, /handoffPillSvg\(handoffLevel\(\), true, handoffSlot\(\)\)/);
+  assert.match(ui, /handoffSlot\(\) \? '#111715' : handoffLook\(handoffLevel\(\)\)\.label/);
+  assert.match(ui, /fill: hovered \? '#e5ece7' : '#f5f8f5'/);
 });
 
 
