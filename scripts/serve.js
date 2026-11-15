@@ -46,7 +46,7 @@ function parseArgs(argv) {
     port: DEFAULT_PORT,
     open: false,
     help: false,
-    path: "/chat",
+    path: "/",
     cwd: null,
     apiOnly: false,
   };
@@ -76,7 +76,7 @@ function buildPainelArgs(argv = []) {
   if (!args.includes("--open")) args.unshift("--open");
   const pathIdx = args.indexOf("--path");
   if (pathIdx === -1 || !args[pathIdx + 1]) {
-    args.push("--path", "/chat");
+    args.push("--path", "/");
   }
   return args;
 }
@@ -86,12 +86,12 @@ function printHelp() {
 fxmind painel — painel web local (UI + API em localhost)
 
 Usage:
-  fxmind painel [--port 3847] [--path /chat] [--cwd <dir>]
+  fxmind painel [--port 3847] [--path /] [--cwd <dir>]
 
 Options:
   --port <n>   Porta (padrão ${DEFAULT_PORT}, só 127.0.0.1)
   --open       Abrir navegador (padrão em fxmind painel)
-  --path <p>   Rota inicial (padrão /chat)
+  --path <p>   Rota inicial (padrão /)
   --cwd <dir>  Projeto inicial (padrão: .fxmind mais próximo do cwd)
   -h, --help   Ajuda
 
@@ -1204,11 +1204,11 @@ function serveStatic(req, res, url) {
   res.end(data);
 }
 
-function panelUrl(port, openPath = "/chat") {
+function panelUrl(port, openPath = "/") {
   return `http://127.0.0.1:${port}${openPath}`;
 }
 
-function openBrowser(port, openPath = "/chat") {
+function openBrowser(port, openPath = "/") {
   const url = panelUrl(port, openPath);
   if (process.platform === "win32") {
     execFileSync("cmd", ["/c", "start", "", url], { stdio: "ignore", windowsHide: true });
@@ -1240,6 +1240,14 @@ function createServer() {
     } catch {
       res.writeHead(400);
       res.end("Bad request");
+      return;
+    }
+
+    // Existing bookmarks should land on management rather than displaying
+    // a stale chat route or an empty chat screen.
+    if (url.pathname === "/chat" || url.pathname.startsWith("/chat/")) {
+      res.writeHead(302, { Location: "/" });
+      res.end();
       return;
     }
 
@@ -1311,7 +1319,7 @@ function runServeCli(argv = []) {
     }
   }
 
-  const openPath = options.path || "/chat";
+  const openPath = options.path || "/";
   bindWorkspace(options.cwd || process.env.FXMIND_TARGET || process.cwd(), true);
   panelCli.reconcileOrphanedRuns();
 

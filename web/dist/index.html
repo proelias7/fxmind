@@ -1,23 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FxMind — Painel</title>
-    <link
-      rel="icon"
-      href="https://i.postimg.cc/Z565rzH8/Chat-GPT-Image-11-09-2026-00-01-28.png"
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-    <script type="module" crossorigin src="/assets/index-s5QWr5Tj.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DY7Nkb9V.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111714" />
+  <title>FXMIND — Dashboard</title>
+  <link rel="stylesheet" href="/dashboard.css" />
+  <script type="module" src="/dashboard.js"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="/" aria-label="FXMIND Dashboard"><span class="brand-mark">✦</span><span>fxmind<span class="brand-dot">.</span><small>CONTROLE</small></span></a>
+      <div class="nav-caption">GERENCIAMENTO</div>
+      <nav id="navigation" aria-label="Navegação principal">
+        <button class="nav-item active" data-page="overview"><span class="nav-glyph">◈</span>Visão geral</button>
+        <button class="nav-item" data-page="orchestration"><span class="nav-glyph">⌘</span>Orquestração</button>
+        <button class="nav-item" data-page="agents"><span class="nav-glyph">◇</span>Agentes e modelos</button>
+        <button class="nav-item" data-page="subagents"><span class="nav-glyph">▤</span>Subagentes</button>
+        <button class="nav-item" data-page="providers"><span class="nav-glyph">◉</span>Provedores</button>
+        <button class="nav-item" data-page="projects"><span class="nav-glyph">▦</span>Projetos e memória</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="connection"><span id="connection-dot" class="status-dot"></span><span id="connection-text">Conectando…</span></div>
+        <div class="sidebar-version" id="sidebar-version">FXMIND</div>
+        <span class="local-note">Painel local · Dados do seu ambiente</span>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-start"><button class="menu-toggle" id="menu-toggle" aria-label="Abrir menu">☰</button><div class="breadcrumb"><span>FXMIND</span><span class="sep">/</span><strong id="breadcrumb-current">Visão geral</strong></div></div>
+        <div class="topbar-end"><span class="scope-label">PROJETO</span><select id="project-select" aria-label="Selecionar projeto"><option value="">Carregando…</option></select><button class="icon-button" id="refresh-button" aria-label="Atualizar informações" title="Atualizar">⟳</button></div>
+      </header>
+      <div class="content" id="content" aria-live="polite"><div class="loading">Carregando gerenciamento do FXMIND…</div></div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
 </html>

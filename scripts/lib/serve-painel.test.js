@@ -3,8 +3,8 @@ const assert = require("node:assert/strict");
 const { buildPainelArgs } = require("../serve");
 
 describe("serve painel", () => {
-  it("buildPainelArgs adds --open and --path /chat by default", () => {
-    assert.deepEqual(buildPainelArgs([]), ["--open", "--path", "/chat"]);
+  it("buildPainelArgs adds --open and --path / by default", () => {
+    assert.deepEqual(buildPainelArgs([]), ["--open", "--path", "/"]);
   });
 
   it("buildPainelArgs keeps custom --path", () => {

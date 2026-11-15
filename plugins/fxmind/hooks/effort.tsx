@@ -214,14 +214,12 @@ let orchSelectedModelRule = 0
 /** The settings panel's parts: a card each on the overview, by name alone. The panel is kept quiet: no line under a
  * card saying what it is set to, no sentence on what a part is for. */
 const CARDS: readonly { id: SettingsCard; title: string }[] = [
-  // fxmind's own: the prompt refiner and the memory's actions.
-  { id: 'fxmind', title: 'fxmind' },
-  { id: 'orchestration', title: 'Agents' },
+  // Chat-local settings only. Agent and project administration moved to web.
+  { id: 'fxmind', title: 'Prompt' },
   { id: 'effort', title: 'Effort' },
   { id: 'model', title: 'Model' },
   { id: 'handoff', title: 'Handoff' },
   { id: 'show', title: 'Customize' },
-  { id: 'judge', title: 'Judge' },
 ]
 // The Model card: the two ways to run. Effort follows the judge in both.
 const MODEL_CHOICES = [
@@ -5147,6 +5145,13 @@ Saved to ${out}.md and .json` }
       // The version, the look for a new one and the bug report sit in the top bar, by Save and the cross; Uninstall
       // stays in Customize.
       const upkeep = [
+         // Link is a browser action, never a synthetic chat instruction.
+         term ? <Text key="settings-dashboard-cli" dimColor>fxmind painel</Text> : (
+           <Box key="settings-dashboard-link" paddingX={1} borderStyle="round"
+             backgroundColor="#e8f4ea" borderColor="#ccdece">
+             <Text color="#13221a"><Link href="http://localhost:3847/" label="Painel" /></Text>
+           </Box>
+         ),
         ...(ownVersion ? [<Text key="settings-version" color="#6b6b73">v{ownVersion}</Text>] : []),
         checking === 'checking' ? (
           <Text key="settings-checking" dimColor>Checking…</Text>
@@ -5206,7 +5211,7 @@ Saved to ${out}.md and .json` }
             {Svg && !term ? <Svg source={SETTINGS_TITLE} alt="fxmind" width={92} height={28} /> : <Text color={DASH_TEXT} bold>fxmind</Text>}
             {/* Inside a part: Back to the cards, then the part's name. */}
             {card === null ? (
-              <Text dimColor>Settings</Text>
+              <Text dimColor>Chat</Text>
             ) : (
               <Box key="settings-trail" flexDirection="row" alignItems="center" gap={1}>
                 {/* A real button: a dim "Settings" in a trail did not read as a way back. */}
@@ -5274,16 +5279,9 @@ Saved to ${out}.md and .json` }
             pick({ key: "settings-refine-with", label: "Model", value: shown.refineWith, options: [{ value: 'haiku', label: 'Haiku 5.5' }, { value: 'sonnet', label: 'Sonnet 5.5' }, { value: 'opus', label: 'Opus 5.5' }, { value: 'session', label: "Chat's model" }], onSelect: set('refineWith') }),
             pick({ key: "settings-refine-clear", label: "Clear", value: shown.refineClear, options: [{ value: 'on', label: 'Yes' }, { value: 'off', label: 'No' }], onSelect: set('refineClear') }),
             pick({ key: "settings-refine-send", label: "Prompt", value: shown.refineSend, options: [{ value: 'send', label: 'Send' }, { value: 'fill', label: 'Review first' }], onSelect: set('refineSend') }),
-            pick({ key: "settings-project-setup", label: "New repo", value: shown.projectSetup, options: [{ value: 'ask', label: 'Offer install' }, { value: 'auto', label: 'Install' }, { value: 'off', label: 'Off' }], onSelect: set('projectSetup') }),
-            pick({ key: "settings-gate-v", label: "Gate V", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
-            // fxmind's own commands, a press away: each closes the panel and runs /fxmind with its mode.
-            ...([['init', 'Map'], ['memory health', 'Memory'], ['learn', 'Learn']] as const).map(([args, label]) => (
-               panelAction("settings-fxmind-" + args.split(" ")[0], label, async () => {
-                 await close()
-                 await $.command.run({ command: "fxmind", args })
-               })
-            )),
-]) : card === 'effort' ? [
+            // Gate V confirmation belongs to the current chat.
+             pick({ key: "settings-gate-v", label: "Gate V", value: shown.gateV, options: [{ value: 'ask', label: 'Ask me' }, { value: 'auto', label: 'Automatic' }], onSelect: set('gateV') }),
+ ]) : card === 'effort' ? [
             <Text key="cheap" dimColor>Cheaper</Text>,
             <Box key="track" flexDirection="row" alignItems="center">
               {track}

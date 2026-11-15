@@ -12,6 +12,27 @@ const { execFileSync } = require("child_process");
 
 const PACKAGE_ROOT = path.join(__dirname, "..", "..");
 const WEB_DIST = path.join(PACKAGE_ROOT, "web", "dist");
+const DASHBOARD_SOURCE = path.join(PACKAGE_ROOT, "web", "dashboard");
+const DASHBOARD_FILES = ["index.html", "dashboard.js", "dashboard.css"];
+
+function hasDashboardSource() {
+  return DASHBOARD_FILES.every((name) => fs.existsSync(path.join(DASHBOARD_SOURCE, name)));
+}
+
+function buildDashboard() {
+  if (!hasDashboardSource()) throw new Error("FXMIND dashboard source not found");
+  // The old chat SPA is intentionally removed, including its hashed bundles.
+  // All management UI assets are built from versioned source in this repo.
+  fs.rmSync(WEB_DIST, { recursive: true, force: true });
+  fs.mkdirSync(WEB_DIST, { recursive: true });
+  for (const name of DASHBOARD_FILES) {
+    fs.copyFileSync(path.join(DASHBOARD_SOURCE, name), path.join(WEB_DIST, name));
+  }
+  return {
+    ok: true, built: true, skipped: false,
+    source: DASHBOARD_SOURCE, panelRoot: DASHBOARD_SOURCE, dist: WEB_DIST,
+  };
+}
 
 function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
@@ -89,6 +110,10 @@ function buildPanel(options = {}) {
     strict = true,
     quiet = false,
   } = options;
+  // Dashboard is the canonical product. Legacy chat panel is no longer
+  // served even if a sibling monorepo still contains the old Vite source.
+  if (hasDashboardSource()) return buildDashboard();
+
   const panelRoot = findPanelRoot();
 
   if (!panelRoot) {
@@ -175,6 +200,9 @@ if (require.main === module) {
 module.exports = {
   PACKAGE_ROOT,
   WEB_DIST,
+  DASHBOARD_SOURCE,
+  hasDashboardSource,
+  buildDashboard,
   candidatePanelRoots,
   findPanelRoot,
   hasPanelBuild,

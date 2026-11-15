@@ -1,35 +1,36 @@
-# Web panel (build output)
+# Dashboard FXMIND
 
-Esta pasta **não contém código-fonte**. Ela guarda só o artefato estático servido por `fxmind painel`.
+Interface de gerenciamento do FXMIND. **Não inclui chat**: as conversas continuam nos CLIs (Claude, Codex, OpenCode, Cursor etc.).
 
-| O quê | Onde |
-|-------|------|
-| **Código-fonte React** | `panel/` no repositório workspace pai (`FXMIND/panel/`) |
-| **Build (HTML/JS/CSS)** | `fxmind/web/dist/` (gerado pelo Vite) |
-| **API + CLI** | `fxmind/scripts/` |
+## Código-fonte
 
-## Build
+A dashboard agora tem fonte versionada neste repositório, em `web/dashboard/`:
 
-No workspace pai, o build é executado automaticamente durante a instalação ou
-atualização do `fxmind`. Para forçar um rebuild manual:
+- `index.html`: estrutura e navegação;
+- `dashboard.css`: design responsivo;
+- `dashboard.js`: integração com APIs locais e formulários.
+
+`web/dist/` é gerado por `npm run build:web` e incluído no pacote npm. O antigo bundle React de chat foi removido.
+
+## Execução
 
 ```bash
-npm run build:panel
-# ou, dentro de fxmind:
 npm run build:web
-```
-
-O Vite em `panel/` compila para `../fxmind/web/dist/`.
-
-## Produção
-
-```bash
 fxmind painel
+# ou para desenvolver sem Vite:
+npm run dev
 ```
 
-Abre http://127.0.0.1:3847/chat (UI estática + API). O comando `fxmind painel`
-usa o build gerado em `web/dist/`.
+Abre `http://localhost:3847/` com gestão de orquestração, CLIs, modelos, subagentes, provedores, projetos e estado da memória.
 
-## Publicação npm
+## Configurações
 
-O pacote `fxmind` inclui `web/dist` no campo `files` do `package.json`. O source em `panel/` fica fora do pacote npm.
+A fonte de verdade continua sendo o FXMIND, sem duplicar ajustes no navegador:
+
+- configurações globais em `~/.fxmind/panel.json`;
+- configurações de orquestração do projeto em `.fxmind/orchestration.json`;
+- a dashboard utiliza as APIs `/api/orchestration/*`, `/api/settings/*`, `/api/cli/models`, `/api/projects` e `/api/health`.
+
+O plugin Claude mantém apenas suas preferências de chat, com um link **Painel** para a dashboard local.
+
+A dashboard é servida apenas no loopback, pela aplicação FXMIND. Não exponha essa API diretamente na internet sem autenticação e proteção apropriadas.

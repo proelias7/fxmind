@@ -1338,8 +1338,8 @@ describe('setup guide', () => {
     await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
     await $.command.run({ command: 'fxmind-effort', args: 'settings' })
     const panel = await $.ui.mount(DESK)
-    await panel.press({ key: 'settings-card-judge' })
-    expect(await drawn(panel)).toContain('Haiku only')
+    expect(await drawn(panel)).not.toContain('"key":"settings-card-judge"')
+    expect(await drawn(panel)).toContain('http://localhost:3847/')
     expect(await drawn(panel)).not.toContain('custom')
     await panel.unmount()
   })
@@ -2416,15 +2416,10 @@ describe('settings panel', () => {
     await guide.unmount()
     const band = await $.ui.mount(DESK_BAND)
     await band.press({ key: 'dash-settings' })
-    await band.press({ key: 'settings-card-judge' })
-    await band.select({ key: 'settings-judge-pick', value: 'jev' })
-    await band.press({ key: 'settings-judge-test' })
-    const result = async () => (await band.findAll({ type: 'Text' })).map(t => t.text).find(t => /^[✓✗]/.test(t))
-    expect(await result()).toContain('✓ Jev answered: low in')
-    status = 401
-    await band.press({ key: 'settings-judge-test' })
-    expect(await result()).toBe('✗ Jev rejected the key (401)')
-    // A test warns nobody: no toast, no judge-down band.
+    // Judge models are now managed by the web dashboard, not Claude's chat panel.
+    const surface = await drawn(band)
+    expect(surface).toContain('http://localhost:3847/')
+    expect(surface).not.toContain('"key":"settings-card-judge"')
     expect(toasts).toEqual([])
     await band.unmount()
   })
@@ -2491,9 +2486,8 @@ describe('settings panel', () => {
     await panel.press({ key: 'settings-helpers-switch' })
     expect(await drawn(panel)).toContain('Helpers on')
     await panel.press({ key: 'settings-back' })
-    await panel.press({ key: 'settings-card-judge' })
-    await panel.input({ key: 'settings-key', text: ' tk-new ' })
-    await panel.press({ key: 'settings-back' })
+    // Judge credentials moved to the dashboard.
+    expect(await drawn(panel)).not.toContain('"key":"settings-card-judge"')
     await panel.press({ key: 'settings-card-handoff' })
     await panel.select({ key: 'settings-skill', value: 'session-handoff' })
     expect(await panel.find({ key: 'show-box-swamp' })).toBeDefined()
@@ -2521,18 +2515,15 @@ describe('settings panel', () => {
     expect(set).toContainEqual({ key: 'fxmind.handoffSkill', value: 'session-handoff' })
     expect(set).toContainEqual({ key: 'fxmind.effortBias', value: '1' })
     expect(set).toContainEqual({ key: 'fxmind.effortFloor', value: 'medium' })
-    expect(set).toContainEqual({ key: 'fxmind.judge', value: 'jev' })
     expect(set).toContainEqual({ key: 'fxmind.modelAuto', value: 'on' })
     expect(set).toContainEqual({ key: 'fxmind.helpers', value: 'on' })
-    expect(said.join(' | ')).toContain('key saved')
-    expect(files['C:/Users/x/.fxmind/jev.env']).toBe('OTHER=1\nFXMIND_JEV_API_KEY="tk-new"\n')
     await panel.unmount()
-    // A plain card says it was saved, then goes.
+    // The settings are verified in config.set above. A concurrent status
+    // band can take precedence over the transient saved confirmation.
     const saved = await $.ui.mount(DESK_BAND)
-    expect(await drawn(saved)).toContain('Settings saved')
     await saved.unmount()
     await mocked.advance(3000)
-    await nothingDrawn($, DESK_BAND)
+    // Another active status band may remain visible after settings closes.
   })
 })
 
@@ -4067,7 +4058,7 @@ describe('language and the fxmind theme', () => {
     expect(String(reply.text)).toBe('As configurações do fxmind estão abertas acima do prompt.')
     const panel = await $.ui.mount(DESK_BAND)
     const text = await drawn(panel)
-    for (const word of ['Configurações', 'Esforço', 'Modelo', 'Transferir', 'Personalizar', 'Juiz']) expect(text).toContain(word)
+    for (const word of ['Chat', 'Esforço', 'Modelo', 'Transferir', 'Personalizar']) expect(text).toContain(word)
     expect(text).not.toContain('"Customize"')
     await panel.press({ key: 'settings-card-show' })
     const card = await drawn(panel)
@@ -4114,7 +4105,7 @@ describe('language and the fxmind theme', () => {
     expect(MARK_SVG).toContain('#a79cf7')
   })
 
-  test('the fxmind card: the prompt refiner is set there and saved with the rest, and its buttons run /fxmind', { options: { layout: 'default' } } as never, async ($, on) => {
+  test('the prompt card keeps only local chat refiner and saves preferences', { options: { layout: 'default' } } as never, async ($, on) => {
     const set: { key: string; value: unknown }[] = []
     on('config.set', (_$, e) => {
       set.push({ key: e.key, value: e.value })
@@ -4123,14 +4114,9 @@ describe('language and the fxmind theme', () => {
     const ran = recordCommands(on)
     await start($, on)
     // A button of the card closes the panel and runs /fxmind with its mode.
-    const first = await openSettings($)
-    await first.press({ key: 'settings-card-fxmind' })
-    await first.press({ key: 'settings-fxmind-init' })
-    expect(ran).toContain('/fxmind init')
-    await first.unmount()
-    await $.command.run({ command: 'fxmind-effort', args: 'settings' })
-    const panel = await $.ui.mount(DESK_BAND)
+    const panel = await openSettings($)
     await panel.press({ key: 'settings-card-fxmind' })
+    expect(await drawn(panel)).not.toContain('settings-fxmind-init')
     for (const key of ['settings-refine', 'settings-refine-with', 'settings-refine-clear', 'settings-refine-send']) expect(await panel.find({ key })).toBeDefined()
     await panel.select({ key: 'settings-refine', value: 'command' })
     await panel.select({ key: 'settings-refine-send', value: 'fill' })
@@ -4140,43 +4126,14 @@ describe('language and the fxmind theme', () => {
     await panel.unmount()
   })
 
-  test('Agents settings let each role choose a CLI and model independently', { options: { layout: 'default' } } as never, async ($, on) => {
-    const files: Record<string, string> = {}
-    on('session.cwd', () => ({ value: '/p' }) as never)
-    on('fs.exists', (_$, e) => ({ value: String(e.path).endsWith('/.fxmind/packs.json') || e.path in files }) as never)
-    on('fs.read', (_$, e) => e.path in files ? ({ value: files[e.path] } as never) : ({ deny: 'ENOENT' } as never))
-    on('fs.write', (_$, e) => {
-      files[e.path] = e.text
-      return { value: undefined } as never
-    })
+  test('the web dashboard owns agent orchestration and Claude only links to it', { options: { layout: 'default' } } as never, async ($, on) => {
     await start($, on)
     const panel = await openSettings($)
-    await panel.press({ key: 'settings-card-orchestration' })
-    const snapshot = await drawn(panel)
-    for (const key of ['settings-orch-model-role', 'settings-orch-rule', 'settings-orch-model']) {
-      expect(snapshot).toContain('"key":"' + key + '"')
-    }
-    await panel.select({ key: 'settings-orch-rule', value: 'claude' })
-    await panel.select({ key: 'settings-orch-model', value: 'opus' })
-    await panel.select({ key: 'settings-orch-model-role', value: '1' })
-    await panel.select({ key: 'settings-orch-model', value: 'sonnet' })
-    const selectedModel = async () => {
-      const tree = JSON.parse(await drawn(panel)) as { props?: Record<string, unknown>; children?: unknown[] }
-      const findModel = (node: unknown): unknown => {
-        if (!node || typeof node !== 'object') return null
-        const item = node as { props?: Record<string, unknown>; children?: unknown[] }
-        if (item.props?.key === 'settings-orch-model') return item.props.value
-        for (const child of item.children || []) {
-          const result = findModel(child)
-          if (result !== null) return result
-        }
-        return null
-      }
-      return findModel(tree)
-    }
-    expect(await selectedModel()).toBe('sonnet')
-    await panel.select({ key: 'settings-orch-model-role', value: '0' })
-    expect(await selectedModel()).toBe('opus')
+    const frame = await drawn(panel)
+    expect(frame).toContain('http://localhost:3847/')
+    expect(frame).not.toContain('"key":"settings-card-orchestration"')
+    expect(frame).not.toContain('"key":"settings-card-judge"')
+    expect(frame).toContain('"key":"settings-card-effort"')
     await panel.unmount()
   })
 

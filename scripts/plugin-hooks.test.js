@@ -67,7 +67,7 @@ test("Cards remain dark; only primary actions are light and readable on hover", 
   assert.match(action, /backgroundColor="#f5f8f5"/);
   assert.match(action, /color="#0b1610" bold hover=\{\{ color: "#0b1610" \}\}/);
   assert.match(action, /hover=\{\{ backgroundColor: "#00000000" \}\}/);
-  for (const key of ["settings-check-update", "settings-back", "settings-save", "settings-judge-test", "settings-fxmind-"]) {
+  for (const key of ["settings-check-update", "settings-back", "settings-save"]) {
     assert.ok(ui.includes('panelAction(') && ui.includes(key), key);
   }
   assert.match(ui, /<Button key=\{"settings-model-" \+ c.value\} variant="secondary"/);
@@ -107,4 +107,13 @@ test("Agents settings render per-role CLI and model pickers and a custom ID inpu
   assert.match(ui, /settings-orch-model-id/);
   assert.match(ui, /sanitizeOrchestrationModel\(v\)/);
   assert.match(ui, /writeProjectOrchestrationConfig\(\$, savedOrch\)/);
+});
+
+test("Claude settings expose only chat preferences and a real link to management dashboard", () => {
+  const source = read("effort.tsx");
+  const cards = source.slice(source.indexOf("const CARDS:"), source.indexOf("const MODEL_CHOICES", source.indexOf("const CARDS:")));
+  for (const title of ["Prompt", "Effort", "Model", "Handoff", "Customize"]) assert.ok(cards.includes("title: '" + title + "'"));
+  for (const legacy of ["title: 'Judge'", "title: 'Agents'", "title: 'fxmind'"]) assert.ok(!cards.includes(legacy));
+  assert.match(source, /<Link href="http:\/\/localhost:3847\/" label="Painel"/);
+  assert.doesNotMatch(source.slice(source.indexOf("card === 'fxmind' ?"), source.indexOf("card === 'effort' ?", source.indexOf("card === 'fxmind' ?"))), /settings-project-setup|settings-fxmind-/);
 });
