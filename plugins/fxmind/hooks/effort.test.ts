@@ -4140,6 +4140,46 @@ describe('language and the fxmind theme', () => {
     await panel.unmount()
   })
 
+  test('Agents settings let each role choose a CLI and model independently', { options: { layout: 'default' } } as never, async ($, on) => {
+    const files: Record<string, string> = {}
+    on('session.cwd', () => ({ value: '/p' }) as never)
+    on('fs.exists', (_$, e) => ({ value: String(e.path).endsWith('/.fxmind/packs.json') || e.path in files }) as never)
+    on('fs.read', (_$, e) => e.path in files ? ({ value: files[e.path] } as never) : ({ deny: 'ENOENT' } as never))
+    on('fs.write', (_$, e) => {
+      files[e.path] = e.text
+      return { value: undefined } as never
+    })
+    await start($, on)
+    const panel = await openSettings($)
+    await panel.press({ key: 'settings-card-orchestration' })
+    const snapshot = await drawn(panel)
+    for (const key of ['settings-orch-model-role', 'settings-orch-rule', 'settings-orch-model']) {
+      expect(snapshot).toContain('"key":"' + key + '"')
+    }
+    await panel.select({ key: 'settings-orch-rule', value: 'claude' })
+    await panel.select({ key: 'settings-orch-model', value: 'opus' })
+    await panel.select({ key: 'settings-orch-model-role', value: '1' })
+    await panel.select({ key: 'settings-orch-model', value: 'sonnet' })
+    const selectedModel = async () => {
+      const tree = JSON.parse(await drawn(panel)) as { props?: Record<string, unknown>; children?: unknown[] }
+      const findModel = (node: unknown): unknown => {
+        if (!node || typeof node !== 'object') return null
+        const item = node as { props?: Record<string, unknown>; children?: unknown[] }
+        if (item.props?.key === 'settings-orch-model') return item.props.value
+        for (const child of item.children || []) {
+          const result = findModel(child)
+          if (result !== null) return result
+        }
+        return null
+      }
+      return findModel(tree)
+    }
+    expect(await selectedModel()).toBe('sonnet')
+    await panel.select({ key: 'settings-orch-model-role', value: '0' })
+    expect(await selectedModel()).toBe('opus')
+    await panel.unmount()
+  })
+
   // The editor extensions (VS Code, Cursor) do not stack the desktop's layers: they drew the art, the words and the
   // buttons one under the other. They get the terminal's plain rows instead.
   for (const surface of ['vscode', 'mobile'] as const) {
@@ -4175,7 +4215,7 @@ describe('Gate V asks in the band', () => {
   const project = (on: On, pending?: Record<string, unknown>) => {
     const files: Record<string, string> = pending ? { '/p/.fxmind/state/gate-v-pending.json': JSON.stringify(pending) } : {}
     on('session.cwd', () => ({ value: '/p' }) as never)
-    on('fs.exists', (_$, e) => ({ value: e.path === '/p/.fxmind/packs.json' || e.path in files }) as never)
+    on('fs.exists', (_$, e) => ({ value: String(e.path).endsWith('/.fxmind/packs.json') || e.path in files }) as never)
     on('fs.read', (_$, e) => (e.path in files ? { value: files[e.path] } : { deny: 'ENOENT' }) as never)
     on('fs.write', (_$, e) => {
       files[e.path] = e.text

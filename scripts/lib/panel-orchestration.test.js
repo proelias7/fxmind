@@ -112,3 +112,34 @@ describe("panel-orchestration", () => {
     assert.equal(fs.existsSync(panel.panelConfigPath()), false);
   });
 });
+
+
+it("persists a custom model per orchestration role without affecting other roles", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxorch-model-persist-"));
+  try {
+    const rules = [
+      { match: "explore|read", provider: "opencode", model: "cloudflare-ai-gateway/anthropic/claude-fable-5.2", effort: "low" },
+      { match: "review|audit", provider: "claude", model: "opus", effort: "high" },
+      { match: "implement|code", provider: "codex", model: "gpt-5.4-codex", effort: "medium" },
+    ];
+    panelOrch.putOrchestrationSettings(root, {
+      scope: "project",
+      config: { routing: { rules, defaultProvider: null, defaultModel: null, defaultEffort: "medium" } },
+    });
+    const loaded = panelOrch.getOrchestrationSettings(root).config;
+    assert.deepEqual(loaded.routing.rules, rules);
+    const savedPath = path.join(root, ".fxmind", "orchestration.json");
+    assert.deepEqual(JSON.parse(fs.readFileSync(savedPath, "utf8")).routing.rules, rules);
+    const edited = rules.map((rule, idx) => idx === 1 ? { ...rule, model: "sonnet" } : rule);
+    panelOrch.putOrchestrationSettings(root, {
+      scope: "project",
+      config: { routing: { rules: edited, defaultProvider: null, defaultModel: null, defaultEffort: "medium" } },
+    });
+    const reread = panelOrch.getOrchestrationSettings(root).config.routing.rules;
+    assert.equal(reread[0].model, rules[0].model);
+    assert.equal(reread[1].model, "sonnet");
+    assert.equal(reread[2].model, rules[2].model);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

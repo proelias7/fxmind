@@ -94,3 +94,17 @@ test("FXMIND texture SVG is visibly nonempty at modal dimensions", async () => {
   assert.match(svg, /fxdots/);
   assert.match(svg, /#9d5642/);
 });
+
+
+test("Agents settings render per-role CLI and model pickers and a custom ID input", () => {
+  const ui = read("effort.tsx");
+  assert.match(ui, /settings-orch-model-/);
+  assert.match(ui, /orchestrationModelOptions\(provider\)/);
+  assert.match(ui, /onSelect: v => setRuleProvider\(idx, v\)/);
+  assert.match(ui, /setRuleModel\(idx, v === MODEL_DEFAULT \? null : v\)/);
+  assert.match(ui, /model: r.provider === nextProvider \? r.model : null/);
+  assert.match(ui, /settings-orch-model-role/);
+  assert.match(ui, /settings-orch-model-id/);
+  assert.match(ui, /sanitizeOrchestrationModel\(v\)/);
+  assert.match(ui, /writeProjectOrchestrationConfig\(\$, savedOrch\)/);
+});

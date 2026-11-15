@@ -190,6 +190,20 @@ function resolveSubtaskRouting(subtask, config) {
       };
     }
     provider = explicitProvider;
+    // Explicit CLI selection must still use that role's configured model and
+    // effort. Ignore a rule's model when it belongs to a different CLI.
+    const text = `${subtask.type || ""} ${subtask.description || ""}`.toLowerCase();
+    const matchingRule = rules.find((rule) => {
+      if (!rule.match || (rule.provider && rule.provider !== provider)) return false;
+      try {
+        return new RegExp(`\\b(${rule.match})\\b`, "i").test(text);
+      } catch {
+        return false;
+      }
+    });
+    model = subtask.model || matchingRule?.model ||
+      ((!routing.defaultProvider || routing.defaultProvider === provider) ? routing.defaultModel : null) || null;
+    effort = subtask.effort || matchingRule?.effort || routing.defaultEffort || "medium";
   } else {
     const text = `${subtask.type || ""} ${subtask.description || ""}`.toLowerCase();
     for (const rule of rules) {

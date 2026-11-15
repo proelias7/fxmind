@@ -355,3 +355,67 @@ describe("orchestration-engine", () => {
     assert.match(rDisallowed.error, /not permitted by allowedProviders/i);
   });
 });
+
+
+it("routes a configured role model to its matching CLI even with an explicit provider", () => {
+  const config = {
+    allowedProviders: null,
+    routing: {
+      defaultProvider: "claude",
+      defaultModel: "sonnet",
+      defaultEffort: "medium",
+      rules: [
+        { match: "review|audit|verify", provider: "claude", model: "opus", effort: "high" },
+        { match: "implement|code", provider: "codex", model: "gpt-5.4-codex", effort: "medium" },
+      ],
+    },
+  };
+  const review = resolveSubtaskRouting({ type: "review", provider: "claude", description: "verify module" }, config);
+  assert.deepEqual(review, { provider: "claude", model: "opus", effort: "high" });
+
+  const implement = resolveSubtaskRouting({ type: "implement", provider: "codex", description: "code module" }, config);
+  assert.equal(implement.model, "gpt-5.4-codex");
+
+  const override = resolveSubtaskRouting({
+    type: "review", provider: "claude", model: "custom/model-v2", description: "verify module",
+  }, config);
+  assert.equal(override.model, "custom/model-v2");
+
+  // A review model configured for Claude must never leak into Codex.
+  const mismatched = resolveSubtaskRouting({ type: "review", provider: "codex", description: "verify module" }, config);
+  assert.equal(mismatched.provider, "codex");
+  assert.equal(mismatched.model, null);
+
+  const implicit = resolveSubtaskRouting({ type: "review", description: "verify module" }, config);
+  assert.equal(implicit.model, "opus");
+});
+
+it("passes the configured model into task execution", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxorch-model-exec-"));
+  try {
+    panelOrch.writeOrchestrationConfig({
+      mode: "auto", enabled: true,
+      routing: {
+        defaultProvider: null, defaultModel: null, defaultEffort: "medium",
+        rules: [{ match: "implement|code", provider: "codex", model: "gpt-5.4-codex", effort: "medium" }],
+      },
+    }, root, "project");
+    const used = [];
+    const engine = new OrchestrationEngine({
+      taskExecutor: async (_session, subtask) => {
+        used.push({ provider: subtask.provider, model: subtask.model });
+        return "done";
+      },
+    });
+    const started = engine.startOrchestration({
+      task: "Implement", subtasks: [{ id: "impl", type: "implement", provider: "codex", description: "code" }],
+    }, { projectRoot: root });
+    assert.equal(started.ok, true);
+    const finished = await engine.waitForOrchestration(started.orchestrationId, 5000, root);
+    assert.equal(finished.ok, true);
+    assert.deepEqual(used, [{ provider: "codex", model: "gpt-5.4-codex" }]);
+    assert.equal(finished.orchestration.subtasks[0].model, "gpt-5.4-codex");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

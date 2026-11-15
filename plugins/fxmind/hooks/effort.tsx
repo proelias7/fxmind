@@ -6,6 +6,7 @@ import type { EngineInterface, ModelForkResult, Register, RenderInput } from 'cl
 import type { AgentRec, Effort, GateVPending, HandoffAfter, HandoffChoice, ModelKey, OrchestrationConfig, Pick, SettingsDraft, Spent } from '../types'
 import { agentsPane, demoAgents, demoFiles, demoSteps, importsOf, relPath, toolLine, touchOf, withTouch, withWaits } from './agents'
 import { DEFAULT_ORCHESTRATION_CONFIG, orchestrationBand, orchestrationToolFinished, orchestrationToolStart, readProjectOrchestrationConfig, startOrchestrationSession, syncOrchestration, writeProjectOrchestrationConfig } from './orchestration'
+import { MODEL_CUSTOM, MODEL_DEFAULT, orchestrationModelChoice, orchestrationModelOptions, sanitizeOrchestrationModel } from './orchestration-models'
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
 import { MARK_SVG, textureSvg } from './brand-mark'
 import { projectRoot } from './project-root'
@@ -208,6 +209,8 @@ type SettingsCard = 'fxmind' | 'effort' | 'model' | 'judge' | 'handoff' | 'show'
 const settingsCard = atom({ plugin: 'fxmind', key: 'settingsCard' } as const, null)
 let orchConfigLoaded: OrchestrationConfig = DEFAULT_ORCHESTRATION_CONFIG
 let orchDraft: OrchestrationConfig | null = null
+let orchCustomModelRule: number | null = null
+let orchSelectedModelRule = 0
 /** The settings panel's parts: a card each on the overview, by name alone. The panel is kept quiet: no line under a
  * card saying what it is set to, no sentence on what a part is for. */
 const CARDS: readonly { id: SettingsCard; title: string }[] = [
@@ -1919,6 +1922,8 @@ async function loadInstalledSkills($: EngineInterface) {
 /** Opens the fxmind settings panel above the prompt: the app does not let a plugin open its /plugin dialog. */
 async function openPluginSettings($: EngineInterface) {
   orchDraft = null
+  orchCustomModelRule = null
+  orchSelectedModelRule = 0
   orchConfigLoaded = DEFAULT_ORCHESTRATION_CONFIG
   // Draw the panel first; listing commands and probing project config can be
   // slow in Claude desktop and must never hold its first frame open.
@@ -2178,9 +2183,14 @@ async function saveDraft($: EngineInterface) {
   const { key, ...rest } = draft
   if (orchDraft !== null) {
     const savedOrch = orchDraft
+    if (!(await writeProjectOrchestrationConfig($, savedOrch))) {
+      // Never silently discard the CLI/model selection if the project cannot
+      // write its .fxmind/orchestration.json.
+      $.ui.toast('FXMIND: não foi possível salvar os agentes neste projeto.')
+      return
+    }
     orchDraft = null
     orchConfigLoaded = savedOrch
-    await writeProjectOrchestrationConfig($, savedOrch)
   }
   // The key goes to its file first; the settings then go through the store queue, since each one reloads the plugin.
   if (key?.trim()) await saveJevKey($, key, false)
@@ -5000,6 +5010,7 @@ Saved to ${out}.md and .json` }
       const checking = await read($, updateCheck)
       const close = async () => {
         orchDraft = null
+        orchCustomModelRule = null
         await update($, settingsDraft, () => ({}))
         await update($, judgeTest, () => null)
         await update($, settingsCard, () => null)
@@ -5351,8 +5362,17 @@ Saved to ${out}.md and .json` }
               $.ui.invalidate('ui.render')
             }
             const setRuleProvider = (idx: number, provider: string) => {
+              // A model ID belongs to one CLI; never carry it to another CLI.
+              orchCustomModelRule = null
+              const nextProvider = provider === 'default' ? null : provider
               const nextRules = orchShown.routing.rules.map((r, i) =>
-                i === idx ? { ...r, provider: provider === 'default' ? null : provider } : r,
+                i === idx ? { ...r, provider: nextProvider, model: r.provider === nextProvider ? r.model : null } : r,
+              )
+              setOrch({ routing: { ...orchShown.routing, rules: nextRules } })
+            }
+            const setRuleModel = (idx: number, model: string | null) => {
+              const nextRules = orchShown.routing.rules.map((r, i) =>
+                i === idx ? { ...r, model } : r,
               )
               setOrch({ routing: { ...orchShown.routing, rules: nextRules } })
             }
@@ -5401,15 +5421,60 @@ Saved to ${out}.md and .json` }
                 options: ['1', '2', '3', '4', '5', '6', '8', '10'].map(n => ({ value: n, label: n })),
                 onSelect: v => setOrch({ maxConcurrent: Number(v) || 3 }),
               }),
-              ...orchShown.routing.rules.map((rule, idx) =>
-                pick({
-                  key: `settings-orch-rule-${idx}`,
-                  label: rule.match.split('|')[0] || `Rule ${idx + 1}`,
-                  value: rule.provider || 'default',
-                  options: providerOpts,
-                  onSelect: v => setRuleProvider(idx, v),
-                }),
-              ),
+              // Keep the screen compact: CLI for each role stays visible, while
+              // the selected role gets a dedicated model picker.
+              ...(() => {
+                const idx = Math.max(0, Math.min(orchSelectedModelRule, orchShown.routing.rules.length - 1))
+                const rule = orchShown.routing.rules[idx]
+                if (!rule) return []
+                const provider = rule.provider ?? orchShown.routing.defaultProvider
+                const choice = orchestrationModelChoice(provider, rule.model, orchCustomModelRule === idx)
+                return [
+                  pick({
+                    key: 'settings-orch-model-role',
+                    label: 'Modelo de',
+                    value: String(idx),
+                    options: orchShown.routing.rules.map((item, i) => ({
+                      value: String(i),
+                      label: item.match.split('|')[0] || `Regra ${i + 1}`,
+                    })),
+                    onSelect: v => {
+                      orchSelectedModelRule = Number(v) || 0
+                      orchCustomModelRule = null
+                      $.ui.invalidate('ui.render')
+                    },
+                  }),
+                  pick({
+                    key: 'settings-orch-rule',
+                    label: 'CLI',
+                    value: rule.provider || 'default',
+                    options: providerOpts,
+                    onSelect: v => setRuleProvider(idx, v),
+                  }),
+                  pick({
+                    key: 'settings-orch-model',
+                    label: 'Modelo',
+                    value: choice,
+                    options: orchestrationModelOptions(provider),
+                    onSelect: v => {
+                      if (v === MODEL_CUSTOM) {
+                        orchCustomModelRule = idx
+                        $.ui.invalidate('ui.render')
+                      } else {
+                        orchCustomModelRule = null
+                        setRuleModel(idx, v === MODEL_DEFAULT ? null : v)
+                      }
+                    },
+                  }),
+                  ...(choice === MODEL_CUSTOM
+                    ? [field('settings-orch-model-custom',
+                        <Input key="settings-orch-model-id" placeholder="provider/modelo"
+                          value={rule.model ?? ''} submitLabel="OK"
+                          onInput={(v: string) => setRuleModel(idx, sanitizeOrchestrationModel(v))}
+                          onSubmit={(v: string) => setRuleModel(idx, sanitizeOrchestrationModel(v))} />, 30)]
+                    : []),
+                ]
+              })(),
             ]
           })()) : [
             ...(bare
