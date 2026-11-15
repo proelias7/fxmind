@@ -5147,10 +5147,11 @@ Saved to ${out}.md and .json` }
       const upkeep = [
          // Link is a browser action, never a synthetic chat instruction.
          term ? <Text key="settings-dashboard-cli" dimColor>fxmind painel</Text> : (
-           <Box key="settings-dashboard-link" paddingX={1} borderStyle="round"
-             backgroundColor="#e8f4ea" borderColor="#ccdece">
-             <Text color="#13221a"><Link href="http://localhost:3847/" label="Painel" /></Text>
-           </Box>
+           // Secondary navigation, not a primary action or selected tab.
+           <Text key="settings-dashboard-link" color={config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight)
+             ? '#35554e' : config.theme === 'mint' ? '#7ee0b4' : DASH_DIM}>
+             <Link href="http://localhost:3847/" label="Painel" />
+           </Text>
          ),
         ...(ownVersion ? [<Text key="settings-version" color="#6b6b73">v{ownVersion}</Text>] : []),
         checking === 'checking' ? (
@@ -5235,17 +5236,17 @@ Saved to ${out}.md and .json` }
               <Box position="absolute" top={0} left={0} />
               {CARDS.map(c => (
                 <Box key={`card-${c.id}`} position="relative" flexDirection="column" flexGrow={1} width={0} minWidth={18}
-                   paddingX={1} backgroundColor={term ? DASH_BG : "#292220"} borderStyle="round"
-                   borderColor={term ? DASH_EDGE : "#312b29"}
-                   hover={{ backgroundColor: term ? CARD_HOVER : "#342c29", borderColor: term ? CARD_HOVER_EDGE : "#49403d" }}>
+                   paddingX={1} backgroundColor={term ? DASH_BG : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#f1f4f6' : '#151b24'} borderStyle="round"
+                   borderColor={term ? DASH_EDGE : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#d1d9df' : '#2d3942'}
+                   hover={{ backgroundColor: term ? CARD_HOVER : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#e4ecec' : '#202a35', borderColor: term ? CARD_HOVER_EDGE : config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#b6c8ca' : '#435a64' }}>
                   <Box flexDirection="row" gap={1} alignItems="center">
-                    {Svg && !term ? <Svg source={rowIconSvg(c.id, "#ddd3d9")} alt={c.title} width={14} height={14} /> : null}
+                    {Svg && !term ? <Svg source={rowIconSvg(c.id, config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#38564e' : '#7ee0b4')} alt={c.title} width={14} height={14} /> : null}
                     {/* The terminal draws the blank buttons below as real spaces over the card's text, so there the
                         title itself is the button. (Full-width padded buttons per row looked worse: a big lit block.) */}
                     {term ? (
                       <Button key={`settings-card-${c.id}`} plain label={`${c.title} ›`} onPress={openCard(c.id)} />
                     ) : (
-                      <Text color="#eee9ef" bold hover={{ color: "#ffffff" }}>{c.title}</Text>
+                      <Text color={config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#1f2e36' : '#eef1ef'} bold hover={{ color: config.appearance === 'light' || (config.appearance === 'auto' && claudeIsLight) ? '#101c20' : '#ffffff' }}>{c.title}</Text>
                     )}
                   </Box>
                   {/* The click takes the whole card: a button is one line high and centred in its box, whatever the box,

@@ -57,12 +57,13 @@ test("All settings pages share a full-panel FXMIND texture", () => {
 test("Cards remain dark; only primary actions are light and readable on hover", () => {
   const ui = read("effort.tsx");
   const overview = ui.slice(ui.indexOf('key="settings-cards"'), ui.indexOf('key={`settings-${card}`}', ui.indexOf('key="settings-cards"')));
-  assert.match(overview, /backgroundColor=\{term \? DASH_BG : "#292220"\}/);
-  assert.match(overview, /borderColor=\{term \? DASH_EDGE : "#312b29"\}/);
-  assert.match(overview, /hover=\{\{ backgroundColor: term \? CARD_HOVER : "#342c29"/);
-  assert.doesNotMatch(overview, /backgroundColor=\{term \? DASH_BG : BRAND_HEAD\}/);
-  assert.match(overview, /color="#eee9ef"/);
-  assert.doesNotMatch(overview, /#f3f8f4|#e2eee5/);
+  assert.match(overview, /backgroundColor=\{term \? DASH_BG : config\.appearance/);
+  assert.match(overview, /'#151b24'/);
+  assert.match(overview, /'#f1f4f6'/);
+  assert.match(overview, /'#2d3942'/);
+  assert.match(overview, /'#e4ecec'/);
+  assert.match(overview, /'#eef1ef'/);
+  assert.doesNotMatch(overview, /#292220|#30262c|#f3f8f4/);
   const action = ui.slice(ui.indexOf('const panelAction ='), ui.indexOf('const skillNames ='));
   assert.match(action, /backgroundColor="#f5f8f5"/);
   assert.match(action, /color="#0b1610" bold hover=\{\{ color: "#0b1610" \}\}/);

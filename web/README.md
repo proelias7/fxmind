@@ -50,3 +50,10 @@ Em **Projetos e memória → Canvas**, é possível explorar ligações confirma
 O endpoint `GET /api/projects/:id/graph/view?mode=memories|fragments` produz uma projeção compacta do índice existente, limitada a 420 nós, sem enviar os milhares de símbolos de código ao navegador. O botão **Gerar grafo** só executa uma reconstrução por ação explícita.
 
 Arquivos: `scripts/lib/panel-graph-view.js`, `web/dashboard/memory-graph.js` e `memory-graph.css`.
+## Fluxo de design (Impeccable)
+
+A interface FXMIND mantém o design system oficial em `web/dashboard/design-system.css`; o arquivo `workspace.css` aplica a hierarquia de operação, responsividade e componentes da dashboard. O plugin Claude respeita as mesmas superfícies, sem alterar as preferências de chat.
+
+Para novas alterações do frontend, use a skill **Impeccable** com foco em `layout`, `adapt`, `harden` e `polish`, preservando a identidade já definida. Valide num único ciclo as telas desktop e mobile, estados de foco/hover, combobox com teclado, Canvas e ausência de overflow. Evite usar cores novas ou componentes nativos visualmente desconexos sem justificativa.
+
+O mapa de orquestração exibe **regras de roteamento configuradas**; não representa as dependências reais de uma execução. A edição dos nós salva por meio da API de orquestração existente.

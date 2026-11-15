@@ -1,4 +1,6 @@
 import { mountMemoryGraph } from './memory-graph.js';
+import { enhanceSelects } from './controls.js';
+import { flowCanvas } from './orchestration-canvas.js';
 // FXMIND Dashboard. A management-only UI; conversations remain in CLI hosts.
 const apiBase = '/api';
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -10,7 +12,7 @@ const state = {
   scope: 'project', error: null, version: '—',
   memoryTab: 'canvas', graphMode: 'memories', graph: null,
   graphError: null, graphLoading: false, graphProjectId: null,
-  graphLoadedMode: null, graphSearch: '',
+  graphLoadedMode: null, graphSearch: '', orchSelectedRule: 0,
 };
 let memoryCanvas = null;
 let graphRequestId = 0;
@@ -55,10 +57,10 @@ const selectField = (title, value, id, options, note='') =>
     return '<option value="'+attr(obj.value ?? '')+'" '+(String(obj.value??'')===String(value??'')?'selected':'')+'>'+esc(obj.label)+'</option>';
   }).join('')+'</select>'+(note?'<small>'+esc(note)+'</small>':'')+'</label>';
 const switchField = (title, value, id) => '<label class="switch"><input type="checkbox" data-field="'+attr(id)+'" '+(value?'checked':'')+'/><span>'+esc(title)+'</span></label>';
-const section = (title, desc, content, actions='') =>
-  '<section class="section"><div class="section-head"><div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+actions+'</div>'+content+'</section>';
+const section = (title, desc, content, actions='', extraClass='') =>
+  '<section class="section '+attr(extraClass)+'"><div class="section-head"><div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+actions+'</div>'+content+'</section>';
 const btn = (label, action, variant='', extra='') => '<button class="btn '+variant+'" data-action="'+attr(action)+'" '+extra+'>'+esc(label)+'</button>';
-const heading = (kicker,title,desc) => '<div class="page-heading"><span class="eyebrow">'+esc(kicker)+'</span><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div>';
+const heading = (_kicker,title,desc) => '<div class="page-heading"><h1>'+esc(title)+'</h1><p>'+esc(desc)+'</p></div>';
 const metric = (title,value,meta) => '<div class="metric"><div class="metric-kicker">'+esc(title)+'</div><div class="metric-value">'+esc(value)+'</div><div class="metric-meta">'+esc(meta)+'</div></div>';
 const empty = message => '<div class="empty">'+esc(message)+'</div>';
 function cliChoices(includeDefault=true) {
@@ -99,26 +101,61 @@ function overview() {
     +'<p class="footer-note">FXMIND Dashboard · Gerenciamento local em 127.0.0.1 · Sem interface de chat.</p>';
 }
 function orchestration() {
-  const c = state.orchestrationDraft;
-  if (!c) return empty('Não foi possível carregar a configuração de orquestração.');
-  const mode = [{value:'auto',label:'Automático'},{value:'confirm',label:'Confirmar antes'},{value:'off',label:'Desligado'}];
-  const strategy = [{value:'smart',label:'Smart DAG'},{value:'parallel',label:'Paralelo'},{value:'sequential',label:'Sequencial'}];
-  const efforts = [{value:'low',label:'Baixo'},{value:'medium',label:'Médio'},{value:'high',label:'Alto'},{value:'xhigh',label:'Máximo'}];
-  const rules = (c.routing?.rules||[]).map((r,i) => '<div class="agent-row"><div class="agent-name">'+esc(roles[i]||r.match.split('|')[0]||'Regra '+(i+1))+'<small>'+esc(r.match||'')+'</small></div>'+selectField('CLI',r.provider||'','orch.rule.'+i+'.provider',cliChoices())+modelField('Modelo',r.model,'orch.rule.'+i+'.model',r.provider||c.routing.defaultProvider)+selectField('Esforço',r.effort||'medium','orch.rule.'+i+'.effort',efforts)+'</div>').join('');
-  const active = state.active?.orchestration;
-  const activeSection = active
-    ? '<div class="session"><div><strong>'+esc(active.task||active.name||active.id)+'</strong><span class="id">'+esc(active.id)+'</span><small>'+esc(active.status)+' · '+fmt(active.subtasks?.length)+' subtarefas</small></div><div class="right">'+(active.status==='awaiting_approval'?btn('Aprovar','approve-run','primary','data-id="'+attr(active.id)+'"'):'')+(active.status==='running'||active.status==='awaiting_approval'?btn('Cancelar','cancel-run','danger','data-id="'+attr(active.id)+'"'):'')+'</div></div>'
-    : empty('Nenhuma execução ativa.');
-  return heading('GERENCIAMENTO','Orquestração de agentes','Defina regras de roteamento por função. Cada agente pode usar seu próprio CLI, modelo e nível de esforço.')
-    +section('Operação','Escopo, política de aprovação e paralelismo',
-      '<div class="form-grid cols4">'+selectField('Onde salvar',state.scope,'scope',[{value:'project',label:'Projeto atual'},{value:'global',label:'Global'}])
-      +selectField('Modo',c.mode,'orch.mode',mode)
-      +selectField('Estratégia',c.strategy,'orch.strategy',strategy)
-      +selectField('Concorrência',String(c.maxConcurrent),'orch.maxConcurrent',['1','2','3','4','5','6','8','10'])+'</div><div class="divider"></div>'+switchField('Ativar orquestração',c.enabled,'orch.enabled')+'<div class="help" style="margin-top:10px">O modo de confirmação solicita aprovação antes de iniciar. Alterações globais afetam projetos sem regras próprias.</div>')
-    +section('Roteamento por função','Modelo específico por CLI, com preenchimento personalizado',rules || empty('Nenhuma regra de roteamento.'))
-    +section('Agente padrão','Utilizado quando nenhuma regra corresponde', '<div class="form-grid cols3">'+selectField('CLI padrão',c.routing?.defaultProvider||'','orch.defaultProvider',cliChoices())+modelField('Modelo padrão',c.routing?.defaultModel,'orch.defaultModel',c.routing?.defaultProvider)+selectField('Esforço padrão',c.routing?.defaultEffort||'medium','orch.defaultEffort',efforts)+'</div>'+formActions())
-    +section('Execução ativa','Acompanhe e gerencie execuções',activeSection)
-    +section('Histórico','Últimas 20 sessões',state.history?.length?'<div class="list">'+state.history.slice(0,20).map(s=>'<div class="list-row"><div><strong>'+esc(s.task||s.name||s.id||'Execução')+'</strong><small>'+esc(s.id||'')+' · '+fmt(s.subtasks?.length)+' tarefas</small></div><span class="tag">'+esc(s.status||'—')+'</span></div>').join('')+'</div>':empty('Sem execuções anteriores.'));
+  const c=state.orchestrationDraft;
+  if(!c)return empty('Não foi possível carregar a orquestração.');
+  const mode=[{value:'auto',label:'Automático'},{value:'confirm',label:'Confirmar antes'},{value:'off',label:'Desligado'}];
+  const strategy=[{value:'smart',label:'Smart DAG'},{value:'parallel',label:'Paralelo'},{value:'sequential',label:'Sequencial'}];
+  const efforts=['low','medium','high','xhigh'].map(x=>({value:x,label:({low:'Baixo',medium:'Médio',high:'Alto',xhigh:'Máximo'})[x]}));
+  const rules=c.routing?.rules||[];
+  const idx=Math.max(0,Math.min(state.orchSelectedRule,rules.length-1));
+  const rule=rules[idx];
+  const active=state.active?.orchestration;
+  const status=active?.status==='running'?'Em execução':active?.status==='awaiting_approval'?'Aguardando aprovação':active?'Última execução: '+active.status:'Nenhuma execução ativa';
+  const quick='<div class="flow-quick-settings">'
+    +selectField('Escopo',state.scope,'scope',[{value:'project',label:'Projeto atual'},{value:'global',label:'Global'}])
+    +selectField('Modo',c.mode,'orch.mode',mode)
+    +selectField('Estratégia',c.strategy,'orch.strategy',strategy)
+    +selectField('Concorrência',String(c.maxConcurrent),'orch.maxConcurrent',['1','2','3','4','5','6','8','10'])
+    +btn('Salvar alterações','save-orchestration','primary')+'</div>';
+  const inspector=rule?'<aside class="flow-inspector"><div class="flow-kicker">AGENTE SELECIONADO</div>'
+    +'<h3>'+esc(roles[idx]||rule.match.split('|')[0]||'Agente')+'</h3>'
+    +'<p>Configure o roteamento desta função. As mudanças são aplicadas ao salvar.</p>'
+    +selectField('CLI',rule.provider||'','orch.rule.'+idx+'.provider',cliChoices())
+    +modelField('Modelo',rule.model,'orch.rule.'+idx+'.model',rule.provider||c.routing.defaultProvider)
+    +selectField('Esforço',rule.effort||'medium','orch.rule.'+idx+'.effort',efforts)
+    +'<div class="flow-info">Regra: '+esc(rule.match)+'</div>'
+    +'<div class="actions">'+btn('Salvar agente','save-orchestration','primary')+'</div></aside>'
+    :'<aside class="flow-inspector"><h3>Sem agentes</h3><p>Adicione regras na configuração para visualizá-las.</p></aside>';
+  const workbench='<div class="flow-workbench">'+flowCanvas(c,active,idx)+inspector+'</div>';
+  const table=rules.map((r,i)=>'<div class="agent-row"><div class="agent-name">'+esc(roles[i]||r.match.split('|')[0]||'Agente')+'<small>'+esc(r.match||'')+'</small></div>'
+    +selectField('CLI',r.provider||'','orch.rule.'+i+'.provider',cliChoices())
+    +modelField('Modelo',r.model,'orch.rule.'+i+'.model',r.provider||c.routing.defaultProvider)
+    +selectField('Esforço',r.effort||'medium','orch.rule.'+i+'.effort',efforts)+'</div>').join('');
+  const advanced='<details class="orch-settings-panel"><summary>Configuração detalhada de roteamento</summary><div class="orch-settings-body">'
+    +switchField('Ativar orquestração',c.enabled,'orch.enabled')
+    +'<div class="divider"></div>'+table
+    +'<div class="divider"></div><div class="form-grid cols3">'
+    +selectField('CLI padrão',c.routing?.defaultProvider||'','orch.defaultProvider',cliChoices())
+    +modelField('Modelo padrão',c.routing?.defaultModel,'orch.defaultModel',c.routing?.defaultProvider)
+    +selectField('Esforço padrão',c.routing?.defaultEffort||'medium','orch.defaultEffort',efforts)
+    +'</div>'+formActions()+'</div></details>';
+  const activeMarkup=active?'<div class="list-row"><div><strong>'+esc(active.task||active.name||active.id)+'</strong><small>'+esc(active.id||'')+'</small></div>'
+    +'<div class="right">'+(active.status==='awaiting_approval'?btn('Aprovar','approve-run','primary','data-id="'+attr(active.id)+'"'):'')
+    +(active.status==='running'||active.status==='awaiting_approval'?btn('Cancelar','cancel-run','danger','data-id="'+attr(active.id)+'"'):'')
+    +'</div></div>':empty('Nenhuma execução em andamento.');
+  return heading('GERENCIAMENTO','Orquestração de agentes','Visualize os roteamentos e edite cada função selecionando um nó.')
+    +'<div class="context-strip"><div class="context-stat"><strong>'+esc(status)+'</strong></div>'
+    +'<div class="context-stat"><span>Agentes</span><strong>'+fmt(rules.length)+'</strong></div>'
+    +'<div class="context-stat"><span>Estratégia</span><strong>'+esc(c.strategy||'smart')+'</strong></div></div>'
+    +quick
+    +section('Mapa de roteamento','As conexões representam regras configuradas, não dependências de uma execução.',
+      workbench,'','flow-section')
+    +advanced
+    +'<div class="grid cols" style="margin-top:20px"><div>'
+    +section('Execução ativa','Status e aprovações de tarefas',activeMarkup)
+    +'</div><div>'+section('Histórico','Últimas execuções',state.history?.length?
+      '<div class="list">'+state.history.slice(0,7).map(s=>'<div class="list-row"><div><strong>'+esc(s.task||s.name||s.id)+'</strong><small>'+esc(s.id||'')+'</small></div><span class="tag">'+esc(s.status||'—')+'</span></div>').join('')+'</div>'
+      :empty('Sem execuções registradas.'))+'</div></div>';
 }
 function agents() {
   const a=state.agentDraft;
@@ -179,7 +216,7 @@ function graphPanel() {
     + btn('Centralizar','graph-fit')
     + '<span class="graph-counts">' + esc(counts) + '</span></div>'
     + visual
-    + '<div class="graph-canvas-hint">Apenas relações confirmadas pelo FXMIND. A visualização detalhada mostra até 300 nós por vez para manter a interface leve.</div>');
+    + '<div class="graph-canvas-hint">Apenas relações confirmadas pelo FXMIND. A visualização detalhada mostra até 300 nós por vez para manter a interface leve.</div>', '', 'memory-section');
 }
 function projects() {
   const viewTabs = '<div class="memory-view-tabs">'
@@ -187,12 +224,11 @@ function projects() {
     + btn('Projetos','view-list',state.memoryTab==='list'?'primary':'') + '</div>';
   const projectList = section('Projetos registrados','Alterne o escopo da dashboard',
     '<div class="list">'+state.projects.map(p=>'<div class="list-row"><div><strong>'+esc(p.name||p.root||'Projeto')+'</strong><small>'+esc(p.root||'')+'</small></div><div class="right">'+(activeProjectId()===p.id?'<span class="tag good">Ativo</span>':btn('Selecionar','select-project','','data-id="'+attr(p.id)+'"'))+'</div></div>').join('')+'</div>');
-  return heading('CONTEXTO','Projetos e memória',
-      'Explore memórias, fragmentos e suas conexões ou selecione outro projeto.')
-    +section('Contexto atual','Memórias e projetos associados ao ambiente',
-      '<div class="grid metrics" style="grid-template-columns:repeat(2,minmax(0,1fr))">'
-      + metric('Memórias',fmt(state.health?.memoryCount||0),'No projeto ativo')
-      + metric('Projetos registrados',fmt(state.projects.length),'Disponíveis no ambiente')+'</div>')
+  return heading('CONTEXTO','Projetos e memória','Explore memórias, fragmentos e as conexões do projeto ativo.')
+    +'<div class="context-strip"><div class="context-stat"><span>Memórias</span><strong>'+fmt(state.health?.memoryCount||0)+'</strong></div>'
+    +'<div class="context-stat"><span>Projetos</span><strong>'+fmt(state.projects.length)+'</strong></div>'
+    +(state.graph?.meta?'<div class="context-stat"><span>Nós</span><strong>'+fmt(state.graph.meta.visibleNodes)+'</strong></div>'
+    +'<div class="context-stat"><span>Conexões</span><strong>'+fmt(state.graph.meta.visibleLinks)+'</strong></div>':'')+'</div>'
     +viewTabs
     +(state.memoryTab==='canvas'?graphPanel():projectList);
 }
@@ -222,16 +258,22 @@ async function loadGraph() {
 
 function render() {
   const [title] = pages[state.page];
-  $('#breadcrumb-current').textContent=title;
+  document.title='FXMIND · '+title;
   for(const el of document.querySelectorAll('[data-page]'))el.classList.toggle('active',el.dataset.page===state.page);
   $('#connection-dot').classList.toggle('offline',!state.health);
   $('#connection-text').textContent=state.health?'Serviço conectado':'Sem conexão';
   $('#sidebar-version').textContent='FXMIND · Dashboard';
   const cur=state.health?.workspaceId || state.workspace?.workspaceId || '';
   $('#project-select').innerHTML=state.projects.map(p=>'<option value="'+attr(p.id)+'" '+(p.id===cur?'selected':'')+'>'+esc(p.name||p.root)+'</option>').join('')||'<option value="">Nenhum projeto</option>';
+  const projectTrigger=$('#project-select').nextElementSibling;
+  if(projectTrigger?.classList.contains('fx-select-trigger')){
+    projectTrigger.querySelector('.fx-selected-label').textContent=$('#project-select').selectedOptions[0]?.textContent||'Nenhum projeto';
+  }
   memoryCanvas?.destroy();
   memoryCanvas = null;
   $('#content').innerHTML=({overview,orchestration,agents,subagents,providers,projects}[state.page]||overview)();
+  enhanceSelects(document.querySelector('.sidebar'));
+  enhanceSelects($('#content'));
   if(state.page==='projects' && state.memoryTab==='canvas'){
     if(state.graph && state.graphProjectId===activeProjectId() && state.graphLoadedMode===state.graphMode){
       memoryCanvas=mountMemoryGraph($('#memory-graph'),state.graph);
@@ -375,6 +417,8 @@ async function act(action,id) {
   }
 }
 document.addEventListener('click',e=>{
+  const flow=e.target.closest('[data-flow-agent]');
+  if(flow){state.orchSelectedRule=Number(flow.dataset.flowAgent)||0;render();return;}
   const tab=e.target.closest('[data-page]');
   if(tab){state.page=tab.dataset.page;$('#sidebar').classList.remove('open');render();window.scrollTo({top:0});return;}
   const button=e.target.closest('[data-action]');
@@ -401,6 +445,13 @@ document.addEventListener('input',e=>{
   if(e.target.tagName==='INPUT'&&e.target.type!=='checkbox')updateModelDraft(field,e.target.value);
 });
 $('#menu-toggle').addEventListener('click',()=>$('#sidebar').classList.toggle('open'));
+document.addEventListener('keydown',e=>{
+  const flow=e.target.closest?.('[data-flow-agent]');
+  if(flow&&(e.key==='Enter'||e.key===' ')){
+    e.preventDefault();state.orchSelectedRule=Number(flow.dataset.flowAgent)||0;render();
+    document.querySelector('[data-flow-agent="'+state.orchSelectedRule+'"]')?.focus();
+  }
+});
 $('#refresh-button').addEventListener('click',()=>void load().then(()=>notify('Atualizado')));
 const route=location.pathname.split('/').filter(Boolean)[0];
 if(route&&pages[route])state.page=route;
