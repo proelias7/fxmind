@@ -438,7 +438,7 @@ function buildDemandPrompt(item = {}) {
     "Faça somente o que a descrição pede, com a menor mudança possível — não refatore nem mexa em outros recursos.";
   const pipelineLine =
     taskMode === "quick"
-      ? "Modo rápido (PANEL_MODE: quick): fxmind_start_task trivial=true → implemente com paths do contexto → Gate V/C via MCP."
+      ? "Modo rápido (PANEL_MODE: quick): fxmind_start_task trivial=true → implemente com paths do contexto → close with Gate C via MCP."
       : "Pipeline fxmind via MCP: classificar → fxmind_start_task → Gate A/B (fxmind_query) → implementar → V → C.";
   const lines = [
     "Implemente esta demanda no repositório do projeto ativo.",
@@ -869,7 +869,7 @@ function clearCliSession(id) {
 function finishAssistant(id, extra = {}) {
   const thread = threads.get(id);
   if (!thread) return;
-  // Gate V/C is a review track, not a run failure. Missing MCP or in-game
+  // Optional review is an advisory track, not a run failure. Missing MCP or in-game
   // evidence must not paint a finished reply as an error after every turn.
   if (PENDING_VERIFY_RE.test(String(extra.error || ""))) {
     extra = { ...extra };

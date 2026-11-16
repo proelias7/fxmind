@@ -82,7 +82,7 @@ describe("Lean Planner and source reuse", () => {
     const general = prompt.buildPromptContext(root, "explique o que e um monad", { queryResult: { ok: true, memories: [] } });
     assert.equal(general, "");
   });
-  it("adds lean review to existing Gate V without a new gate", () => {
+  it("optional independent review retains lean checks without a mandatory gate", () => {
     const text = review.buildPrompt(root, { kind: "fix", note: "fix inventory" }, ["resources/inventory/server.lua"]);
     assert.match(text, /Lean review/);
     assert.match(text, /focused regression test/);

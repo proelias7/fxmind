@@ -31,7 +31,7 @@ Write the prompt in the user's language, in Markdown, inside one fenced block, w
 - **Context**: what the agent needs from this chat and the project to work without them (files named, decisions made, constraints agreed). Only facts you were given or read — never invent a file, an API or a requirement.
 - **Requirements**: numbered, each specific and checkable. Fold the answers in as decisions; do not copy the questions.
 - **Out of scope**: what must not change, when it was said or plainly follows.
-- **How to work**: read the code involved before changing it, follow the project's own patterns, keep the change as small as the goal allows, ask before anything destructive or hard to undo. In a project with `.fxmind/`, follow the fxmind task flow: load memories (Gate A), plan (Gate B), verify and review (Gate V), record what was learned (Gate C).
+- **How to work**: read the code involved before changing it, follow the project's own patterns, keep the change as small as the goal allows, ask before anything destructive or hard to undo. In a project with `.fxmind/`, follow the fxmind task flow: load memories (Gate A), plan (Gate B), verify and review the diff, then finish with Gate C.
 - **Done when**: how the result is accepted and checked (tests to run or write, a manual check) and what to report at the end.
 - **Assumptions**: for each question left unanswered that still matters, the assumption made, so the agent can question it.
 

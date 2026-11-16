@@ -14,7 +14,7 @@ Only `kind: config` (data/config entries) or a diagnostic checklist for `fix` ma
 
 ## Steps
 
-1. **Source of truth = a diff that passed Gate V.** `git diff` / `git show` of the task, or the user's instruction when no task ran (then status stays `draft` and every anchor must be verified by reading the file).
+1. **Source of truth = a diff verified with relevant tests and source review.** `git diff` / `git show` of the task, or the user's instruction when no task ran (then status stays `draft` and every anchor must be verified by reading the file).
 2. **Id and triggers.** `id` = slug (`add-weapon-skin`). `triggers[]` = the phrases users type, PT-BR first (`cadastrar skin`, `adicionar skin de arma`). Each trigger needs ≥2 significant words (verb + object); one-word triggers never match. Actions are synonyms (cadastrar/adicionar/criar/registrar), so one phrase per object is enough.
 3. **Steps.** One line per edited location, in edit order:
    `N. \`path\` @ \`anchor\` — instruction`, optionally followed by a fenced snippet with the inserted text.
@@ -22,7 +22,7 @@ Only `kind: config` (data/config entries) or a diagnostic checklist for `fix` ma
    - Snippet: replace variable parts with `{{input}}` placeholders; keep repo literals verbatim.
    - Add a step for every validation read the task needed (e.g. "confirm `originalModel` exists in `itemlist.lua`") so the next run does not rediscover it.
 4. **Inputs.** Each `{{placeholder}}` becomes one bullet `- name — hint` (where the value comes from, constraints, default).
-5. **Verify.** The observable checks the task used at Gate V (ensure + console, in-game flow). Same standard as `task-verify.md`.
+5. **Verify.** The observable checks the task actually ran before completion (ensure + console, in-game flow). Same standard as `task-verify.md`.
 6. **memories[].** Slugs of the related memories; their `Pitfalls` are appended automatically when the playbook loads. Do not copy them into the playbook.
 7. **Write** `.fxmind/playbooks/<id>.md` from `.fxmind/templates/playbook.md`: `status: draft`, `updated` today. It becomes `verified` by itself the first time a task using it closes Gate C.
 8. **Check.** Run `fxmind playbooks check <id>` (MCP `fxmind_playbook` action `check`): every file and anchor must resolve. Fix errors before finishing. Then `fxmind playbooks match "<a real request>"` must select it.

@@ -102,6 +102,26 @@ describe("hooks sessionStart wiring", () => {
     assert.equal(normalizeHookSpec(freshness).timeout, 12);
   });
 
+  it("installHooks removes obsolete FXMIND Stop injection while preserving vendor Stop hooks", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fxhook-legacy-"));
+    try {
+      writePacks(dir);
+      const cursor=path.join(dir,".cursor");
+      fs.mkdirSync(cursor,{recursive:true});
+      fs.writeFileSync(path.join(cursor,"hooks.json"),JSON.stringify({version:1,hooks:{
+        stop:[
+          {command:"node .cursor/hooks/learn-prompt.js",timeout:15},
+          {command:"node other-vendor-stop.js",timeout:5},
+        ],
+      }}));
+      installHooks(dir,{gitHook:false});
+      const config=JSON.parse(fs.readFileSync(path.join(cursor,"hooks.json"),"utf8"));
+      assert.equal(config.hooks.stop.length,1);
+      assert.equal(config.hooks.stop[0].command,"node other-vendor-stop.js");
+      assert.equal(config.hooks.preToolUse.some(e=>String(e.command).includes("gate-guard.js")),true);
+    } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+  });
+
   it("installHooks writes sessionStart into hooks.json", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fxhook-"));
     writePacks(dir);
@@ -119,10 +139,10 @@ describe("hooks sessionStart wiring", () => {
     assert.ok(fs.existsSync(path.join(dir, ".cursor", "hooks", "update-notifier.js")));
     assert.ok(fs.existsSync(path.join(dir, ".cursor", "hooks", "graph-freshness.js")));
     assert.ok(fs.existsSync(path.join(dir, ".cursor", "hooks", "lib", "update-check.js")));
-    assert.ok(fs.existsSync(path.join(dir, ".cursor", "hooks", "lib", "stop-followup.js")));
+    assert.equal(fs.existsSync(path.join(dir, ".cursor", "hooks", "lib", "stop-followup.js")), false);
     const stop = (hooksJson.hooks.stop || []).find(
       (e) => e.command.includes(".cursor/hooks/learn-prompt.js"),
     );
-    assert.equal(stop?.loop_limit, 1);
+    assert.equal(stop, undefined);
   });
 });

@@ -35,15 +35,13 @@ test("Settings opens before loading slow project config and CLI skills", () => {
             settings.indexOf("void readProjectOrchestrationConfig($)"));
 });
 
-test("Gate V Skip never submits a synthetic user message", () => {
-  const source = read("effort.tsx");
-  const start = source.indexOf("async function answerGateV(");
-  const end = source.indexOf("async function saveDraft(", start);
-  assert.ok(start >= 0 && end > start);
-  const handler = source.slice(start, end);
-  assert.match(handler, /if \(decision === [\x27"]review[\x27"]\) await \$\.prompt\.submit\(/);
-  assert.equal((handler.match(/\$\.prompt\.submit\(/g) || []).length, 1);
-  assert.match(handler, /gate-v-choice\.json/);
+test("Claude plugin never renders or submits Gate V again", () => {
+  const source=read("effort.tsx");
+  for(const forbidden of ["settings-gate-v","gatev-title","gatev-review","gatev-skip","markGateV(","readGateVAsk(","answerGateV(","gate-v-choice.json","gate-v-pending.json"]){
+    assert.equal(source.includes(forbidden),false,forbidden);
+  }
+  const config=read("refine.tsx");
+  assert.doesNotMatch(config,/verify and review \(Gate V\)/);
 });
 
 test("All settings pages share a full-panel FXMIND texture", () => {

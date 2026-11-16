@@ -1835,7 +1835,7 @@ async function runJudge(threadId, options = {}) {
 
 const SUBAGENT_TEMPLATE_DIR = path.join(PACKAGE_ROOT, "templates", "opencode", "agents");
 const SUBAGENT_TIMEOUT_MS = 5 * 60 * 1000;
-// Gate V's reviewer reads the diff, its callers and the rubric: three minutes cut real reviews off mid-way.
+// Optional reviewer reads the diff, its callers and the rubric: three minutes may cut real reviews off mid-way.
 const REVIEWER_TIMEOUT_MS = 8 * 60 * 1000;
 const REVIEWER_PROMPT_MAX = 56000;
 // A reviewer's last line, with the markdown models like to wrap it in (`**VERDICT: VERIFIED**`, `` `VERDICT: …` ``).

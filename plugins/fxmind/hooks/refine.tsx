@@ -153,7 +153,7 @@ export function writerPrompt(demand: string, questions: readonly RefineQuestion[
 }
 
 const FXMIND_FACT =
-  'The project uses fxmind (shared project memory with task gates). The agent must follow the fxmind task flow: load the relevant memories first (Gate A), plan the change (Gate B), verify and review it (Gate V), then record what was learned (Gate C).'
+  'The project uses fxmind (shared project memory with task gates). The agent must follow the fxmind task flow: load the relevant memories first (Gate A), plan the change (Gate B), run relevant checks and review the diff, then finish with Gate C.'
 
 async function projectFacts($: EngineInterface): Promise<string> {
   const cwd = await $.session.cwd().catch(() => '')

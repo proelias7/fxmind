@@ -241,7 +241,7 @@ function buildPrompt(root, session, files, evidence = {}) {
   const guidance = reviewGuidance(root, files, ui.changed);
   const lines = [
     "Review this candidate change independently. You did not implement it.",
-    "This review IS Gate V: treat it as the final adversarial validation before completion.",
+    "This is an optional independent read-only review, not a mandatory task gate.",
     "Do not trust or request the executor's explanation, reasoning or completion report. Work from the original goal, current source, git diff/status, real evidence and the project rules below.",
     "This is READ-ONLY: do not edit files and do not record FxMind gates.",
     "",

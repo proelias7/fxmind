@@ -58,7 +58,7 @@ If the fxmind MCP server is registered, prefer these tools over the manual mode 
 | Wait for panel demandas (host chat) | `fxmind_panel_wait` |
 | Reply into a panel thread | `fxmind_panel_reply` |
 
-For Task mode, use **`fxmind_start_task`** (save **`sessionId`**) then **`fxmind_record_gate`** for each gate (A → B → **V** → C) — pass **`sessionId`** on every call when 2+ agents work in this repo. Before edits with parallel sessions, call **`fxmind_claim_paths`**. Never Write `.fxmind/state/fxmind-gates.json`. `fxmind_query` replaces the graph-router step (Gate B). For `graph`, `fxmind_graph` replaces the CLI shell-out. From Gate A, user-facing replies stay short and direct — outcome first, no long text.
+For Task mode, use **`fxmind_start_task`** (save **`sessionId`**) then **`fxmind_record_gate`** for each gate (A → B → C) — pass **`sessionId`** on every call when 2+ agents work in this repo. Before edits with parallel sessions, call **`fxmind_claim_paths`**. Never Write `.fxmind/state/fxmind-gates.json`. `fxmind_query` replaces the graph-router step (Gate B). For `graph`, `fxmind_graph` replaces the CLI shell-out. From Gate A, user-facing replies stay short and direct — outcome first, no long text.
 
 ## Shared memory (`.fxmind/`)
 
@@ -72,7 +72,7 @@ All agents read and write the **same project memory** under `.fxmind/` at the pr
 | `.fxmind/memory/_index.md` | Memory router |
 | `.fxmind/modes/<mode>.md` | On-demand mode specs (read only the matched one) |
 | `.fxmind/playbooks/<id>.md` | Surgical instructions for repeated tasks (files, anchors, snippets, verify); injected by the preload when a request matches |
-| `.fxmind/modes/task-verify.md` | Gate V + Judge triggers (load after Implement) |
+| `.fxmind/modes/task-verify.md` | Testing, UI verification and Judge triggers (load after Implement) |
 | `.fxmind/policy/failure-modes.md` | Behavioral failure map (judge / Task self-audit) |
 | `.fxmind/policy/minimum-evidence.md` | Pack binding evidence set (per installed pack) |
 | `.fxmind/audits/procedure.md` | Heavy audit matrix (read only on `audit`) |

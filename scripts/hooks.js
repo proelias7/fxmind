@@ -36,13 +36,12 @@ const HOOK_SCRIPTS = [
   "cwd-bootstrap.js",
   "memory-first.js",
   "drift-watcher.js",
-  "learn-prompt.js",
   "update-notifier.js",
   "graph-freshness.js",
   "pre-commit.js",
 ];
 
-const HOOK_LIB_FILES = ["memory-drift.js", "update-check.js", "cleanup-tmp.js", "stop-followup.js", "layout.js", "fs-lock.js", "task-sessions.js", "verification.js", "lua-scope-check.js", "independent-review.js", "ui-impact.js"];
+const HOOK_LIB_FILES = ["memory-drift.js", "update-check.js", "cleanup-tmp.js", "layout.js", "fs-lock.js", "task-sessions.js", "verification.js", "lua-scope-check.js", "independent-review.js", "ui-impact.js"];
 
 const FXMIND_COMMANDS = {
   preToolUse: [
@@ -55,7 +54,6 @@ const FXMIND_COMMANDS = {
   beforeSubmitPrompt: { command: "node .cursor/hooks/memory-first.js beforeSubmitPrompt", timeout: 5 },
   afterMCPExecution: { command: "node .cursor/hooks/memory-first.js afterMCPExecution", timeout: 5 },
   postToolUse: { command: "node .cursor/hooks/drift-watcher.js", timeout: 15 },
-  stop: { command: "node .cursor/hooks/learn-prompt.js", timeout: 15, loop_limit: 1 },
   sessionStart: [
     { command: "node .cursor/hooks/memory-first.js sessionStart", timeout: 5 },
     { command: "node .cursor/hooks/update-notifier.js", timeout: 8 },
@@ -357,6 +355,15 @@ function installHooks(targetRoot, options = {}) {
   existing.version = existing.version || 1;
   existing.hooks = existing.hooks || {};
 
+  // Remove obsolete FXMIND Stop hook from installations made before the
+  // mandatory review gate was retired, without touching other vendors' hooks.
+  if (Array.isArray(existing.hooks.stop)) {
+    existing.hooks.stop = existing.hooks.stop.filter(
+      (entry) => !isManagedHookCommand(entry?.command, "node .cursor/hooks/learn-prompt.js"),
+    );
+    if (existing.hooks.stop.length === 0) delete existing.hooks.stop;
+  }
+
   for (const [event, spec] of Object.entries(FXMIND_COMMANDS)) {
     for (const normalized of normalizeHookSpecs(spec).map(normalizeHookSpec)) {
       const { command, timeout, loop_limit: loopLimit, matcher, failClosed } = normalized;
@@ -423,6 +430,13 @@ function uninstallHooks(targetRoot) {
   const hooksJsonPath = path.join(projectRoot, HOOKS_JSON_REL);
   const existing = readJson(hooksJsonPath);
   if (existing && existing.hooks) {
+
+    if (Array.isArray(existing.hooks.stop)) {
+      existing.hooks.stop = existing.hooks.stop.filter(
+        (entry) => !isManagedHookCommand(entry?.command, "node .cursor/hooks/learn-prompt.js"),
+      );
+      if (existing.hooks.stop.length === 0) delete existing.hooks.stop;
+    }
     for (const event of Object.keys(FXMIND_COMMANDS)) {
       if (!Array.isArray(existing.hooks[event])) continue;
       const commands = normalizeHookSpecs(FXMIND_COMMANDS[event]).map(
@@ -501,7 +515,6 @@ Usage:
 Cursor hooks:
   preToolUse   → .cursor/hooks/gate-guard.js      (auto-start Task + enforce Gates A/B; block Write to gates JSON)
   postToolUse  → .cursor/hooks/drift-watcher.js   (memory drift + graph-pending flag)
-  stop         → .cursor/hooks/learn-prompt.js    (short Gate V/C ping once per task; never after user stop/handoff)
   sessionStart → .cursor/hooks/update-notifier.js (new fxmind version → agent asks user to update)
 
 Git pre-commit:

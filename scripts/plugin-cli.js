@@ -212,7 +212,7 @@ const MOD_MARKETPLACE_SOURCE = "proelias7/fxmind";
 const MOD_ID = "fxmind@" + MOD_MARKETPLACE;
 
 /**
- * The Claude Code mod (plugins/fxmind: effort, cache, handoff, refiner, Gate V band, the fxmind panel) is useful in
+ * The Claude Code mod (plugins/fxmind: effort, cache, handoff, refiner, the fxmind panel) is useful in
  * every repository, so a project install also puts it in the user's profile, once. It replaces the skills-only
  * fxmind@fxmind-local bundle, which it contains. Returns what it did; never throws.
  */

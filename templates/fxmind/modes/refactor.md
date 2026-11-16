@@ -26,4 +26,4 @@ One Task (`.fxmind/modes/task.md`) per slice; Gate A cites the design and slice;
 
 ## 6. Parity verification
 
-Gate V per slice: every contract row touched is present (or approved-changed) — check names with `fxmind_search`; external callers of changed contracts are found and updated or listed. Runtime: follow **Runtime verification** in domain-routing and exercise the main flows. After the last slice, set `status: built`, update the audit report status if one exists, and `/fxmind learn <name>` saves the new structure.
+For each slice: every contract row touched is present (or approved-changed) — check names with `fxmind_search`; external callers of changed contracts are found and updated or listed. Runtime: follow **Runtime verification** in domain-routing and exercise the main flows. After the last slice, set `status: built`, update the audit report status if one exists, and `/fxmind learn <name>` saves the new structure.

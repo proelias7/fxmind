@@ -172,7 +172,7 @@ async function main() {
   if (isGatesFile(filePath)) {
     ask(
       "fxmind: do not edit session/gates JSON directly — use MCP fxmind_start_task / fxmind_record_gate.",
-      "Blocked: gates are session state managed by Node. Call MCP fxmind_start_task then fxmind_record_gate for A/B/V/C.",
+      "Blocked: gates are session state managed by Node. Call MCP fxmind_start_task then fxmind_record_gate for A/B/C.",
     );
   }
 

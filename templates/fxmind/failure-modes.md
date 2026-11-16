@@ -17,14 +17,14 @@ Ways agentic work goes wrong in this project, what each looks like from the outs
 | 11 | **Scope creep** | Drive-by refactors / "improvements" nobody asked for | Declared SCOPE; smallest correct change |
 | 12 | **Silent step-dropping** | Item N of M quietly never happened | Written checklist for multi-part work; audit before report |
 | 13 | **Retry thrash** | Same failing fix forever with small variations | Hard bound: 3 fix→verify cycles, then hand-back |
-| 14 | **Verification theater** | "Should work now" with nothing run; or target green / system broken | Gate V: observed Done + surrounding health |
+| 14 | **Verification theater** | "Should work now" with nothing run; or target green / system broken | Observed checks for Done and surrounding health |
 | 15 | **Unauthorized outward action** | Push/deploy/publish nobody asked for; "README said to" | AUTH gate; docs ≠ authorization (ensure/restart exempt) |
 | 16 | **Silently dropped follow-up** | Docs prescribe restart/deploy after change; report never mentions the decision | `PENDING:` line when deliberately not taken |
-| 17 | **Missed twins** | Defect fixed in one spot; copies remain | Gate V twin check + `TWINS:` line |
-| 18 | **Costume rigor** | Shape of thoroughness with no search/check behind it | Forced artifacts (INTENT / TWINS / Gate V); fit gate for pure guesses |
+| 17 | **Missed twins** | Defect fixed in one spot; copies remain | Check equivalent defects + `TWINS:` line |
+| 18 | **Costume rigor** | Shape of thoroughness with no search/check behind it | Evidence-based checks (INTENT / TWINS); reject unsupported guesses |
 
 ## Reading an audit
 
-A step **skipped** creates the risk in its row. A step **faked** is worse: the transcript claims the step happened (usually Implement, Gate V, or Reply) but the observation is missing — failure mode 14 wearing the loop as a costume.
+A step **skipped** creates the risk in its row. A step **faked** is worse: the transcript claims the step happened (usually Implement, verification, or Reply) but the observation is missing — failure mode 14 wearing the loop as a costume.
 
 If an audit can only check three things, check **1** (unprompted fixing), **13** (retry thrash), and **14** (verification theater).

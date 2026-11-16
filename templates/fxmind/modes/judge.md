@@ -10,7 +10,7 @@
 
 ## When this mode is mandatory
 
-Called from Task after Gate V when **any** of (see `.fxmind/modes/task-verify.md`):
+Called from Task for risky changes when **any** of (see `.fxmind/modes/task-verify.md`):
 
 - substantial cross-resource behavior changes (file count alone is not risk)
 - money / inventory / permission / job / vehicle / XP / ban / admin

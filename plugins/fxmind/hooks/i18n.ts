@@ -63,7 +63,7 @@ const PT: Record<string, string> = {
   Language: 'Idioma',
   'Prompt refiner': 'Refinador de prompt', Automatic: 'Automático', 'Command only': 'Só por comando',
   'Refine with': 'Refinar com', 'Clear chat': 'Limpar o chat', Yes: 'Sim', No: 'Não',
-  'Gate V review': 'Revisão do Gate V', 'Ask me': 'Perguntar', Review: 'Revisar',
+  'Ask me': 'Perguntar', Review: 'Revisar',
   'Review before closing?': 'Revisar antes de fechar?', Reviewer: 'Revisor',
   'Refined prompt': 'Prompt refinado', Send: 'Enviar', 'Review first': 'Revisar antes',
   'Map project': 'Mapear projeto', 'Review memories': 'Rever memórias', Learn: 'Aprender',

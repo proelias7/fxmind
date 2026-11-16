@@ -31,7 +31,7 @@ const SUBAGENT_META = {
   },
   reviewer: {
     label: "Reviewer",
-    description: "Revisão independente read-only antes do Gate V.",
+    description: "Revisão independente read-only sob demanda.",
   },
 };
 

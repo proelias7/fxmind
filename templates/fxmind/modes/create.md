@@ -32,4 +32,4 @@ Run Task mode (`.fxmind/modes/task.md`) per slice with the design as Done: Gate 
 
 ## 5. Verify and close
 
-Gate V `review` compares the diff with the design: every contract entry exists as designed (callers, payload, validation, limits), nothing extra was added, principle IDs checked. Runtime: follow **Runtime verification** in `.fxmind/policy/domain-routing.md`, then exercise the Done flows. Set `status: built`; `/fxmind learn <name>` saves the verified memory.
+Review the diff against the design: every contract entry exists as designed (callers, payload, validation, limits), nothing extra was added, principle IDs checked. Runtime: follow **Runtime verification** in `.fxmind/policy/domain-routing.md`, then exercise the Done flows. Set `status: built`; `/fxmind learn <name>` saves the verified memory.

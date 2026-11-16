@@ -24,15 +24,15 @@ Every task has a **kind**; it decides how context loads. State `KIND: <kind>` in
 **Playbook** (`.fxmind/playbooks/<id>.md`): the preload injects a `# fxmind — playbook` block when the request matches one — files, current line numbers of the anchors, snippets, verify checks and the related memory Pitfalls. It replaces discovery:
 
 1. Confirm the request fits the playbook and collect its inputs; ask only for what is missing.
-2. `fxmind_start_task { kind, playbook }`. A **verified** playbook auto-completes Gates A and B; a `draft` one still records A/B normally. V and C are always required.
-3. Read ~25 lines around each listed anchor, edit, then run the playbook's `Verify` checks at Gate V. Skip `fxmind_query` and repository search.
+2. `fxmind_start_task { kind, playbook }`. A **verified** playbook auto-completes Gates A and B; a `draft` one still records A/B normally. C can close directly after checks.
+3. Read ~25 lines around each listed anchor, edit, then run the playbook's `Verify` checks before closing. Skip `fxmind_query` and repository search.
 4. File or anchor not found, or the code contradicts a step → stop, say so, continue with the memory flow, and at Gate C fix the playbook (`.fxmind/modes/teach.md`). Never edit at a guessed location.
 
 `fxmind_playbook` (MCP) lists, matches, shows and checks playbooks when the preload did not include one but the request looks like a repeated task.
 
 ## Start and context (A → B)
 
-1. `fxmind_start_task` with a compact goal note and `ui: true` only when visual/interaction changes are expected. This is a planning hint: at Gate V, reassess the actual diff with `evidence.ui.changed` and a reason. Unchanged interface outcomes do not require opening a browser. Keep the returned sessionId and pass it to gate/claim calls. Reuse FXMIND_SESSION_ID from panel context when supplied.
+1. `fxmind_start_task` with a compact goal note and `ui: true` only when visual/interaction changes are expected. This is a planning hint; verify actual UI impact after editing, and do not open a browser for unchanged interfaces. Keep the returned sessionId and pass it to gate/claim calls. Reuse FXMIND_SESSION_ID from panel context when supplied.
 2. Gate A: record scope, Done, checks, INTENT/invariants when applicable in `fxmind_record_gate` note. From Gate A on, user-facing replies stay short and direct — lead with the outcome, no long explanations or gate ceremony. Trivial tasks auto-complete A/B but still need verification.
 3. Gate B: use relevant preloaded memories; otherwise query once (~1200–1500 tokens). Memories guide discovery; current source confirms them. Read implementation, callers and nearby conventions before editing. **Lean choice:** before writing, decide whether the requested behavior needs new code at all; first reuse a verified existing helper, event, component or playbook, then native platform/standard-library capability, then an installed dependency. Only add the smallest complete implementation if these cannot satisfy Done. The optional symbol map suggests candidate files (including Lua events and exports) but is not authoritative; inspect callers and actual flow. Record the choice and a focused regression check in the existing Gate B note, never as a new gate.
 4. If hits are missing/stale, use one bounded path/symbol search in the likely folder and read the results. Widen only when evidence requires it; no repeated repository dumps. If this provider denies native search, use an available permitted tool/subagent; don't evade its permissions.
@@ -57,14 +57,12 @@ FiveM local verification: call `fxmind_fivem_status` before commands. If availab
 
 Scratch belongs in OS temp or a session-owned path. Clean up only files this task created; never delete a shared tmp directory used by other sessions.
 
-## Review, verify and finish (V → C)
+## Review, verify and finish (C)
 
-Review the entire task diff for requirement coverage, invariants, boundary failures and unnecessary complexity. For each new constant/helper/file ask what concrete readability/reuse/domain benefit it provides; simplify unjustified additions. FiveM also checks every principle ID in `.fxmind/policy/fivem-principles.md` against the diff and cites them in the V `review`.
+Review the task diff for requested behavior, invariants, error paths and unnecessary complexity. Run the applicable syntax/typecheck, focused tests and runtime validation. For actual visual or interaction changes, verify with the browser and inspect real evidence; report checks that could not be run.
 
-Run `.fxmind/modes/task-verify.md`, prioritizing lint/syntax, typecheck, code quality and focused regression checks. Record final UI impact (`evidence.ui.changed` + reason); use browser evidence only for actual visual/interaction changes. **Gate V itself launches the independent reviewer automatically for every task.** Do not call a separate review step first. The reviewer runs in a fresh read-only session, prefers a strong model from the same provider as the executor, receives the original goal/current source/evidence plus relevant installed skill rubrics, and never receives the executor rationale.
+Optional independent review (`fxmind_independent_review`) may be requested explicitly. It is never automatic or a prerequisite for completion.
 
-If Gate V returns `gate_v_deterministic_failed` or `gate_v_review_failed`, do not ask the user and do not claim completion. Apply the findings surgically, rerun only affected checks, then call Gate V again; each edit invalidates the prior review. Treat `VERIFIED WITH CAVEATS` and `REFUTED` as failures. Maximum three repair/review cycles before reporting the concrete blocker. Failed or blocked verification keeps V incomplete; don't call C. Run Judge only for the additional risk cases described in task-verify; it does not replace Gate V.
+When the work is complete, call `fxmind_record_gate` with `gate: "C"` and the sessionId to release claimed files. No other review gate is required. Save reusable project knowledge when appropriately verified, without inventing observations.
 
-Gate C requires passing, current V evidence. Save reusable, verified knowledge only; otherwise note "mudança pontual". For a `config` task done without a playbook, or one that deviated from its playbook, offer `/fxmind teach <name>` once (the diff you just verified is the source). Validate changed memories. Record reusable user corrections when already authorized; otherwise offer to save them once. Remove temporary instrumentation before final verification.
-
-Use gate notes as the audit record; don't duplicate long markers/checklists in chat. Final reply: short and direct — actual outcome, then only blockers or the next user action.
+Final reply: actual outcome, succinct checks and only relevant blockers.

@@ -37,10 +37,6 @@ const { readSource } = require("./lib/read-source");
 const { routeTool } = require("./lib/tool-router");
 const { formatQueryResult } = require("./lib/memory-retrieval");
 const independentReview = require("./lib/independent-review");
-const gateVAsk = require("./lib/gate-v-ask");
-const reviewerRouting = require("./lib/reviewer-routing");
-const verification = require("./lib/verification");
-const luaScope = require("./lib/lua-scope-check");
 const desktopAgent = require("./desktop-agent");
 
 const PROTOCOL_VERSION = "2024-11-05";
@@ -81,32 +77,6 @@ function callerCliId() {
     codex: "codex",
     opencode: "opencode",
   }[agent] || null;
-}
-
-async function runGateVReviewer(root, session, files, evidence, preferredCliId) {
-  if (process.env.NODE_ENV === "test" && process.env.FXMIND_TEST_REVIEWER_RESULT) {
-    const verdict = String(process.env.FXMIND_TEST_REVIEWER_RESULT).toLowerCase();
-    const line =
-      verdict === "verified" ? "VERDICT: VERIFIED" :
-      verdict === "caveats" ? "VERDICT: VERIFIED WITH CAVEATS" :
-      "VERDICT: REFUTED";
-    return {
-      ok: true,
-      agent: "reviewer",
-      cliId: preferredCliId || callerCliId() || "test-provider",
-      model: "test-reviewer",
-      effort: "high",
-      output: "Synthetic independent review for MCP contract test.\n" + line,
-    };
-  }
-
-  const panelCli = require("./lib/panel-cli");
-  return reviewerRouting.runReviewerWithFallback(root, {
-    agent: "reviewer",
-    prompt: independentReview.buildPrompt(root, session, files, evidence || {}),
-    paths: files,
-    preferredCliId: preferredCliId || callerCliId() || undefined,
-  }, panelCli.runSubagentTask);
 }
 
 const DB_ENVIRONMENT = {
@@ -308,11 +278,11 @@ const TOOL_DEFS = [
       type: "object",
       properties: {
         note: { type: "string", description: "Optional goal/scope note." },
-        ui: { type: "boolean", description: "Planning hint: true only for expected visual/interaction changes. At Gate V, assess the actual diff with evidence.ui.changed and reason; an unchanged interface does not need a browser." },
+        ui: { type: "boolean", description: "Planning hint: true only for expected visual/interaction changes. Assess actual UI impact during normal testing; unchanged interfaces do not need browser tests." },
         trivial: {
           type: "boolean",
           description:
-            "If true, marks Gates A and B complete immediately (tiny one-file edits). Still requires Gate V before Gate C.",
+            "If true, marks Gates A and B complete immediately (tiny one-file edits). Gate C can close directly.",
         },
         kind: {
           type: "string",
@@ -321,7 +291,7 @@ const TOOL_DEFS = [
         },
         playbook: {
           type: "string",
-          description: "Playbook id being followed. A verified, non-stale playbook auto-completes Gates A and B (V and C still apply).",
+          description: "Playbook id being followed. A verified, non-stale playbook auto-completes Gates A and B (C still applies).",
         },
         ...SESSION_ID_PROP,
       },
@@ -343,7 +313,7 @@ const TOOL_DEFS = [
   },
   {
     name: "fxmind_gate_status",
-    description: "Read Task Gate A/B/V/C session status. Read-only.",
+    description: "Read Task Gate A/B/C session status. Read-only.",
     inputSchema: {
       type: "object",
       properties: {
@@ -354,57 +324,17 @@ const TOOL_DEFS = [
   {
     name: "fxmind_record_gate",
     description:
-      "Persist a gate in A→B→V→C order. Gate V prioritizes lint/typecheck, code quality and focused tests, then automatically launches a fresh read-only reviewer when the change calls for one (any Lua file, several files, or a fix/mechanic/create task; not a trivial task). Only actual visual/interaction changes require browser evidence; set evidence.ui.changed with a diff-based reason. Fix review findings and retry without asking the user. C rejects stale verification after code changes.",
+      "Record lightweight Task steps in START → A → B → C order. C closes after B and releases claimed files. Run appropriate tests and review before closing; no independent review gate or automatic user prompts.",
     inputSchema: {
       type: "object",
       properties: {
         gate: {
           type: "string",
-          enum: ["START", "A", "B", "V", "C"],
+          enum: ["START", "A", "B", "C"],
           description:
-            "START begins a task; A/B unlock edits; V records verify-by-observation; C closes the task.",
+            "START begins a task; A/B unlock edits; C closes after normal checks.",
         },
         note: { type: "string", description: "Optional note (e.g. memories loaded). Gate A also restates: user replies stay short and direct." },
-        evidence: {
-          type: "object",
-          description: "Required for V. Record actual observations after checks, never predictions. See task-verify.md. Browser unavailable: status=blocked, reason; do not mark passed.",
-          properties: {
-            files: { type: "array", minItems: 1, items: { type: "string" }, description: "All task files, repository-relative. Include deletions." },
-            review: { type: "string", description: "Diff review: unnecessary constants/helpers removed or justified, local conventions and invariants checked." },
-            checks: {
-              type: "array", minItems: 1,
-              items: {
-                type: "object",
-                properties: {
-                  kind: { type: "string", enum: ["lint", "typecheck", "test", "build", "runtime", "manual"] },
-                  target: { type: "string" }, expected: { type: "string" }, observed: { type: "string" },
-                  status: { type: "string", enum: ["passed", "failed", "blocked"] },
-                },
-                required: ["kind", "target", "expected", "observed", "status"],
-              },
-            },
-            ui: {
-              type: "object",
-              description: "Actual visual/interaction impact of the final diff, checked by the independent reviewer. Use changed=false with a specific reason for backend-only work, untouched UI context or non-visual refactors, even if the initial task had ui=true.",
-              properties: { changed: { type: "boolean" }, reason: { type: "string", minLength: 1 } },
-              required: ["changed", "reason"],
-            },
-            browser: {
-              type: "object",
-              properties: {
-                required: { type: "boolean" },
-                status: { type: "string", enum: ["passed", "failed", "blocked"] },
-                url: { type: "string" },
-                interactions: { type: "array", items: { type: "string" } },
-                visual: { type: "string" }, console: { type: "string" },
-                artifact: { type: "string", description: "Existing non-empty screenshot/trace file path from the browser tool; preferably OS temp." },
-                reason: { type: "string" },
-              },
-              required: ["status"],
-            },
-          },
-          required: ["files", "review", "checks"],
-        },
         ...SESSION_ID_PROP,
       },
       required: ["gate"],
@@ -720,7 +650,7 @@ const TOOL_DEFS = [
   {
     name: "fxmind_independent_review",
     description:
-      "Manual/debug entry point for the same fresh read-only reviewer that Gate V now runs automatically. Persists a server-created review artifact bound to the exact file fingerprint. Normal task flow should call Gate V directly.",
+      "Optional independent read-only reviewer, invoked only when explicitly requested. Does not block closing a task. Results are retained as review artifacts.",
     inputSchema: {
       type: "object",
       properties: {
@@ -732,7 +662,7 @@ const TOOL_DEFS = [
         files: {
           type: "array",
           items: { type: "string" },
-          description: "Optional task files when Git discovery/claims are unavailable. Gate V still checks the reviewed set against its actual files.",
+          description: "Optional task files when Git discovery/claims are unavailable.",
         },
       },
     },
@@ -1025,114 +955,10 @@ async function dispatchTool(name, args) {
     case "fxmind_record_gate": {
       const gate = String(args.gate).toUpperCase();
       if (gate === "V") {
-        const session = tools.gateStatus(root, sessionExtra(args));
-        if (session?.error === "multiple_active_sessions") return session;
-        if (!session?.taskActive || !session.sessionId) {
-          return { ok: false, error: "no_active_session", message: "Gate V requires an active FxMind task." };
-        }
-
-        let files;
-        try {
-          files = verification.verificationFiles(root, args.evidence, session);
-        } catch (error) {
-          return { ok: false, error: "gate_v_evidence_invalid", message: String(error.message || error) };
-        }
-
-        const deterministic = luaScope.checkFiles(root, files);
-        if (!deterministic.ok) {
-          return {
-            ok: false,
-            error: "gate_v_deterministic_failed",
-            gate: "V",
-            complete: false,
-            findings: deterministic.issues,
-            action: "fix_findings_and_retry_gate_v",
-            userReply: "Do not ask the user. Fix these deterministic findings, rerun affected checks, then call Gate V again.",
-          };
-        }
-
-        // The same filter verification applies (assertVerifiedFresh): a trivial task, or one non-Lua file outside
-        // fix/mechanic/create, passes on its evidence and deterministic checks, without paying for a reviewer run.
-        if (independentReview.requiresIndependentReview(session, files)) {
-          // In Claude Code with the fxmind mod, the person decides first, in the panel: review, with which agent, or
-          // skip. The question waits in .fxmind/state; the next Gate V call reads the answer.
-          let chosenCliId = null;
-          if (gateVAsk.askEnabled(root, callerCliId())) {
-            const choice = gateVAsk.readChoice(root, session.sessionId);
-            if (!choice) {
-              const scan = process.env.NODE_ENV === "test" && process.env.FXMIND_TEST_REVIEWERS
-                ? JSON.parse(process.env.FXMIND_TEST_REVIEWERS)
-                : require("./lib/panel-cli").scanCli({ quick: true });
-              gateVAsk.writePending(root, {
-                sessionId: session.sessionId,
-                files,
-                reviewers: gateVAsk.reviewerChoices(scan),
-                suggested: callerCliId() || "claude",
-              });
-              return {
-                ok: false,
-                error: "gate_v_awaiting_user",
-                gate: "V",
-                complete: false,
-                action: "end_turn_and_wait",
-                userReply: "Gate V is asking the person in the fxmind panel whether to run the independent review and with which agent. Say so in one line and end your turn; a message will tell you to call Gate V again.",
-              };
-            }
-            gateVAsk.clearPending(root);
-            if (choice.decision === "skip") {
-              independentReview.recordSkip(root, { sessionId: session.sessionId, session, files, evidence: args.evidence || {} });
-              chosenCliId = "skip";
-            } else {
-              chosenCliId = choice.cliId || null;
-            }
-          }
-          if (chosenCliId === "skip") {
-            // The person chose to skip the independent review: recorded as theirs, the gate goes on.
-          } else {
-          const reviewRun = await runGateVReviewer(root, session, files, args.evidence || {}, chosenCliId);
-          if (!reviewRun?.ok) {
-            return {
-              ok: false,
-              error: "gate_v_reviewer_unavailable",
-              gate: "V",
-              complete: false,
-              message: reviewRun?.error || "Independent reviewer failed to run.",
-              action: "retry_gate_v_reviewer",
-              userReply: "Do not mark the task complete. Resolve reviewer availability and retry Gate V.",
-            };
-          }
-
-          const record = independentReview.recordReview(root, {
-            sessionId: session.sessionId,
-            session,
-            files,
-            evidence: args.evidence || {},
-            reviewer: {
-              agent: "reviewer",
-              cliId: reviewRun.cliId || null,
-              model: reviewRun.model || null,
-              effort: reviewRun.effort || null,
-            },
-            output: reviewRun.output || "",
-          });
-          if (record.verdict !== "verified") {
-            return {
-              ok: false,
-              error: "gate_v_review_failed",
-              gate: "V",
-              complete: false,
-              verdict: record.verdict,
-              reviewId: record.reviewId,
-              reviewer: record.reviewer,
-              findings: reviewRun.output || "",
-              action: "fix_findings_and_retry_gate_v",
-              userReply: "Do not ask the user. Apply the independent review findings surgically, rerun affected checks, then call Gate V again. Maximum 3 repair/review cycles before reporting blocked.",
-            };
-          }
-          }
-        }
+        // Old Claude sessions may still call V. Acknowledge without writing state,
+        // running a reviewer, or triggering a retry loop.
+        return { ok: true, removed: true, message: "Gate V removed. Continue with C after B." };
       }
-
       const data = tools.recordGate(root, gate, true, {
         note: args.note || "",
         evidence: args.evidence,
@@ -1141,8 +967,7 @@ async function dispatchTool(name, args) {
       if (data?.error === "multiple_active_sessions") {
         return data;
       }
-      // Learn only after a real, verified Gate C; never turn reviewer failure
-      // or unverifiable observations into persistent project knowledge.
+      // Legacy verified sessions may still have eligible memory. New sessions do not invent verification.
       if (gate === "C" && data?.gates?.C?.complete) {
         try {
           const autoMemory = require("./lib/auto-memory");

@@ -41,111 +41,75 @@ async function withServer(reviewer, use, env = {}) {
   }
 }
 
-const evidence = {
-  files: ["server.js"], review: "Fixture source inspected",
-  ui: { changed: false, reason: "Only server implementation changed; no rendered content or interaction changes." },
-  checks: [{ kind: "lint", target: "node --check server.js", expected: "valid JavaScript syntax", observed: "exit 0", status: "passed" }],
-};
+const { TOOL_DEFS } = require("./mcp-server");
 const text = (result) => JSON.parse(result.content[0].text);
 
-it("MCP transports evidence and rejects false completion through the public tools", async () => {
-  await withServer("verified", async (call, root) => {
-    const search = text(await call("fxmind_search", { query: "save" }));
-    assert.equal(search.matches[0].file, "server.js");
-    const { sessionId } = text(await call("fxmind_start_task", { kind: "fix", ui: true }));
-    await call("fxmind_record_gate", { gate: "A", sessionId, note: "Only the server implementation changed; no interface impact." });
-    await call("fxmind_record_gate", { gate: "B", sessionId });
-    assert.equal((await call("fxmind_record_gate", { gate: "V", sessionId, note: "Everything is fine" })).isError, true);
-    execFileSync(process.execPath, ["--check", path.join(root, "server.js")]);
-    const verified = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
-    assert.equal(verified.gates.V.complete, true);
-    fs.writeFileSync(path.join(root, "server.js"), "module.exports = 'changed';");
-    assert.equal((await call("fxmind_record_gate", { gate: "C", sessionId })).isError, true);
-  });
+it("Gate V is not advertised to any coding agent", () => {
+  const record=TOOL_DEFS.find(tool=>tool.name==="fxmind_record_gate");
+  assert.deepEqual(record.inputSchema.properties.gate.enum,["START","A","B","C"]);
+  assert.doesNotMatch(record.description,/automatic.*review|Gate V/i);
+  assert.ok(TOOL_DEFS.some(tool=>tool.name==="fxmind_independent_review"),"optional reviewer is still available");
 });
 
-// The reviewer here refutes whatever it is shown: Gate V passing proves it was never asked.
-it("Gate V asks no reviewer for a trivial task or one non-Lua file outside fix/mechanic/create", async () => {
-  await withServer("refuted", async (call) => {
-    const trivial = text(await call("fxmind_start_task", { kind: "fix", trivial: true }));
-    const passed = text(await call("fxmind_record_gate", { gate: "V", sessionId: trivial.sessionId, evidence }));
-    assert.equal(passed.gates.V.complete, true);
-    assert.equal(passed.gates.V.evidence.independentReview, undefined);
-    await call("fxmind_record_gate", { gate: "C", sessionId: trivial.sessionId });
-
-    const refactor = text(await call("fxmind_start_task", { kind: "refactor" }));
-    await call("fxmind_record_gate", { gate: "A", sessionId: refactor.sessionId, note: "One server file, no interface impact." });
-    await call("fxmind_record_gate", { gate: "B", sessionId: refactor.sessionId });
-    assert.equal(text(await call("fxmind_record_gate", { gate: "V", sessionId: refactor.sessionId, evidence })).gates.V.complete, true);
-  });
+it("MCP completes a task after A and B; stale V is a successful no-op",async()=>{
+ await withServer("refuted",async(call,root)=>{
+  const started=text(await call("fxmind_start_task",{kind:"fix"}));
+  const sessionId=started.sessionId;
+  const premature=await call("fxmind_record_gate",{gate:"C",sessionId});
+  assert.equal(premature.isError,true);
+  await call("fxmind_record_gate",{gate:"A",sessionId,note:"Current behavior and regression check"});
+  await call("fxmind_record_gate",{gate:"B",sessionId});
+  const old=text(await call("fxmind_record_gate",{gate:"V",sessionId}));
+  assert.equal(old.removed,true);
+  assert.equal(old.ok,true);
+  assert.equal(fs.existsSync(path.join(root,".fxmind","state","gate-v-pending.json")),false);
+  const done=text(await call("fxmind_record_gate",{gate:"C",sessionId}));
+  assert.equal(done.ok,true);
+  assert.equal(done.taskActive,false);
+  assert.equal(done.gates.C.complete,true);
+  assert.equal(done.gates.V,undefined);
+ });
 });
 
-it("Gate V still asks the reviewer for a fix, and a refuted review blocks it", async () => {
-  await withServer("refuted", async (call) => {
-    const { sessionId } = text(await call("fxmind_start_task", { kind: "fix" }));
-    await call("fxmind_record_gate", { gate: "A", sessionId, note: "One server file, no interface impact." });
-    await call("fxmind_record_gate", { gate: "B", sessionId });
-    const blocked = await call("fxmind_record_gate", { gate: "V", sessionId, evidence });
-    assert.match(blocked.content[0].text, /gate_v_review_failed/);
-  });
+it("old pending marker never triggers a review, question, or injected reply",async()=>{
+ await withServer("refuted",async(call,root)=>{
+  const dir=path.join(root,".fxmind","state");
+  fs.mkdirSync(dir,{recursive:true});
+  fs.writeFileSync(path.join(dir,"gate-v-ask.json"),JSON.stringify({ask:true,at:new Date().toISOString()}));
+  const {sessionId}=text(await call("fxmind_start_task",{kind:"fix"}));
+  await call("fxmind_record_gate",{gate:"A",sessionId});
+  await call("fxmind_record_gate",{gate:"B",sessionId});
+  const old=text(await call("fxmind_record_gate",{gate:"V",sessionId}));
+  assert.equal(old.removed,true);
+  assert.equal(fs.existsSync(path.join(dir,"gate-v-pending.json")),false);
+  assert.equal(fs.existsSync(path.join(dir,"gate-v-choice.json")),false);
+  assert.equal(fs.existsSync(path.join(dir,"reviews")),false);
+  const completed=text(await call("fxmind_record_gate",{gate:"C",sessionId}));
+  assert.equal(completed.taskActive,false);
+ },{FXMIND_AGENT_ID:"claude"});
 });
 
-// With the fxmind mod's marker, Gate V asks the person in the panel first; the answer holds for the task.
-const askEnv = { FXMIND_AGENT_ID: "claude", FXMIND_TEST_REVIEWERS: JSON.stringify([
-  { id: "codex", name: "Codex", installed: true }, { id: "claude", name: "Claude Code", installed: true }, { id: "hermes", name: "Hermes", installed: false },
-]) };
-const state = (root, name) => path.join(root, ".fxmind", "state", name);
-const startFix = async (call) => {
-  const { sessionId } = text(await call("fxmind_start_task", { kind: "fix" }));
-  await call("fxmind_record_gate", { gate: "A", sessionId, note: "One server file, no interface impact." });
-  await call("fxmind_record_gate", { gate: "B", sessionId });
-  return sessionId;
-};
-
-it("Gate V waits for the person's choice in the panel, then reviews with the agent they picked", async () => {
-  await withServer("verified", async (call, root) => {
-    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
-    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: new Date().toISOString() }));
-    const sessionId = await startFix(call);
-    const waiting = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
-    assert.equal(waiting.error, "gate_v_awaiting_user");
-    const pending = JSON.parse(fs.readFileSync(state(root, "gate-v-pending.json"), "utf8"));
-    assert.equal(pending.sessionId, sessionId);
-    assert.deepEqual(pending.reviewers.map((r) => r.id), ["codex", "claude"]);
-    fs.writeFileSync(state(root, "gate-v-choice.json"), JSON.stringify({ sessionId, decision: "review", cliId: "codex" }));
-    const verified = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
-    assert.equal(verified.gates.V.complete, true);
-    assert.equal(fs.existsSync(state(root, "gate-v-pending.json")), false);
-    const review = JSON.parse(fs.readFileSync(path.join(root, ".fxmind", "state", "reviews", `${sessionId.replace(/[^A-Za-z0-9._-]/g, "_")}.json`), "utf8"));
-    assert.equal(review.reviewer.cliId, "codex");
-  }, askEnv);
+it("trivial task closes without additional mandatory quality gates",async()=>{
+ await withServer("refuted",async(call)=>{
+  const session=text(await call("fxmind_start_task",{trivial:true,note:"single-line fix"}));
+  assert.equal(session.gates.A.complete,true);
+  assert.equal(session.gates.B.complete,true);
+  const done=text(await call("fxmind_record_gate",{gate:"C",sessionId:session.sessionId}));
+  assert.equal(done.gates.C.complete,true);
+ });
 });
 
-it("Gate V skipped by the person passes on to Gate C, and goes stale when the code changes", async () => {
-  await withServer("refuted", async (call, root) => {
-    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
-    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: new Date().toISOString() }));
-    const sessionId = await startFix(call);
-    fs.writeFileSync(state(root, "gate-v-choice.json"), JSON.stringify({ sessionId, decision: "skip" }));
-    const passed = text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence }));
-    assert.equal(passed.gates.V.complete, true);
-    fs.writeFileSync(path.join(root, "server.js"), "module.exports = 'changed';");
-    assert.equal((await call("fxmind_record_gate", { gate: "C", sessionId })).isError, true);
-  }, askEnv);
-});
-
-it("Gate V asks nobody without a fresh marker, or for another client", async () => {
-  await withServer("verified", async (call, root) => {
-    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
-    const old = new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString();
-    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: old }));
-    const sessionId = await startFix(call);
-    assert.equal(text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence })).gates.V.complete, true);
-  }, askEnv);
-  await withServer("verified", async (call, root) => {
-    fs.mkdirSync(path.join(root, ".fxmind", "state"), { recursive: true });
-    fs.writeFileSync(state(root, "gate-v-ask.json"), JSON.stringify({ ask: true, at: new Date().toISOString() }));
-    const sessionId = await startFix(call);
-    assert.equal(text(await call("fxmind_record_gate", { gate: "V", sessionId, evidence })).gates.V.complete, true);
-  });
+it("Gate C releases file claims so another session can continue",async()=>{
+ await withServer("refuted",async(call)=>{
+  const first=text(await call("fxmind_start_task",{trivial:true,note:"first"}));
+  const second=text(await call("fxmind_start_task",{trivial:true,note:"second"}));
+  const name="server.js";
+  assert.equal(text(await call("fxmind_claim_paths",{sessionId:first.sessionId,paths:[name]})).ok,true);
+  const conflict=text(await call("fxmind_claim_paths",{sessionId:second.sessionId,paths:[name]}));
+  assert.equal(conflict.ok,false);
+  assert.equal(conflict.error,"path_conflict");
+  const completed=text(await call("fxmind_record_gate",{gate:"C",sessionId:first.sessionId}));
+  assert.equal(completed.taskActive,false);
+  assert.equal(text(await call("fxmind_claim_paths",{sessionId:second.sessionId,paths:[name]})).ok,true);
+ });
 });

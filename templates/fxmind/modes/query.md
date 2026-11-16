@@ -9,4 +9,4 @@ Answer repository questions with **atomic, symbol-aware retrieval**. Read-only.
 5. Read the specific source file/line only if current implementation details must be independently checked, or the atomic result is insufficient. If coverage is missing, use bounded FXMIND search then native grep as a last resort.
 6. Reply in the user's language. Name source paths/lines where helpful and disclose absent information.
 
-Never load an entire `garages.md` (or another broad topic document) by default. Never infer an event, source, edge or symbol that is not evidenced. Queries do not invoke Gate V or Gate C.
+Never load an entire `garages.md` (or another broad topic document) by default. Never infer an event, source, edge or symbol that is not evidenced. Queries do not start tasks or close Gate C.

@@ -474,7 +474,7 @@ function checkPlaybook(root, playbook) {
   return { ok: errors.length === 0, errors, warnings };
 }
 
-/** draft → verified after a task that used it passed Gate V and C. Returns true when the file changed. */
+/** draft → verified after task completion with applicable checks. Returns true if status changed. */
 function markVerified(root, id) {
   const pb = getPlaybook(root, id);
   if (!pb || pb.status === "verified") return false;

@@ -43,7 +43,6 @@ describe("task-sessions", () => {
     for (const id of [a.sessionId, b.sessionId]) {
       recordGate(dir, "A", true, { sessionId: id });
       recordGate(dir, "B", true, { sessionId: id });
-      recordGate(dir, "V", true, { sessionId: id, evidence });
     }
 
     recordGate(dir, "C", true, { sessionId: a.sessionId });
@@ -66,11 +65,19 @@ describe("task-sessions", () => {
 
     recordGate(dir, "A", true, { sessionId: a.sessionId });
     recordGate(dir, "B", true, { sessionId: a.sessionId });
-    recordGate(dir, "V", true, { sessionId: a.sessionId, evidence });
     recordGate(dir, "C", true, { sessionId: a.sessionId });
 
     const after = claimPaths(dir, ["resources/radio/client.lua"], { sessionId: b.sessionId });
     assert.equal(after.ok, true);
+  });
+
+  it("legacy V requests cannot reopen or block tasks", () => {
+    const session = startTask(dir, { note: "original", trivial: true });
+    const old=recordGate(dir,"V",true,{sessionId:session.sessionId});
+    assert.equal(old.removed,true);
+    assert.equal(gateStatus(dir,{sessionId:session.sessionId}).gates.V,undefined);
+    const closed=recordGate(dir,"C",true,{sessionId:session.sessionId});
+    assert.equal(closed.taskActive,false);
   });
 
   it("explicit start enriches an already active auto-started session", () => {

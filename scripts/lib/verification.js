@@ -54,7 +54,7 @@ function text(value) {
 
 function verificationFiles(root, evidence, session) {
   if (!evidence || !Array.isArray(evidence.files) || !evidence.files.length) {
-    throw new Error("Gate V requires evidence.files[] before automatic review.");
+    throw new Error("Verification requires evidence.files[] to check the submitted files.");
   }
   const claimed = session.claimedPaths || [];
   return [...new Set([...evidence.files, ...(claimed.length ? claimed : changedFiles(root))]
@@ -64,7 +64,7 @@ function verificationFiles(root, evidence, session) {
 function verify(root, evidence, session) {
   if (!evidence || !Array.isArray(evidence.files) || !evidence.files.length ||
       !text(evidence.review) || !Array.isArray(evidence.checks) || !evidence.checks.length) {
-    throw new Error("Gate V requires evidence: files[], review, checks[{kind, target, expected, observed, status}]. UI changes also require browser evidence; read task-verify.md.");
+    throw new Error("Verification requires files[], review, checks[{kind, target, expected, observed, status}]. UI changes also require browser evidence.");
   }
   const claimed = session.claimedPaths || [];
   const files = verificationFiles(root, evidence, session);
@@ -86,7 +86,7 @@ function verify(root, evidence, session) {
   let browser = evidence.browser;
   if (uiRequired) {
     if (!browser || !["passed", "failed", "blocked"].includes(browser.status)) {
-      throw new Error("UI changes require browser evidence. A build alone cannot pass Gate V. If browser/runtime is unavailable, record browser.status=blocked with reason.");
+      throw new Error("UI changes require browser evidence. A build alone cannot verify a UI change. If browser/runtime is unavailable, record browser.status=blocked with reason.");
     }
     if (browser.status === "passed") {
       if (!text(browser.url) || !text(browser.visual) || !text(browser.console) ||
@@ -122,12 +122,12 @@ function verify(root, evidence, session) {
 }
 
 function assertFresh(root, gate) {
-  if (!gate?.complete || !gate.snapshot) throw new Error("Gate C requires Gate V with passing evidence first.");
+  if (!gate?.complete || !gate.snapshot) throw new Error("A verified file snapshot is required for this optional freshness check.");
   const files = Object.keys(gate.snapshot);
   const current = snapshot(root, files);
   if (files.some((file) => current[file] !== gate.snapshot[file]) ||
       (!gate.scoped && changedFiles(root).some((file) => !files.includes(file)))) {
-    throw new Error("Code changed after Gate V. Repeat affected checks and record fresh evidence before Gate C.");
+    throw new Error("Code changed after snapshot verification. Repeat affected checks.");
   }
 }
 

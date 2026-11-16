@@ -55,17 +55,7 @@ export type HandoffAfter = 'continue' | 'confirm' | 'copy'
 export type HandoffChoice = { kind: 'quick' | 'full'; after: HandoffAfter }
 
 /** The settings panel's unsaved changes, by field, as the settings store them (strings). */
-/** Gate V's question to the person: the task, its files and the reviewer agents installed here. */
-export type GateVPending = {
-  sessionId: string
-  files: string[]
-  reviewers: { id: string; label: string }[]
-  suggested?: string
-}
-
 export type SettingsDraft = {
-  /** ask: Gate V asks above the prompt whether to review and with which agent; auto: it reviews at once. */
-  gateV?: string
   /** A prompt typed into a cold chat: off (sent), block (held back), compact (compacted first, then sent). */
   coldPrompt?: string
   /** A repository without .fxmind: ask (a band offers the install), auto (the agent installs it), off. */
@@ -104,8 +94,6 @@ export type SettingsDraft = {
   refineWith?: string
   refineClear?: string
   refineSend?: string
-  /** Gate V's independent review: ask (in the band, with a pick of agent) or auto. */
-  gateV?: string
   /** A prompt typed into a cold chat: off, block or compact. */
   coldPrompt?: string
   /** A repository without .fxmind: ask, auto or off. */
@@ -294,10 +282,6 @@ declare module 'claude-code' {
       handoffStage: 'writing' | 'clearing' | null
       /** The handoff bar above the prompt, open with the choice shown in it, or null. */
       handoffPick: HandoffChoice | null
-      /** Gate V waiting on the person (the server's .fxmind/state/gate-v-pending.json), or null. */
-      gateVAsk: GateVPending | null
-      /** The reviewer picked in the Gate V band, until Review is pressed; null for the suggested one. */
-      gateVPick: string | null
       /** A repository with no .fxmind yet, offered the project install in the band; null when there is none. */
       setupOffer: { root: string } | null
       /** The newest reply's text: the reply card hangs under its last block. */

@@ -9,7 +9,6 @@ const path = require("path");
 
 const { writeLocal, fxmindDir } = require("./layout");
 const { withFileLock } = require("./fs-lock");
-const verification = require("./verification");
 
 const SCHEMA_VERSION = 2;
 const SESSIONS_INDEX = "sessions.json";
@@ -110,7 +109,7 @@ function mirrorLegacyGates(targetRoot, session) {
     session: session.session || session.startedAt || new Date().toISOString(),
     autoStarted: Boolean(session.autoStarted),
     trivial: Boolean(session.trivial),
-    gates: session.gates || {},
+    gates: Object.fromEntries(Object.entries(session.gates || {}).filter(([gate]) => gate !== 'V')),
     note: session.note || undefined,
   };
   writeJson(legacyGatesPath(targetRoot), mirror);
@@ -229,7 +228,7 @@ function publicSession(session) {
     session: session.session || session.startedAt || null,
     autoStarted: Boolean(session.autoStarted),
     trivial: Boolean(session.trivial),
-    gates: Object.fromEntries(Object.entries(session.gates || {}).map(([key, gate]) => {
+    gates: Object.fromEntries(Object.entries(session.gates || {}).filter(([key]) => key !== 'V').map(([key, gate]) => {
       const { snapshot, scoped, ...publicGate } = gate;
       return [key, publicGate];
     })),
@@ -255,7 +254,6 @@ function startSession(targetRoot, extra = {}) {
       let invalidateB = false;
       if (extra.ui && !existing.ui) {
         existing.ui = true;
-        delete existing.gates.V;
         delete existing.gates.C;
         changed = true;
       }
@@ -281,11 +279,9 @@ function startSession(targetRoot, extra = {}) {
       if (invalidateA) {
         delete existing.gates.A;
         delete existing.gates.B;
-        delete existing.gates.V;
         delete existing.gates.C;
       } else if (invalidateB) {
         delete existing.gates.B;
-        delete existing.gates.V;
         delete existing.gates.C;
       }
       if (changed) writeSession(targetRoot, existing);
@@ -311,7 +307,7 @@ function startSession(targetRoot, extra = {}) {
       note: extra.note ? String(extra.note) : "",
     };
 
-    // A verified playbook already did the discovery A/B exist for; V and C still apply.
+    // A verified playbook already did discovery; Gate C can close after implementation and checks.
     if (extra.playbookAuto && !extra.ui && !trivial) {
       const note = `playbook: ${extra.playbook}`;
       session.gates.A = { complete: true, at: now, note };
@@ -355,8 +351,10 @@ function recordSessionGate(targetRoot, gate, value, extra = {}) {
   if (letter === "START" || letter === "0") {
     return startSession(targetRoot, extra);
   }
-  if (!["A", "B", "V", "C"].includes(letter)) {
-    throw new Error(`Invalid gate: ${gate} (use START, A, B, V, or C)`);
+  // Gracefully acknowledge stale instructions without reintroducing a review loop.
+  if (letter === "V") return { ok: true, removed: true, message: "Independent Gate V was removed; continue directly to C after B." };
+  if (!["A", "B", "C"].includes(letter)) {
+    throw new Error(`Invalid gate: ${gate} (use START, A, B, or C)`);
   }
 
   return withSessionsLock(targetRoot, () => {
@@ -384,32 +382,18 @@ function recordSessionGate(targetRoot, gate, value, extra = {}) {
     }
     session.gates = session.gates || {};
 
-    const prerequisite = { B: "A", V: "B", C: "V" }[letter];
+    const prerequisite = { B: "A", C: "B" }[letter];
     if (value && prerequisite && !session.gates[prerequisite]?.complete) {
       throw new Error(`Gate ${letter} requires Gate ${prerequisite} first.`);
     }
-    if (letter === "C" && value) verification.assertFresh(targetRoot, session.gates.V);
-    let verified = null;
-    if (letter === "V" && value) {
-      try {
-        verified = verification.verify(targetRoot, extra.evidence, session);
-      } catch (error) {
-        session.gates.V = { complete: false, at: new Date().toISOString(), note: error.message };
-        delete session.gates.C;
-        writeSession(targetRoot, session);
-        mirrorLegacyGates(targetRoot, session);
-        throw error;
-      }
-    }
 
     // Replanning or a failed recheck invalidates downstream completion.
-    for (const downstream of { A: ["B", "V", "C"], B: ["V", "C"], V: ["C"], C: [] }[letter]) {
+    for (const downstream of { A: ["B", "C"], B: ["C"], C: [] }[letter]) {
       delete session.gates[downstream];
     }
 
     session.gates[letter] = {
       complete: Boolean(value),
-      ...(verified || {}),
       at: new Date().toISOString(),
       ...(extra.note ? { note: extra.note } : {}),
     };
