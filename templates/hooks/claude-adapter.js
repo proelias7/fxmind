@@ -5,7 +5,6 @@
  *
  *   node .claude/hooks/claude-adapter.js pre   PreToolUse  → gate-guard.js (Gates A/B, path claims)
  *   node .claude/hooks/claude-adapter.js post  PostToolUse → drift-watcher.js (stale memories)
- *   node .claude/hooks/claude-adapter.js stop  Stop        → learn-prompt.js (one V/C reminder)
  *
  * An allow prints nothing, so Claude's own permission rules still apply.
  * Fail-open: any error → no output, exit 0.
@@ -14,7 +13,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
-const SCRIPTS = { pre: "gate-guard.js", post: "drift-watcher.js", stop: "learn-prompt.js" };
+const SCRIPTS = { pre: "gate-guard.js", post: "drift-watcher.js" };
 
 /** Claude's answer for a Cursor hook result, or null for "say nothing". */
 function translate(event, cursor, input = {}) {
@@ -30,10 +29,6 @@ function translate(event, cursor, input = {}) {
       ? { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: cursor.additional_context } }
       : null;
   }
-  if (event === "stop") {
-    if (input.stop_hook_active || !cursor.followup_message) return null;
-    return { decision: "block", reason: cursor.followup_message };
-  }
   return null;
 }
 
@@ -44,7 +39,6 @@ function main() {
   const raw = fs.readFileSync(0, "utf8");
   let input = {};
   try { input = raw ? JSON.parse(raw) : {}; } catch { return; }
-  if (event === "stop" && input.stop_hook_active) return;
   const root = process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd();
   const run = spawnSync(process.execPath, [path.join(__dirname, script)], {
     cwd: root, input: raw, encoding: "utf8", timeout: 12000, maxBuffer: 8 * 1024 * 1024,

@@ -12,13 +12,6 @@
         "command": "node .cursor/hooks/drift-watcher.js",
         "timeout": 15
       }
-    ],
-    "stop": [
-      {
-        "command": "node .cursor/hooks/learn-prompt.js",
-        "timeout": 10,
-        "loop_limit": 1
-      }
     ]
   }
 }

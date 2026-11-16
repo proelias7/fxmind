@@ -76,14 +76,30 @@ describe("prompt-context", () => {
     assert.deepEqual(settings.permissions, { allow: ["Bash(ls)"] });
     const commands = settings.hooks.UserPromptSubmit.flatMap((g) => g.hooks.map((h) => h.command));
     assert.deepEqual(commands, [promptContext.CLAUDE_HOOK_COMMAND]);
-    for (const event of ["PreToolUse", "PostToolUse", "Stop"]) {
+    for (const event of ["PreToolUse", "PostToolUse"]) {
       assert.equal(settings.hooks[event].length, 1, event + " installed once");
       assert.match(settings.hooks[event][0].hooks[0].command, /claude-adapter\.js/);
     }
+    assert.equal(settings.hooks.Stop, undefined);
     assert.equal(settings.hooks.PreToolUse[0].matcher, "Edit|Write|MultiEdit|NotebookEdit");
     for (const file of ["claude-adapter.js", "gate-guard.js", "lib/task-sessions.js"]) {
       assert.ok(fs.existsSync(path.join(root, ".claude", "hooks", file)), file);
     }
+  });
+
+  it("installer removes legacy FXMIND Stop while preserving another provider", () => {
+    const settingsPath = path.join(root, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ hooks: {
+      Stop: [{ hooks: [
+        { type: "command", command: 'node "$CLAUDE_PROJECT_DIR/.claude/hooks/claude-adapter.js" stop', timeout: 15 },
+        { type: "command", command: "node other-vendor-stop.js", timeout: 15 },
+      ] }],
+    } }));
+    assert.equal(promptContext.installClaudePromptHook(root).changed, true);
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+    assert.deepEqual(settings.hooks.Stop[0].hooks.map(x=>x.command), ["node other-vendor-stop.js"]);
+    assert.equal(promptContext.installClaudePromptHook(root).changed, false);
   });
 
   it("claude adapter blocks code edits until Gates A and B, then stays silent", () => {
@@ -110,8 +126,8 @@ describe("prompt-context", () => {
     assert.equal(translate("post", {}), null);
     assert.deepEqual(translate("post", { additional_context: "drift" }),
       { hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: "drift" } });
-    assert.deepEqual(translate("stop", { followup_message: "Gate V" }), { decision: "block", reason: "Gate V" });
-    assert.equal(translate("stop", { followup_message: "Gate V" }, { stop_hook_active: true }), null);
+    assert.equal(translate("stop", { followup_message: "old mandatory review" }), null);
+    assert.equal(translate("stop", { followup_message: "old mandatory review" }, { stop_hook_active: true }), null);
   });
 });
 

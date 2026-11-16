@@ -18,14 +18,13 @@ const MIN_PROMPT_CHARS = 8;
 const CLAUDE_SETTINGS_REL = path.join(".claude", "settings.json");
 const CLAUDE_HOOK_COMMAND = "fxmind context --hook";
 const CLAUDE_HOOKS_DIR_REL = path.join(".claude", "hooks");
-const CLAUDE_HOOK_SCRIPTS = ["claude-adapter.js", "gate-guard.js", "drift-watcher.js", "learn-prompt.js"];
+const CLAUDE_HOOK_SCRIPTS = ["claude-adapter.js", "gate-guard.js", "drift-watcher.js"];
 const EDIT_TOOLS = "Edit|Write|MultiEdit|NotebookEdit";
 const adapter = (event) => `node "$CLAUDE_PROJECT_DIR/.claude/hooks/claude-adapter.js" ${event}`;
 const CLAUDE_HOOKS = {
   UserPromptSubmit: { command: CLAUDE_HOOK_COMMAND, timeout: 10 },
   PreToolUse: { matcher: EDIT_TOOLS, command: adapter("pre"), timeout: 15 },
   PostToolUse: { matcher: EDIT_TOOLS, command: adapter("post"), timeout: 15 },
-  Stop: { command: adapter("stop"), timeout: 15 },
 };
 
 function findProjectRoot(start) {
@@ -194,6 +193,16 @@ function installClaudePromptHook(targetRoot) {
     }
   }
   settings.hooks = settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {};
+  // Retire only FXMIND's old Stop hook. Never delete another provider's Stop hook.
+  if (Array.isArray(settings.hooks.Stop)) {
+    settings.hooks.Stop = settings.hooks.Stop.map((group) => ({
+      ...group,
+      hooks: Array.isArray(group?.hooks)
+        ? group.hooks.filter((hook) => hook?.command !== adapter("stop"))
+        : [],
+    })).filter((group) => group.hooks.length);
+    if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
+  }
   for (const [event, spec] of Object.entries(CLAUDE_HOOKS)) {
     const groups = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
     const present = groups.some((group) =>
@@ -207,7 +216,7 @@ function installClaudePromptHook(targetRoot) {
     }
     settings.hooks[event] = groups;
   }
-  // Gate, drift and stop hooks run the project's own copy, like Cursor's.
+  // Gate and drift hooks run the project's own copy, like Cursor's.
   const { copyHookBundle } = require("./hooks");
   copyHookBundle(targetRoot, CLAUDE_HOOKS_DIR_REL, CLAUDE_HOOK_SCRIPTS);
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });

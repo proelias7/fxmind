@@ -199,7 +199,7 @@ function installProjectClaudeHook(targetRoot) {
     if (!result.changed) return { changed: false };
     console.log("[Claude hook]");
     console.log(`  ✓ ${result.path} → UserPromptSubmit: ${CLAUDE_HOOK_COMMAND} (memory preload)`);
-    console.log("  ✓ .claude/hooks → PreToolUse gates A/B · PostToolUse drift · Stop V/C reminder");
+    console.log("  ✓ .claude/hooks → PreToolUse gates A/B · PostToolUse memory drift");
     return { changed: true };
   } catch (error) {
     console.log(`[Claude hook] skipped: ${error.message}`);
