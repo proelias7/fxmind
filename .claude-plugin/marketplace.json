@@ -1,12 +1,24 @@
 {
   "name": "fxmind",
   "description": "fxmind: shared project memory, knowledge packs and MCP tools for AI coding agents.",
-  "owner": { "name": "proelias7", "url": "https://github.com/proelias7" },
+  "owner": {
+    "name": "proelias7",
+    "url": "https://github.com/proelias7"
+  },
   "plugins": [
     {
       "name": "fxmind",
       "source": "./plugins/fxmind",
-      "description": "Shared project memory for AI agents. Ask: \"set up fxmind in this project\"."
+      "description": "Shared project memory for AI agents. Ask: \"set up fxmind in this project\".",
+      "version": "1.2.36",
+      "author": {
+        "name": "proelias7",
+        "url": "https://github.com/proelias7"
+      },
+      "homepage": "https://proelias7.github.io/fxmind/",
+      "repository": "https://github.com/proelias7/fxmind",
+      "license": "MIT",
+      "icon": "./.claude-plugin/icon.png"
     }
   ]
 }

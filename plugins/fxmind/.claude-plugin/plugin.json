@@ -6,6 +6,7 @@
     "name": "proelias7",
     "url": "https://github.com/proelias7"
   },
+  "icon": "./.claude-plugin/icon.png",
   "homepage": "https://proelias7.github.io/fxmind/",
   "repository": "https://github.com/proelias7/fxmind",
   "license": "MIT",
