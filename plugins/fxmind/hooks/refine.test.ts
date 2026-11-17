@@ -86,6 +86,22 @@ describe('refiner rules', () => {
     expect(read?.questions[0]).toEqual({ text: 'A?', options: ['x'], answer: null })
   })
 
+  test('keeps the recommended option and why, and drops a recommendation that points nowhere', () => {
+    const read = parseReading(JSON.stringify({ implement: true, questions: [
+      { q: 'A?', options: ['x', 'y'], rec: 1, why: ' mais simples ' },
+      { q: 'B?', options: ['x', 'y'], rec: 5, why: 'n' },
+      { q: 'C?', options: [], rec: 0 },
+    ] }))
+    expect(read?.questions[0]).toEqual({ text: 'A?', options: ['x', 'y'], recommended: 1, why: 'mais simples', answer: null })
+    expect(read?.questions[1]).toEqual({ text: 'B?', options: ['x', 'y'], answer: null })
+    expect(read?.questions[2]).toEqual({ text: 'C?', options: [], answer: null })
+  })
+
+  test('an unanswered question hands the writer its recommendation as the assumption', () => {
+    const prompt = writerPrompt(DEMAND, [{ text: 'A?', options: ['x', 'y'], recommended: 1, answer: null }], '', '')
+    expect(prompt).toContain('recommended choice is "y"')
+  })
+
   test('the writer is shown the demand, each answer or that it has none, the chat and the project facts', async () => {
     const chat = chatDigest([{ role: 'system', text: 'x' }, { role: 'user', text: ' usamos Express ' }, { role: 'assistant', text: '' }])
     expect(chat).toBe('user: usamos Express')

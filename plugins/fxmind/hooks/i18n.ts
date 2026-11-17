@@ -69,7 +69,7 @@ const PT: Record<string, string> = {
   'Map project': 'Mapear projeto', 'Review memories': 'Rever memórias', Learn: 'Aprender',
   'reading the demand…': 'lendo a demanda…', 'writing the prompt…': 'montando o prompt…', 'ready to write': 'pronto para montar',
   'pick or answer in the chat': 'escolha ou responda no chat', 'Send as typed': 'Enviar sem refinar', 'Write now': 'Montar agora',
-  'Write prompt': 'Montar prompt', 'the model did not answer': 'o modelo não respondeu',
+  'Write prompt': 'Montar prompt', Recommended: 'Recomendado', 'the model did not answer': 'o modelo não respondeu',
   'fxmind: answer saved, writing the prompt…': 'fxmind: resposta registrada, montando o prompt…',
   'fxmind: choose above the prompt: Write prompt, Send as typed or ✕': 'fxmind: escolha acima do prompt: Montar prompt, Enviar sem refinar ou ✕',
   'fxmind: wait, the refiner is still on the previous demand (above the prompt)': 'fxmind: aguarde, o refinador está trabalhando na demanda anterior (acima do prompt)',

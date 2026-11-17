@@ -89,9 +89,9 @@ const READ_SYSTEM = `You prepare the work of a coding agent (Claude Code). You a
 
 1. Is the message an implementation demand: a request to build, change, fix, refactor or configure something in the project? A question, a request to explain or review, running one command, a go-ahead to a plan and an answer to the agent's own question are not. Neither is a message that continues or corrects work already under way in the chat (a follow-up, a tweak to what was just built): the chat would be cleared, so only a demand that starts new work counts. A short instruction ("update the page", "push it") is never one. When unsure, answer false: a demand left unrefined costs little, a follow-up held back interrupts the person.
 
-2. If it is, what must the person answer before a careful engineer could build it right? Ask only what changes what gets built and cannot be found by reading the code: scope, behaviour in the cases the message leaves open, a choice between real alternatives, how it will be accepted. Never ask what the agent can find in the repository, and never ask to confirm what the message already says. At most ${MAX_QUESTIONS} questions; fewer is better, and none when the demand is already clear. Each question is one short sentence in the person's language. Give 2 to 4 short options when the answer is a choice between known alternatives, otherwise none.
+2. If it is, what must the person answer before a careful engineer could build it right? Ask only what changes what gets built and cannot be found by reading the code: scope, behaviour in the cases the message leaves open, a choice between real alternatives, how it will be accepted. Never ask what the agent can find in the repository, and never ask to confirm what the message already says. At most ${MAX_QUESTIONS} questions; fewer is better, and none when the demand is already clear. Each question is one short sentence in the person's language. Give 2 to 4 short options when the answer is a choice between known alternatives, otherwise none. When there are options, recommend one: the answer a careful engineer would pick for this project and message, as "rec" (the index of that option, from 0) and "why" (at most 8 words, same language).
 
-Reply with JSON only: {"implement":true,"questions":[{"q":"...","options":["...","..."]}]} or {"implement":false,"questions":[]}`
+Reply with JSON only: {"implement":true,"questions":[{"q":"...","options":["...","..."],"rec":0,"why":"..."}]} or {"implement":false,"questions":[]}`
 
 const WRITE_SYSTEM = `You write the prompt a coding agent (Claude Code) receives as its only instruction, in a fresh chat with no memory of the one you are shown. You are given the person's demand, their answers to clarifying questions, the end of the chat they had so far, and facts about the project. Write the prompt in the person's language, in Markdown, with these parts, leaving out a part that has nothing to say:
 
@@ -116,11 +116,13 @@ export function parseReading(text: string): { implement: boolean; questions: Ref
     const list = Array.isArray(parsed.questions) ? parsed.questions : []
     const questions = list
       .map((item): RefineQuestion | undefined => {
-        const q = item as { q?: unknown; options?: unknown }
+        const q = item as { q?: unknown; options?: unknown; rec?: unknown; why?: unknown }
         const said = typeof q?.q === 'string' ? q.q.trim() : ''
         if (!said) return undefined
         const options = Array.isArray(q.options) ? q.options.filter((o): o is string => typeof o === 'string' && !!o.trim()).slice(0, 4) : []
-        return { text: said, options, answer: null }
+        const rec = typeof q.rec === 'number' && Number.isInteger(q.rec) && q.rec >= 0 && q.rec < options.length ? q.rec : undefined
+        const why = typeof q.why === 'string' && q.why.trim() ? q.why.trim().slice(0, 80) : undefined
+        return { text: said, options, ...(rec !== undefined ? { recommended: rec, ...(why ? { why } : {}) } : {}), answer: null }
       })
       .filter((q): q is RefineQuestion => q !== undefined)
       .slice(0, MAX_QUESTIONS)
@@ -141,7 +143,7 @@ export function chatDigest(messages: readonly { role: string; text: string }[]):
 
 /** What the writer is shown: the demand, the answers given, the chat's end and the project facts. */
 export function writerPrompt(demand: string, questions: readonly RefineQuestion[], chat: string, facts: string): string {
-  const answers = questions.map(q => `- ${q.text}\n  ${q.answer?.trim() ? `Answer: ${q.answer.trim()}` : 'Not answered.'}`).join('\n')
+  const answers = questions.map(q => `- ${q.text}\n  ${q.answer?.trim() ? `Answer: ${q.answer.trim()}` : q.recommended !== undefined && q.options[q.recommended] ? `Not answered; the recommended choice is "${q.options[q.recommended]}": take it as the assumption.` : 'Not answered.'}`).join('\n')
   return [
     `# The demand\n${demand.trim()}`,
     answers ? `# Clarifying questions and the person's answers\n${answers}` : '',
@@ -353,8 +355,11 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
     rows.push([<Text key="refine-question" bold>{question.text}</Text>])
     if (question.options.length)
       rows.push(question.options.map((option, i) => (
-        <Button key={`refine-option-${i}`} variant="secondary" label={option} onPress={() => answer($, option)} />
+        <Button key={`refine-option-${i}`} variant={i === question.recommended ? 'primary' : 'secondary'}
+          label={i === question.recommended ? `★ ${option}` : option} onPress={() => answer($, option)} />
       )))
+    const pick = question.recommended !== undefined ? question.options[question.recommended] : undefined
+    if (pick) rows.push([<Text key="refine-rec" dimColor wrap="truncate">{`${tr('Recommended')}: ${pick}${question.why ? ` — ${question.why}` : ''}`}</Text>])
   }
   return frame({
     title,

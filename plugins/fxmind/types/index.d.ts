@@ -1,5 +1,13 @@
 /** One clarifying question of the prompt refiner: its text, the choices offered (maybe none) and the answer given. */
-export type RefineQuestion = { text: string; options: string[]; answer: string | null }
+export type RefineQuestion = {
+  text: string
+  options: string[]
+  /** The option the reader recommends (index into options), when it has one. */
+  recommended?: number
+  /** Why it recommends it: a few words. */
+  why?: string
+  answer: string | null
+}
 
 /** A demand the prompt refiner holds: read, asked about (question `at`; past the last once all are answered), written. */
 export type Refine = {
