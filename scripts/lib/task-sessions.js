@@ -14,6 +14,16 @@ const SCHEMA_VERSION = 2;
 const SESSIONS_INDEX = "sessions.json";
 const SESSIONS_SUBDIR = "sessions";
 
+/** A task with no activity (gate, claim, edit through the hook) for this long is dead: its file leases are released. */
+const DEFAULT_SESSION_TTL_MS = 30 * 60 * 1000;
+/** The hook runs on every edit: it only rewrites the session when the last stamp is older than this. */
+const TOUCH_EVERY_MS = 60 * 1000;
+
+function sessionTtlMs() {
+  const fromEnv = Number(process.env.FXMIND_SESSION_TTL_MS);
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_SESSION_TTL_MS;
+}
+
 function sessionsRoot(targetRoot) {
   return path.join(fxmindDir(targetRoot), "state", SESSIONS_SUBDIR);
 }
@@ -65,8 +75,17 @@ function safeSessionId(value) {
   return id.toLowerCase();
 }
 
+let sessionsLockDepth = 0;
+
 function withSessionsLock(targetRoot, fn) {
-  return withFileLock(path.resolve(targetRoot), "task-sessions-index", fn);
+  return withFileLock(path.resolve(targetRoot), "task-sessions-index", () => {
+    sessionsLockDepth += 1;
+    try {
+      return fn();
+    } finally {
+      sessionsLockDepth -= 1;
+    }
+  });
 }
 
 function readIndex(targetRoot) {
@@ -97,7 +116,89 @@ function writeSession(targetRoot, session) {
   if (!session?.sessionId) {
     throw new Error("sessionId required");
   }
+  session.lastActivityAt = new Date().toISOString();
   writeJson(sessionFilePath(targetRoot, session.sessionId), session);
+}
+
+/** When the session last did anything: its own stamp, or the file's mtime for one written before stamps existed. */
+function lastActivityMs(targetRoot, session) {
+  let at = Date.parse(session?.lastActivityAt || "");
+  if (!Number.isFinite(at)) {
+    try {
+      at = fs.statSync(sessionFilePath(targetRoot, session.sessionId)).mtimeMs;
+    } catch {
+      at = Date.parse(session?.startedAt || "");
+    }
+  }
+  return Number.isFinite(at) ? at : Date.now();
+}
+
+/** Marks a live session as active (the hook calls it on every edit; the write is throttled). Never throws. */
+function touchSession(targetRoot, sessionId) {
+  try {
+    const session = readSession(targetRoot, sessionId);
+    if (!session?.taskActive) return;
+    if (Date.now() - lastActivityMs(targetRoot, session) < TOUCH_EVERY_MS) return;
+    session.lastActivityAt = new Date().toISOString();
+    writeJson(sessionFilePath(targetRoot, session.sessionId), session);
+  } catch {
+    /* a missed stamp only brings the expiry closer */
+  }
+}
+
+/** An expired session whose agent came back: it rejoins the active list (its leases were released; it claims again). */
+function rejoinActive(targetRoot, session) {
+  delete session.expiredAt;
+  delete session.expiredReason;
+  delete session.releasedPaths;
+  if (!session.sessionId) return;
+  const index = readIndex(targetRoot);
+  if (!index.active.includes(session.sessionId)) {
+    index.active.push(session.sessionId);
+    writeIndex(targetRoot, index);
+  }
+}
+
+/**
+ * Ends the tasks that stopped without closing (killed chat, crashed agent, a session that was simply abandoned):
+ * they leave the active list and release their file leases, so nobody else stays blocked on them. The session
+ * file is kept (expiredAt) and comes back to life if its agent returns and calls a gate.
+ */
+function expireStaleSessions(targetRoot, options = {}) {
+  const ttl = Number(options.ttlMs) > 0 ? Number(options.ttlMs) : sessionTtlMs();
+  const now = Date.now();
+  const index = readIndex(targetRoot);
+  const stale = index.active.filter((id) => {
+    const session = readSession(targetRoot, id);
+    return session && session.taskActive && now - lastActivityMs(targetRoot, session) > ttl;
+  });
+  if (!stale.length) return [];
+
+  const run = () => {
+    const fresh = readIndex(targetRoot);
+    const expired = [];
+    for (const id of stale) {
+      const session = readSession(targetRoot, id);
+      if (!session?.taskActive || Date.now() - lastActivityMs(targetRoot, session) <= ttl) continue;
+      session.taskActive = false;
+      session.expiredAt = new Date().toISOString();
+      session.expiredReason = "inactive";
+      session.releasedPaths = session.claimedPaths || [];
+      session.claimedPaths = [];
+      writeJson(sessionFilePath(targetRoot, id), session);
+      fresh.active = fresh.active.filter((x) => x !== id);
+      expired.push(id);
+    }
+    if (expired.length) {
+      writeIndex(targetRoot, fresh);
+      if (fresh.active.length === 0) {
+        const last = readSession(targetRoot, expired[expired.length - 1]);
+        if (last) mirrorLegacyGates(targetRoot, last);
+      }
+    }
+    return expired;
+  };
+  return sessionsLockDepth > 0 ? run() : withSessionsLock(targetRoot, run);
 }
 
 function mirrorLegacyGates(targetRoot, session) {
@@ -149,6 +250,11 @@ function migrateLegacyGatesToSession(targetRoot) {
 
 function listActiveSessionIds(targetRoot) {
   migrateLegacyGatesToSession(targetRoot);
+  try {
+    expireStaleSessions(targetRoot);
+  } catch {
+    /* an expiry that failed must not break the read */
+  }
   const index = readIndex(targetRoot);
   return index.active.filter((id) => {
     const session = readSession(targetRoot, id);
@@ -379,6 +485,7 @@ function recordSessionGate(targetRoot, gate, value, extra = {}) {
     if (!session.taskActive) {
       session.taskActive = true;
       session.session = session.session || new Date().toISOString();
+      rejoinActive(targetRoot, session);
     }
     session.gates = session.gates || {};
 
@@ -475,6 +582,11 @@ function claimPaths(targetRoot, paths, extra = {}) {
       throw err;
     }
 
+    if (session?.sessionId && !session.taskActive && session.expiredAt) {
+      session.taskActive = true;
+      rejoinActive(targetRoot, session);
+    }
+
     if (!session?.sessionId || !session.taskActive) {
       return {
         ok: false,
@@ -553,6 +665,7 @@ function gatesForHook(targetRoot, options = {}) {
   migrateLegacyGatesToSession(targetRoot);
   const activeCount = activeSessionCount(targetRoot);
   const rel = normalizeRelPath(options.filePath, targetRoot);
+  // An edit is activity: whichever session this hook call belongs to stays alive (see the session found below).
 
   if (activeCount >= 2 && rel) {
     if (!isPathClaimed(targetRoot, rel)) {
@@ -602,6 +715,8 @@ function gatesForHook(targetRoot, options = {}) {
     session = readJson(legacyGatesPath(targetRoot), null);
   }
 
+  if (session?.taskActive && session.sessionId) touchSession(targetRoot, session.sessionId);
+
   if (!session?.taskActive) {
     if (activeCount >= 2) {
       return {
@@ -635,6 +750,9 @@ module.exports = {
   pathHolder,
   isPathClaimed,
   resetSessions,
+  expireStaleSessions,
+  touchSession,
+  DEFAULT_SESSION_TTL_MS,
   mirrorLegacyGates,
   migrateLegacyGatesToSession,
   resolveSession,

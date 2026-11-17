@@ -157,4 +157,65 @@ describe("task-sessions", () => {
     const gateB = recordGate(dir, "B", true, { sessionId: started.sessionId });
     assert.equal(gateB.userReply, undefined);
   });
+
+  describe("inactive sessions", () => {
+    const age = (sessionId, ms) => {
+      const file = path.join(dir, ".fxmind", "state", "sessions", `${sessionId}.json`);
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      data.lastActivityAt = new Date(Date.now() - ms).toISOString();
+      fs.writeFileSync(file, JSON.stringify(data));
+    };
+
+    it("releases the file leases of a session that went quiet", () => {
+      const dead = startTask(dir, { note: "dead" });
+      const alive = startTask(dir, { note: "alive" });
+      claimPaths(dir, ["a.lua"], { sessionId: dead.sessionId });
+      assert.equal(claimPaths(dir, ["a.lua"], { sessionId: alive.sessionId }).error, "path_conflict");
+
+      age(dead.sessionId, taskSessions.DEFAULT_SESSION_TTL_MS + 60_000);
+
+      const result = claimPaths(dir, ["a.lua"], { sessionId: alive.sessionId });
+      assert.equal(result.ok, true);
+      assert.deepEqual(taskSessions.listActiveSessionIds(dir), [alive.sessionId]);
+      assert.equal(taskSessions.multiSessionMode(dir), false);
+    });
+
+    it("keeps a session that is still active", () => {
+      const a = startTask(dir, { note: "a" });
+      const b = startTask(dir, { note: "b" });
+      claimPaths(dir, ["a.lua"], { sessionId: a.sessionId });
+      age(a.sessionId, taskSessions.DEFAULT_SESSION_TTL_MS - 60_000);
+      assert.equal(claimPaths(dir, ["a.lua"], { sessionId: b.sessionId }).error, "path_conflict");
+    });
+
+    it("an expired session that comes back rejoins and claims again", () => {
+      const a = startTask(dir, { note: "a" });
+      startTask(dir, { note: "b" });
+      claimPaths(dir, ["a.lua"], { sessionId: a.sessionId });
+      age(a.sessionId, taskSessions.DEFAULT_SESSION_TTL_MS + 60_000);
+      assert.equal(taskSessions.listActiveSessionIds(dir).includes(a.sessionId), false);
+
+      const back = claimPaths(dir, ["a.lua"], { sessionId: a.sessionId });
+      assert.equal(back.ok, true);
+      assert.equal(taskSessions.listActiveSessionIds(dir).includes(a.sessionId), true);
+    });
+
+    it("an edit through the hook counts as activity", () => {
+      const a = startTask(dir, { note: "a" });
+      startTask(dir, { note: "b" });
+      claimPaths(dir, ["a.lua"], { sessionId: a.sessionId });
+      age(a.sessionId, taskSessions.DEFAULT_SESSION_TTL_MS - 5_000);
+      assert.equal(taskSessions.gatesForHook(dir, { filePath: "a.lua", sessionId: a.sessionId }).allow, true);
+      age(a.sessionId, 5_000);
+      assert.equal(taskSessions.listActiveSessionIds(dir).includes(a.sessionId), true);
+    });
+  });
+
+  it("breaks a lock left behind by a dead process", () => {
+    const { lockFilePath, withFileLock } = require("./fs-lock");
+    const file = lockFilePath(dir, "task-sessions-index");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, "2147483646\n");
+    assert.equal(withFileLock(dir, "task-sessions-index", () => "ran"), "ran");
+  });
 });
