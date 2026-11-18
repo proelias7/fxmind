@@ -3361,7 +3361,7 @@ const handoffSlot = () => handoffLoud() || config.handoffButton === 'always'
 /** Handoff's box: it fades in, grey, up to HANDOFF_BOX_AT, then lightens to white by HANDOFF_LOUD_AT, where the glow
  * takes over (it grows to 80%). A glow only ever sits around the white box. */
 const HANDOFF_BOX_AT = 15
-const HANDOFF_PILL_W = 66
+const HANDOFF_PILL_W = 80
 const HANDOFF_PILL_H = 19
 /** Handoff's look at `percent` of context, a step each percent: no box at 0, the grey box by HANDOFF_BOX_AT, white by
  * HANDOFF_LOUD_AT. The label goes from dim to white, and dark once the box is light enough to need it. */
@@ -3661,7 +3661,7 @@ async function dashboardBand($: EngineInterface, e: RenderInput<'AbovePrompt'>) 
               {/* Its width is a spacer in the flow, not the image: the app can lay an image out at no width, and the
                   label (centred over it) then ran into Auto. */}
               <Box key="dash-handoff-box" flexShrink={0} flexDirection="row" alignItems="center">
-                <Box width={9} height={1} flexShrink={0} />
+                <Box width={11} height={1} flexShrink={0} />
                 <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
                   <els.Svg source={handoffPillSvg(handoffLevel(), false, handoffSlot())} alt="Handoff box" width={HANDOFF_PILL_W} height={HANDOFF_PILL_H} />
                 </Box>
