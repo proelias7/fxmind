@@ -83,16 +83,11 @@
     animation: pop .45s cubic-bezier(.2,.8,.2,1.2) both; animation-delay: calc(var(--i) * 70ms); }
   @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.9); } }
   .hub { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font); }
-  /* feature table: what ships with fxmind, in numbers */
-  .ftable { width: 100%; margin-top: 64px; border-collapse: collapse; border: 1px solid var(--line-2); border-radius: 18px; overflow: hidden; border-style: hidden; box-shadow: 0 0 0 1px var(--line-2); }
-  .ftable th, .ftable td { padding: 20px 24px; text-align: left; vertical-align: middle; border-top: 1px solid var(--line-2); }
-  .ftable thead th { border-top: 0; font-size: 12.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); background: rgba(255,255,255,.02); }
-  .ftable tbody th { font-weight: 600; font-size: 16px; color: var(--text); white-space: nowrap; }
-  .ftable .fnum { font-size: 34px; font-weight: 700; line-height: 1; color: var(--mint); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ftable td:last-child { color: var(--muted); font-size: 15px; }
-  .ftable code { font-family: var(--mono); font-size: 13px; color: #cfd6d3; }
-  .ftable tbody tr { transition: background .2s ease; }
-  .ftable tbody tr:hover { background: rgba(126,224,180,.04); }
+  /* what ships, in numbers: the page's own big mint figures, no box */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; margin: 80px 0 0; }
+  .stats div { display: grid; gap: 6px; }
+  .stats dt { order: 2; color: var(--muted); font-size: 15.5px; }
+  .stats dd { margin: 0; font-size: clamp(48px, 6vw, 76px); font-weight: 800; letter-spacing: -0.05em; line-height: 1; color: var(--mint); font-variant-numeric: tabular-nums; }
   .hub-orbit { fill: none; stroke: rgba(126,224,180,.12); stroke-dasharray: 2 8; }
   .hub-core { fill: #0f191a; stroke: rgba(126,224,180,.45); }
   .spoke { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 1.4; transition: stroke .3s; }
@@ -122,18 +117,6 @@
   .pack.on { opacity: 1; border-top-color: var(--mint); }
   .pack h3 { margin: 0 0 10px; font-size: clamp(20px, 2vw, 26px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
   .pack p { margin: 0; color: var(--muted); font-size: 15.5px; }
-
-  /* review: a change stops at Gate V while the reviewer checks it; a trivial one rides straight through */
-  .packs.two { grid-template-columns: repeat(2, 1fr); }
-  .rv-spoke { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 1.6; stroke-dasharray: 3 6; }
-  .rv-pulse { fill: none; stroke: var(--mint); stroke-width: 2.6; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--t, 0)); filter: drop-shadow(0 0 5px rgba(126,224,180,.6)); }
-  .rv-node circle { fill: #131821; stroke: rgba(255,255,255,.2); stroke-width: 1.5; transition: fill .3s, stroke .3s; }
-  .rv-node path { fill: none; stroke: var(--faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
-  .rv-node text { fill: var(--faint); font: 600 17px var(--font); transition: fill .3s; }
-  .rv-node.on circle { fill: rgba(126,224,180,.14); stroke: var(--mint); }
-  .rv-node.on path { stroke: var(--mint); } .rv-node.on text { fill: var(--text); }
-  .rv-kind { fill: var(--text); font: 13px var(--mono); text-anchor: middle; }
-  #rvw.triv .k1, #rvw:not(.triv) .k2 { display: none; }
 
   /* external packs: files ride from a repository through the check into ~/.fxmind/packs, then into the project */
   .xp-st rect { fill: #131821; stroke: rgba(255,255,255,.14); stroke-width: 1.5; transition: stroke .3s, fill .3s; }
@@ -208,36 +191,9 @@
     .hub { max-width: 420px; margin: 0 auto; order: -1; }
     .packs { grid-template-columns: 1fr 1fr; gap: 28px 20px; }
     .mock { max-width: 480px; margin: 0 auto; }
-    .ftable { margin-top: 40px; }
-    .ftable thead { display: none; }
-    .ftable tbody tr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; align-items: baseline; padding: 18px 16px; border-top: 1px solid var(--line-2); }
-    .ftable tbody tr:first-child { border-top: 0; }
-    .ftable th, .ftable td { padding: 0; border: 0; }
-    .ftable .fnum { font-size: 28px; grid-row: 1; grid-column: 1; }
-    .ftable tbody th { grid-row: 1; grid-column: 2; white-space: normal; }
-    .ftable td:last-child { grid-column: 1 / -1; }
+    .stats { grid-template-columns: 1fr 1fr; gap: 32px 20px; margin-top: 48px; }
   }
 
-  .big { margin: 0 0 44px; font-size: clamp(26px, 3.6vw, 40px); font-weight: 700; letter-spacing: -0.035em; line-height: 1.15; max-width: 18em; }
-  .bignum { display: block; font-size: clamp(72px, 13vw, 148px); font-weight: 800; letter-spacing: -0.06em; line-height: .95; color: var(--mint); }
-  .bars { display: grid; gap: 18px; }
-  .bar { display: grid; grid-template-columns: 250px 1fr 110px; gap: 18px; align-items: center; }
-  .bl { color: var(--muted); font-size: 15.5px; line-height: 1.3; }
-  .bt { height: 18px; border-radius: 999px; background: rgba(255,255,255,.04); overflow: hidden; }
-  .bt i { display: block; height: 100%; min-width: 5px; border-radius: 999px; }
-  .b1 { background: #4a5359; } .b2 { background: #6b767b; } .b3 { background: var(--mint); }
-  .bv { font-family: var(--mono); font-size: 14.5px; text-align: right; color: var(--muted); }
-  .bv.hi { color: var(--mint); font-weight: 500; }
-  .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 64px; }
-  .metric .bar { grid-template-columns: 1fr auto; gap: 8px 18px; }
-  .metric .bt { grid-column: 1 / -1; order: 3; }
-  .metric-speed .bignum, .metric-speed .bv.hi { color: var(--amber); }
-  .metric-speed .b3 { background: var(--amber); }
-  @media (max-width: 850px) { .metrics { grid-template-columns: 1fr; gap: 72px; } }
-  @media (max-width: 700px) { .bar { grid-template-columns: 1fr auto; } .bar .bt { grid-column: 1 / -1; order: 3; } }
-
-  .install { text-align: center; }
-  .install h2 { margin-bottom: 36px; }
   .cmd { display: flex; align-items: center; gap: 12px; max-width: 600px; margin: 0 auto; padding: 8px 8px 8px 22px; border-radius: 999px;
     border: 1px solid rgba(126, 224, 180, 0.45); background: rgba(126, 224, 180, 0.06); font-family: var(--mono); font-size: 15px; text-align: left; }
   .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
@@ -272,10 +228,6 @@
   .ilabel:first-child { margin-top: 0; }
   @keyframes reveal { from { opacity: 0; transform: translateY(-6px); } }
   button.btn { font-family: var(--font); cursor: pointer; }
-  .update { margin: 22px 0 0; color: var(--muted); font-size: 15.5px; }
-  .update code { font-family: var(--mono); font-size: 14px; color: var(--text); }
-  .update button { all: unset; cursor: pointer; margin-left: 8px; color: var(--mint); font-weight: 600; }
-  .update button:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
   .req { margin: 12px 0 0; color: var(--faint); font-size: 14.5px; }
   .req a { color: var(--muted); }
 
@@ -295,8 +247,6 @@
   .brain { animation: fadein 1.4s ease; }
   .rv { opacity: 0; transform: translateY(32px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); transition-delay: var(--d, 0s); }
   .rv.in { opacity: 1; transform: none; }
-  .bars.rv .bt i { transform: scaleX(0); transform-origin: left; transition: transform 1.4s cubic-bezier(.2,.7,.2,1) .3s; }
-  .bars.in .bt i { transform: none; }
 
   /* hero story: agents feed a brain, Jev decides, memories form, a query walks the graph */
   .story-pin { position: sticky; top: 0; height: 100vh; height: 100svh; display: flex; align-items: center; overflow: hidden; }
@@ -509,11 +459,11 @@
       </div>
         <ol class="steps">
           <li class="step hint on"><span data-i18n="br.hint">Scroll to see how it works</span><span class="arrow" aria-hidden="true">↓</span></li>
-          <li class="step"><span class="step-n">01</span><h3 data-i18n="br.s1">Learns from every agent.</h3><p data-i18n="br.s1d">Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode share one memory. What one agent decides, fixes and verifies becomes a signal.</p></li>
-          <li class="step"><span class="step-n">02</span><h3><span class="jevname">Jev AI</span> <span data-i18n="br.s2">decides what matters.</span></h3><p data-i18n="br.s2d">Optional. Jev classifies the task, picks which memories matter and which tool to use, and what is worth saving.</p></li>
-          <li class="step"><span class="step-n">03</span><h3 data-i18n="br.s3">Creates memories with evidence.</h3><p data-i18n="br.s3d">New facts become neurons wired to the code: file, line and SHA-256 as proof.</p></li>
-          <li class="step"><span class="step-n">04</span><h3 data-i18n="br.s4">Queries the graph.</h3><p data-i18n="br.s4d">Jev points to the right memory, and the question travels the connections and comes back with just the right snippet: 242 tokens instead of 1.3 million, in 73 ms.</p></li>
-          <li class="step"><span class="step-n">05</span><h3 data-i18n="br.s5">Fewer tokens, faster answers.</h3><p data-i18n="br.s5d">5,400× fewer tokens than searching and reading the code, and 10.8× faster searches with a warm cache.</p></li>
+          <li class="step"><span class="step-n">01</span><h3 data-i18n="br.s1">Learns from every agent.</h3><p data-i18n="br.s1d">Claude Code, Cursor, Codex, Gemini CLI, Copilot and OpenCode share one memory.</p></li>
+          <li class="step"><span class="step-n">02</span><h3><span class="jevname">Jev AI</span> <span data-i18n="br.s2">decides what matters.</span></h3><p data-i18n="br.s2d">Optional. Picks the memories, the tool and what is worth saving.</p></li>
+          <li class="step"><span class="step-n">03</span><h3 data-i18n="br.s3">Creates memories with evidence.</h3><p data-i18n="br.s3d">Facts wired to the code: file, line and SHA-256.</p></li>
+          <li class="step"><span class="step-n">04</span><h3 data-i18n="br.s4">Queries the graph.</h3><p data-i18n="br.s4d">Comes back with just the right snippet: 242 tokens instead of 1.3 million, in 73 ms.</p></li>
+          <li class="step"><span class="step-n">05</span><h3 data-i18n="br.s5">Fewer tokens, faster answers.</h3><p data-i18n="br.s5d">5,400× fewer tokens and 10.8× faster searches.</p></li>
         </ol>
         <div class="step-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
       </div>
@@ -548,14 +498,14 @@
           <button type="button" aria-pressed="true" data-chips="/fxmind-refine &lt;demand&gt;~Haiku · Sonnet · Opus~/fxmind refine &lt;demand&gt;" data-chips-pt="/fxmind-refine &lt;demanda&gt;~Haiku · Sonnet · Opus~/fxmind refine &lt;demanda&gt;"><span data-i18n="m.refine">Refiner</span></button>
           <button type="button" aria-pressed="false" data-chips="/fxmind-effort settings~/fxmind-effort agents~/fxmind-effort stats"><span data-i18n="m.effort">Effort bar</span></button>
           <button type="button" aria-pressed="false" data-chips="/fxmind init~/fxmind memory health~/fxmind learn"><span data-i18n="m.card">Memories</span></button>
-          <button type="button" aria-pressed="false" data-chips="A~B~V~C"><span data-i18n="m.status">Status line</span></button>
+          <button type="button" aria-pressed="false" data-chips="A~B~C"><span data-i18n="m.status">Status line</span></button>
           <button type="button" aria-pressed="false" data-chips="en~pt-BR~mint"><span data-i18n="m.theme">Theme</span></button>
         </div>
         <p class="mdesc" aria-live="polite">
-          <span data-i18n="m.refine.d">Holds a new request, asks what is missing and sends a complete prompt. Also /fxmind refine in every agent.</span>
+          <span data-i18n="m.refine.d">Asks what is missing and sends a complete prompt.</span>
           <span data-i18n="m.effort.d" hidden>Picks the effort for each message; shows cache, context and limits.</span>
           <span data-i18n="m.card.d" hidden>The refiner's options and three project actions, in settings.</span>
-          <span data-i18n="m.status.d" hidden>Memories, what to review and the open task's gates.</span>
+          <span data-i18n="m.status.d" hidden>Memories, what to review and the open task.</span>
           <span data-i18n="m.theme.d" hidden>English or Brazilian Portuguese, in the fxmind theme.</span>
         </p>
         <div class="tchips" id="modChips"></div>
@@ -637,12 +587,12 @@
           <g class="a" style="--dl:.5s"><rect class="m-box" x="170" y="76" width="140" height="112" rx="12"/>
             <text class="m-num m-amber" x="188" y="130">3</text><text class="m-t m-dim" x="188" y="160" data-i18n="mk.s2">to review</text></g>
           <g class="a" style="--dl:.7s"><rect class="m-box" x="324" y="76" width="140" height="112" rx="12"/>
-            <circle class="m-fill" cx="350" cy="118" r="9"/><circle class="m-fill" cx="380" cy="118" r="9"/><circle class="m-fill a-pulse" cx="410" cy="118" r="9"/><circle class="m-stop" cx="440" cy="118" r="9"/>
-            <text class="m-k m-mid" x="350" y="121.5" fill="#08251a">A</text><text class="m-k m-mid" x="380" y="121.5" fill="#08251a">B</text><text class="m-k m-mid" x="410" y="121.5" fill="#08251a">V</text><text class="m-k m-mid m-dim" x="440" y="121.5">C</text>
+            <circle class="m-fill" cx="352" cy="118" r="9"/><circle class="m-fill a-pulse" cx="382" cy="118" r="9"/><circle class="m-stop" cx="412" cy="118" r="9"/>
+            <text class="m-k m-mid" x="352" y="121.5" fill="#08251a">A</text><text class="m-k m-mid" x="382" y="121.5" fill="#08251a">B</text><text class="m-k m-mid m-dim" x="412" y="121.5">C</text>
             <text class="m-t m-dim" x="342" y="160" data-i18n="mk.s3">open task</text></g>
           <rect class="m-box" x="16" y="232" width="448" height="46" rx="14"/>
           <g class="a" style="--dl:1.2s"><rect class="m-band" x="16" y="296" width="448" height="34" rx="10"/>
-            <text class="m-t m-mono" x="30" y="317" style="font-size:11.5px" data-i18n="mk.sline">fxmind · 24 memories · 3 to review · task A✓ B✓ V· C·</text></g>
+            <text class="m-t m-mono" x="30" y="317" style="font-size:11.5px" data-i18n="mk.sline">fxmind · 24 memories · 3 to review · task A✓ B· C·</text></g>
         </g>
 
         <g class="scene">
@@ -686,15 +636,12 @@
       </svg>
     </div>
     <div class="wrap">
-      <table class="ftable">
-        <thead><tr><th scope="col" data-i18n="ft.h.n">Count</th><th scope="col" data-i18n="ft.h.f">Feature</th><th scope="col" data-i18n="ft.h.d">What ships</th></tr></thead>
-        <tbody>
-          <tr><td class="fnum">56</td><th scope="row" data-i18n="ft.tools.t">MCP tools</th><td data-i18n="ft.tools.d">Memory, verified work, teamwork, learning, database and Windows desktop control, for every agent.</td></tr>
-          <tr><td class="fnum">8</td><th scope="row" data-i18n="ft.skills.t">Skills</th><td data-i18n="ft.skills.d">fxmind and setup, plus three per pack: development, frontend and backend.</td></tr>
-          <tr><td class="fnum">2</td><th scope="row" data-i18n="ft.packs.t">Pre-installed packs</th><td><span data-i18n="ft.packs.d">Web and FiveM. Add more from any repository with</span> <code>fxmind pack add</code>.</td></tr>
-          <tr><td class="fnum">4</td><th scope="row" data-i18n="ft.prac.t">Best-practice pillars</th><td data-i18n="ft.prac.d">Architecture, security, performance and code quality, checked on every change.</td></tr>
-        </tbody>
-      </table>
+      <dl class="stats">
+        <div><dt data-i18n="ft.tools.t">MCP tools</dt><dd>56</dd></div>
+        <div><dt data-i18n="ft.skills.t">Skills</dt><dd>8</dd></div>
+        <div><dt data-i18n="ft.packs.t">Pre-installed packs</dt><dd>2</dd></div>
+        <div><dt data-i18n="ft.prac.t">Best-practice pillars</dt><dd>4</dd></div>
+      </dl>
     </div>
   </section>
 
@@ -718,10 +665,10 @@
         <g class="gate" transform="translate(875 100)"><rect x="-38" y="-66" width="76" height="132" rx="22"/><text y="-78">04</text></g>
       </svg>
       <div class="packs">
-        <div class="pack"><h3 data-i18n="practice.arch.t">Architecture</h3><p data-i18n="practice.arch.d">Clear responsibilities, reuse of existing solutions and consistent contracts between components.</p></div>
-        <div class="pack"><h3 data-i18n="practice.security.t">Security</h3><p data-i18n="practice.security.d">Input validation, permission checks and data protection at every entry point.</p></div>
-        <div class="pack"><h3 data-i18n="practice.perf.t">Performance</h3><p data-i18n="practice.perf.d">Efficient queries, well-scoped caching and less unnecessary processing and data transfer.</p></div>
-        <div class="pack"><h3 data-i18n="practice.quality.t">Code quality</h3><p data-i18n="practice.quality.d">Readable code, error handling, accessibility and tests that prevent regressions.</p></div>
+        <div class="pack"><h3 data-i18n="practice.arch.t">Architecture</h3><p data-i18n="practice.arch.d">Clear responsibilities and consistent contracts.</p></div>
+        <div class="pack"><h3 data-i18n="practice.security.t">Security</h3><p data-i18n="practice.security.d">Validated input and checked permissions.</p></div>
+        <div class="pack"><h3 data-i18n="practice.perf.t">Performance</h3><p data-i18n="practice.perf.d">Efficient queries and well-scoped caching.</p></div>
+        <div class="pack"><h3 data-i18n="practice.quality.t">Code quality</h3><p data-i18n="practice.quality.d">Readable code, error handling and tests.</p></div>
       </div>
     </div>
   </section>
@@ -759,41 +706,6 @@
       </div>
     </div>
   </section>
-
-  <section class="sec" id="review">
-    <div class="wrap">
-      <h2 data-i18n="review.t">Reviewed when the change calls for it.</h2>
-      <!-- gates A B V C: a change that needs it waits at V while the reviewer checks; a trivial one passes -->
-      <svg class="pipe" id="rvw" viewBox="0 0 1000 300" aria-hidden="true">
-        <line class="pipe-track" x1="40" y1="200" x2="960" y2="200"/>
-        <line class="pipe-fill" id="rvFill" x1="40" y1="200" x2="40" y2="200"/>
-        <path class="rv-spoke" d="M625 138L625 76"/>
-        <path class="rv-pulse" id="rvPulse" pathLength="1" d="M625 138L625 76"/>
-        <g class="rv-node" id="rvNode" transform="translate(625 46)">
-          <circle r="28"/>
-          <path d="M-13 0C-7 -9 7 -9 13 0C7 9 -7 9 -13 0Z"/><path d="M0 -3.5A3.5 3.5 0 1 0 0 3.5A3.5 3.5 0 1 0 0 -3.5Z"/>
-          <text x="42" y="6" data-i18n="review.who">Reviewer</text>
-        </g>
-        <g class="gate" transform="translate(125 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">A</text></g>
-        <g class="gate" transform="translate(375 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">B</text></g>
-        <g class="gate" transform="translate(625 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">V</text></g>
-        <g class="gate" transform="translate(875 200)"><rect x="-38" y="-58" width="76" height="116" rx="22"/><text y="84">C</text></g>
-        <g id="rvCard">
-          <rect class="pc-bg" x="-68" y="-38" width="136" height="76" rx="12"/>
-          <rect class="pc-add" x="-52" y="-22" width="58" height="6" rx="3"/>
-          <rect class="pc-del" x="-52" y="-8" width="84" height="6" rx="3"/>
-          <text class="rv-kind k1" y="22" data-i18n="review.k1">fix · 2 files</text>
-          <text class="rv-kind k2" y="22" data-i18n="review.k2">trivial</text>
-          <g class="pc-ok" transform="translate(56 -36)"><circle r="13"/><path d="M-6 0l4 4 8-8"/></g>
-        </g>
-      </svg>
-      <div class="packs two">
-        <div class="pack"><h3 data-i18n="review.yes.t">Goes to the reviewer</h3><p data-i18n="review.yes.d">Any Lua file, more than one file, or a fix, mechanic or create task.</p></div>
-        <div class="pack"><h3 data-i18n="review.no.t">Passes on its evidence</h3><p data-i18n="review.no.d">A trivial task, or a single non-Lua file.</p></div>
-      </div>
-    </div>
-  </section>
-
 </main>
 
 <footer>
@@ -811,11 +723,11 @@
   const PT = {
     "br.aria": "Claude Code, Cursor, Codex, Gemini CLI, Copilot e OpenCode enviam sinais para um cérebro. A Jev AI decide o que vale salvar, novas memórias se formam como neurônios conectados e uma pergunta percorre essas conexões até achar a memória.",
     "br.hint": "Role para ver como funciona",
-    "br.s1": "Aprende com cada agente.", "br.s1d": "Claude Code, Cursor, Codex, Gemini CLI, Copilot e OpenCode compartilham uma memória. O que um agente decide, corrige e verifica vira sinal.",
-    "br.s2": "decide o que importa.", "br.s2d": "Opcional. A Jev classifica a tarefa, escolhe quais memórias importam, qual ferramenta usar e o que vale salvar.",
-    "br.s3": "Cria memórias com evidência.", "br.s3d": "Fatos novos viram neurônios ligados ao código: arquivo, linha e SHA-256 como prova.",
-    "br.s4": "Consulta o grafo.", "br.s4d": "A Jev aponta a memória certa, e a pergunta percorre as conexões e volta só com o trecho certo: 242 tokens em vez de 1,3 milhão, em 73 ms.",
-    "br.s5": "Menos tokens, respostas mais rápidas.", "br.s5d": "5.400× menos tokens do que buscar e ler o código, e buscas 10,8× mais rápidas com o cache carregado.",
+    "br.s1": "Aprende com cada agente.", "br.s1d": "Claude Code, Cursor, Codex, Gemini CLI, Copilot e OpenCode compartilham uma memória.",
+    "br.s2": "decide o que importa.", "br.s2d": "Opcional. Escolhe as memórias, a ferramenta e o que vale salvar.",
+    "br.s3": "Cria memórias com evidência.", "br.s3d": "Fatos ligados ao código: arquivo, linha e SHA-256.",
+    "br.s4": "Consulta o grafo.", "br.s4d": "Volta só com o trecho certo: 242 tokens em vez de 1,3 milhão, em 73 ms.",
+    "br.s5": "Menos tokens, respostas mais rápidas.", "br.s5d": "5.400× menos tokens e buscas 10,8× mais rápidas.",
     "ch.foot": "Mediana em 150 perguntas. Mesmas respostas, mesmos tokens.",
     "br.tok": "5.400× menos tokens", "br.fast": "10,8× mais rápido",
     "br.jsave": "✓ vale salvar", "br.jpick": "→ memória certa", "br.saved": "MEMÓRIA SALVA", "br.ask": "Quem pode editar pedidos?",
@@ -824,41 +736,27 @@
     "nav.specialties": "Especialidades",
     "sub": "Ferramentas multiagente para agentes de código.",
     "cta.install": "Instalar", "cta.star": "Estrela",
-    "h1.t": "Memória no seu repositório.", "h1.d": "Compartilhada com o time pelo git.",
-    "h2.t": "Sem colisões.", "h2.d": "Cada agente reserva os arquivos que edita.",
-    "h3.t": "Revisado antes de pronto.", "h3.d": "Checagens reais e um revisor independente.",
     "sv.num": "5.400×", "sv.big": "menos tokens para achar o código certo.",
     "sv.grep": "Buscar no código e ler cada resultado", "sv.exact": "Já sabe o arquivo e lê inteiro",
     "sv.grepCount": "1.318.276", "sv.exactCount": "3.919",
-    "sv.aria": "Mediana de tokens por pergunta: buscar e ler os resultados, 1.318.276; ler o arquivo correto, 3.919; fxmind, 242.",
     "speed.num": "10,8×", "speed.big": "buscas mais rápidas com o cache carregado.",
     "speed.before": "Antes do cache", "speed.after": "Com cache",
-    "speed.aria": "Mediana por consulta com o cache carregado: antes da otimização, 783 milissegundos; depois, 73 milissegundos. Mesmas respostas e tokens em 150 perguntas.",
     "g.mem": "Memória", "g.gate": "Trabalho verificado", "g.team": "Trabalho em equipe", "g.learn": "Aprendizado", "g.db": "Banco de dados", "g.desktop": "Agente de desktop", "tools.t": "56 tools para seus agentes.",
-    "ft.h.n": "Quantidade", "ft.h.f": "Recurso", "ft.h.d": "O que vem incluso",
-    "ft.tools.t": "Tools MCP", "ft.tools.d": "Memória, trabalho verificado, trabalho em equipe, aprendizado, banco de dados e controle do desktop Windows, para todos os agentes.",
-    "ft.skills.t": "Skills", "ft.skills.d": "fxmind e setup, mais três por pack: desenvolvimento, frontend e backend.",
-    "ft.packs.t": "Packs pré-instalados", "ft.packs.d": "Web e FiveM. Adicione outros de qualquer repositório com",
-    "ft.prac.t": "Pilares de boas práticas", "ft.prac.d": "Arquitetura, segurança, desempenho e qualidade de código, verificados em cada alteração.",
+    "ft.tools.t": "Tools MCP", "ft.skills.t": "Skills", "ft.packs.t": "Packs pré-instalados", "ft.prac.t": "Pilares de boas práticas",
     "packs.t": "Boas práticas em cada especialidade.",
-    "packs.intro": "Oriente cada alteração com boas práticas de programação e os aprendizados que o time já construiu.",
-    "practice.arch.t": "Arquitetura", "practice.arch.d": "Responsabilidades claras, reaproveitamento de soluções e contratos consistentes entre componentes.",
-    "practice.security.t": "Segurança", "practice.security.d": "Validação de entradas, verificação de permissões e proteção dos dados em cada ponto de acesso.",
-    "practice.perf.t": "Desempenho", "practice.perf.d": "Consultas eficientes, cache bem definido e menos processamento e transferência de dados desnecessários.",
-    "practice.quality.t": "Qualidade de código", "practice.quality.d": "Código legível, tratamento de erros, acessibilidade e testes que evitam regressões.",
+    "practice.arch.t": "Arquitetura", "practice.arch.d": "Responsabilidades claras e contratos consistentes.",
+    "practice.security.t": "Segurança", "practice.security.d": "Entradas validadas e permissões verificadas.",
+    "practice.perf.t": "Desempenho", "practice.perf.d": "Consultas eficientes e cache bem definido.",
+    "practice.quality.t": "Qualidade de código", "practice.quality.d": "Código legível, tratamento de erros e testes.",
     "nav.mod": "Mod do Claude",
     "ext.t": "Packs de qualquer repositório.", "ext.l1": "Repositório", "ext.l2": "Conferido", "ext.l3": "Instalado", "ext.l4": "Seu projeto", "ext.docs": "Criar um pack →",
-    "review.t": "Revisão quando a mudança pede.", "review.who": "Revisor",
-    "review.k1": "fix · 2 arquivos", "review.k2": "trivial",
-    "review.yes.t": "Vai para o revisor", "review.yes.d": "Qualquer arquivo Lua, mais de um arquivo ou uma tarefa de fix, mechanic ou create.",
-    "review.no.t": "Passa pela evidência", "review.no.d": "Uma tarefa trivial, ou um único arquivo que não é Lua.",
     "mod.t": "Um mod dentro do Claude Code.", "mod.t1": "Um mod dentro do",
     "mod.install.d": "Reinicie o Claude Code para carregar.", "mod.docs": "Documentação do plugin",
     "m.refine": "Refinador", "m.effort": "Barra de esforço", "m.card": "Memórias", "m.status": "Linha de status", "m.theme": "Tema",
-    "m.refine.d": "Segura um pedido novo, pergunta o que falta e envia um prompt completo. Também /fxmind refine em todos os agentes.",
+    "m.refine.d": "Pergunta o que falta e envia um prompt completo.",
     "m.effort.d": "Escolhe o esforço de cada mensagem; mostra cache, contexto e limites.",
     "m.card.d": "As opções do refinador e três ações do projeto, nas configurações.",
-    "m.status.d": "Memórias, o que rever e os gates da tarefa aberta.",
+    "m.status.d": "Memórias, o que rever e a tarefa aberta.",
     "m.theme.d": "Inglês ou português do Brasil, no tema do fxmind.",
     "mk.rp": "PROMPT REFINADO", "mk.sent": "✓ enviado",
     "mk.g1": "Objetivo", "mk.g2": "Contexto", "mk.g3": "Requisitos", "mk.g4": "Pronto quando",
@@ -871,11 +769,10 @@
     "mk.o3": "Limpar o chat", "mk.o3a": "Sim", "mk.o3b": "Não",
     "mk.o4": "Prompt refinado", "mk.o4a": "Enviar", "mk.o4b": "Revisar antes",
     "mk.a1": "Mapear projeto", "mk.a2": "Rever memórias", "mk.a3": "Aprender",
-    "mk.sline": "fxmind · 24 memórias · 3 a rever · tarefa A✓ B✓ V· C·", "mk.s1": "memórias", "mk.s2": "a rever", "mk.s3": "tarefa aberta",
+    "mk.sline": "fxmind · 24 memórias · 3 a rever · tarefa A✓ B· C·", "mk.s1": "memórias", "mk.s2": "a rever", "mk.s3": "tarefa aberta",
     "mk.cz": "Personalizar", "mk.lang": "Idioma", "mk.theme": "Tema",
     "mk.t2": "Violeta", "mk.t3": "Laranja Claude", "mk.t4": "Flor de cerejeira",
-    "install.update": "Para atualizar:",
-    "install.req": "Node.js 20.9+.", "install.ref": "Referência completa",
+ "install.ref": "Referência completa",
     "it.prompt": "Prompt", "it.cmd": "Comando",
     "copy": "Copiar", "copied": "Copiado", "foot.bug": "Reportar bug",
     "_title": "fxmind — memória compartilhada para agentes de IA"
@@ -962,7 +859,7 @@
     const io = new IntersectionObserver((entries) => entries.forEach((e) => {
       if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
     }), { threshold: 0.15, rootMargin: "0px 0px -8% 0px" });
-    document.querySelectorAll(".sec h2, .tgroups, .hub, .ftable, .pipe, .mock, .xp-foot").forEach((el) => {
+    document.querySelectorAll(".sec h2, .tgroups, .hub, .stats, .pipe, .mock, .xp-foot").forEach((el) => {
       el.classList.add("rv");
       el.style.setProperty("--d", `${([...el.parentElement.children].indexOf(el) % 6) * 80}ms`);
       io.observe(el);
@@ -1022,38 +919,11 @@
     drawPipe(40 + 920 * e, k >= 0.8);
   });
 
-  // Review: a change that calls for it waits at Gate V while the reviewer checks; a trivial one rides straight through.
-  const rvw = document.getElementById("rvw"), rvCard = rvw.querySelector("#rvCard"), rvFill = rvw.querySelector("#rvFill");
-  const rvGates = [...rvw.querySelectorAll(".gate")], rvNode = rvw.querySelector("#rvNode"), rvPulse = rvw.querySelector("#rvPulse");
-  const rvPacks = [...document.querySelectorAll("#review .pack")];
-  const ease = (m) => (m < 0.5 ? 2 * m * m : 1 - (-2 * m + 2) ** 2 / 2);
-  const drawReview = (x, trivial, called, done) => {
-    rvCard.setAttribute("transform", `translate(${x} 200)`);
-    rvFill.setAttribute("x2", x);
-    rvGates.forEach((g, i) => g.classList.toggle("on", x >= GX[i]));
-    rvw.classList.toggle("triv", trivial); rvw.classList.toggle("done", done);
-    rvPulse.style.setProperty("--t", called.toFixed(3));
-    rvNode.classList.toggle("on", called >= 1);
-    rvPacks[0].classList.toggle("on", !trivial); rvPacks[1].classList.toggle("on", trivial);
-  };
-  const REVIEWED = 7000, TRIVIAL = 4500;
-  if (rm) drawReview(GX[2], false, 1, false);
-  else whileVisible(rvw, (t) => {
-    const at = t % (REVIEWED + TRIVIAL);
-    if (at >= REVIEWED) {
-      const k = (at - REVIEWED) / TRIVIAL;
-      return drawReview(40 + 920 * ease(Math.min(1, k / 0.8)), true, 0, k >= 0.8);
-    }
-    const k = at / REVIEWED;  // rides to V, waits for the reviewer, rides on
-    if (k < 0.3) drawReview(40 + (GX[2] - 40) * ease(k / 0.3), false, 0, false);
-    else if (k < 0.62) drawReview(GX[2], false, Math.min(1, (k - 0.3) / 0.16), false);
-    else drawReview(GX[2] + (960 - GX[2]) * ease(Math.min(1, (k - 0.62) / 0.26)), false, 1, k >= 0.88);
-  });
-
   // External packs: the files leave the repository in turn; at the check pack.json and Markdown go on to
   // ~/.fxmind/packs and anything else is turned away; then the installed pack reaches the project.
   const xp = document.getElementById("xp"), xpFill = xp.querySelector("#xpFill"), xpFiles = [...xp.querySelectorAll(".xp-file")];
   const xpSt = (id) => xp.querySelector(id), XP = 9000, XX = [110, 400, 660, 890], XY = 92;
+  const ease = (m) => (m < 0.5 ? 2 * m * m : 1 - (-2 * m + 2) ** 2 / 2);
   const drawXp = (k) => {
     let arrived = 0;
     xpFiles.forEach((f, i) => {
