@@ -1,6 +1,7 @@
 "use strict";
 /**
- * Gate C automatic learning. Always persist source-verified *atomic* facts.
+ * Gate C automatic learning. Always persist source-linked *atomic* facts from what the task changed (git diff;
+ * Gate V is retired, an old session's verified snapshot is still honoured).
  * Optional Jev provides only a relevance recommendation and never receives
  * file paths, source text or symbols. No broad topic Markdown is created.
  */
@@ -9,7 +10,14 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const atomic = require("./atomic-memory");
 const { systemOne, jevConfig } = require("./jev");
-const SKIP = new Set(["client", "server", "src", "scripts", "common", "shared", "system", "ui", "modules", "main", "core"]);
+const { changedFiles, snapshot: snapshotFiles } = require("./independent-review");
+const SKIP = new Set(["client", "server", "src", "scripts", "common", "shared", "system", "ui", "modules", "main", "core", "app", "apps", "lib", "libs", "packages", "services"]);
+// Monorepo containers: the topic is the folder inside them (apps/web/... -> web).
+const CONTAINERS = new Set(["apps", "packages", "services", "libs", "modules"]);
+const SOURCE_FILE = /[.](lua|js|jsx|mjs|cjs|ts|tsx|json|html|css)$/;
+const IGNORED = /(^|\/)(node_modules|dist|build|out|coverage|\.next|\.git|\.fxmind|\.claude|\.cursor|\.codex|\.gemini)\/|(^|\/)(package-lock\.json|pnpm-lock\.yaml|tsconfig[^/]*\.json)$/;
+// Without Gate V the changed files come from git; keep one task's learning bounded.
+const MAX_CHANGED_FILES = 20;
 function slug(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 }
@@ -18,6 +26,7 @@ function topicFor(files) {
     const parts = file.replace(/\\/g, "/").split("/");
     const marker = parts.findIndex((v) => v === "resources");
     if (marker >= 0 && parts[marker + 2]) return slug(parts[marker + 2]);
+    if (CONTAINERS.has(parts[0]) && parts.length > 2) return slug(parts[1]);
     return slug(parts.length > 1 ? parts[0] : path.parse(file).name);
   }).filter((name) => name && !SKIP.has(name));
   if (!names.length) return null;
@@ -33,20 +42,28 @@ function reviewIsVerified(session) {
     Array.isArray(gate.evidence.checks) && gate.evidence.checks.length > 0 &&
     gate.evidence.checks.every((check) => check.status === "passed");
 }
-function verifiedFiles(root, session) {
-  const snapshot = session.gates.V.snapshot;
-  const files = Object.keys(snapshot);
-  if (files.length > 12) return [];
-  return files.filter((file) => {
-    if (!/^resources\//.test(file) || file.includes("..") || !/[.](lua|js|ts|tsx|json|html|css)$/.test(file)) return false;
-    const full = path.resolve(root, file);
-    if (!full.startsWith(path.resolve(root) + path.sep)) return false;
-    try {
-      const stat = fs.statSync(full);
-      return stat.isFile() && stat.size <= 1024 * 1024 &&
-        crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex") === snapshot[file];
-    } catch { return false; }
-  });
+function supportedFile(root, file, snapshot) {
+  if (file.includes("..") || IGNORED.test(file) || !SOURCE_FILE.test(file)) return false;
+  const full = path.resolve(root, file);
+  if (!full.startsWith(path.resolve(root) + path.sep)) return false;
+  try {
+    const stat = fs.statSync(full);
+    return stat.isFile() && stat.size <= 1024 * 1024 &&
+      crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex") === snapshot[file];
+  } catch { return false; }
+}
+function verifiedFiles(root, snapshot) {
+  const files = Object.keys(snapshot || {});
+  return files.filter((file) => supportedFile(root, file, snapshot)).slice(0, MAX_CHANGED_FILES);
+}
+/** What this task changed: a verified Gate V snapshot on old sessions, else the files git says changed (Gate V is retired). */
+function learnSnapshot(root, session) {
+  if (reviewIsVerified(session)) return { snapshot: session.gates.V.snapshot, confidence: "verified", source: "gate-v-c" };
+  if (session?.gates?.C?.complete !== true) return null;
+  let files = [];
+  try { files = changedFiles(root).filter((file) => SOURCE_FILE.test(file) && !IGNORED.test(file)); } catch { return null; }
+  if (!files.length) return { snapshot: {}, confidence: "source-linked", source: "gate-c" };
+  return { snapshot: snapshotFiles(root, files.slice(0, MAX_CHANGED_FILES * 3)), confidence: "source-linked", source: "gate-c" };
 }
 function symbolsFromFiles(root, files) {
   const symbols = new Set();
@@ -64,8 +81,10 @@ const QUESTION = {
   criteria: { save: "Reusable implementation or multiple-file verified pattern.", skip: "Routine or transient change." },
 };
 async function learnAfterGate(root, session, options = {}) {
-  if (!reviewIsVerified(session)) return { status: "skipped", reason: "no_verified_gate_v" };
-  const files = verifiedFiles(root, session);
+  const learn = learnSnapshot(root, session);
+  if (!learn) return { status: "skipped", reason: "no_gate_c" };
+  if (!Object.keys(learn.snapshot).length) return { status: "skipped", reason: "no_changed_files" };
+  const files = verifiedFiles(root, learn.snapshot);
   if (!files.length) return { status: "skipped", reason: "stale_or_unsupported_files" };
   const topic = topicFor(files);
   if (!topic) return { status: "skipped", reason: "no_topic" };
@@ -75,7 +94,7 @@ async function learnAfterGate(root, session, options = {}) {
   let learned;
   try {
     atomic.buildAtomic(root);
-    learned = atomic.learnVerifiedSnapshot(root, session, files);
+    learned = atomic.learnVerifiedSnapshot(root, session, files, learn);
   } catch (error) {
     return { status: "skipped", reason: "atomic_index_failed", topic, error: String(error.message || error) };
   }
@@ -98,4 +117,4 @@ async function learnAfterGate(root, session, options = {}) {
   }
   return result;
 }
-module.exports = { learnAfterGate, topicFor, reviewIsVerified, verifiedFiles, symbolsFromFiles };
+module.exports = { learnAfterGate, learnSnapshot, topicFor, reviewIsVerified, verifiedFiles, symbolsFromFiles };

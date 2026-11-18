@@ -7,6 +7,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { learnAfterGate, topicFor } = require("./auto-memory");
 const atomic = require("./atomic-memory");
+const { execFileSync } = require("node:child_process");
 let root;
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-auto-learn-"));
@@ -29,12 +30,33 @@ const reply = (choice = "save", confidence = .92) =>
   ({ ok: true, json: async () => ({ answers: { preserve: { choice, confidence } } }) });
 
 describe("verified auto-memory learning", () => {
-  it("never learns without fully verified Gate V/C", async () => {
+  it("never learns before Gate C, and not from an unverified Gate V outside git", async () => {
     assert.equal(topicFor([rel]), "robberys");
     const s = session();
+    s.gates.C.complete = false;
+    assert.equal((await learnAfterGate(root, s, { config })).reason, "no_gate_c");
+    s.gates.C.complete = true;
     s.gates.V.complete = false;
-    assert.equal((await learnAfterGate(root, s, { config })).reason, "no_verified_gate_v");
+    assert.equal((await learnAfterGate(root, s, { config })).reason, "no_changed_files");
     assert.equal(atomic.readAtomic(root), null);
+  });
+  it("learns from the files git says changed, with no Gate V, in any folder layout", async () => {
+    const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
+    git("init", "-q");
+    git("-c", "user.email=a@b.c", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
+    const file = "apps/web/src/proxy.ts";
+    fs.mkdirSync(path.join(root, "apps", "web", "src"), { recursive: true });
+    fs.writeFileSync(path.join(root, file), "export function guardGuest(req) { return req.url }\n");
+    assert.equal(topicFor([file]), "web");
+    const result = await learnAfterGate(root, { kind: "create", gates: { C: { complete: true } } }, { config: { ...config, enabled: false } });
+    assert.equal(result.status, "learned");
+    assert.equal(result.topic, "web");
+    const data = atomic.readAtomic(root);
+    assert.ok(data.nodes.some((n) => n.group === "verified-atom" && n.name === "guardGuest" && n.confidence === "source-linked"));
+    // Nothing changed since: nothing new to learn.
+    git("add", "-A");
+    git("-c", "user.email=a@b.c", "-c", "user.name=t", "commit", "-q", "-m", "x");
+    assert.equal((await learnAfterGate(root, { gates: { C: { complete: true } } })).reason, "no_changed_files");
   });
   it("learns atomic verified facts with local provenance and no topic append", async () => {
     const s = session();
@@ -63,7 +85,7 @@ describe("verified auto-memory learning", () => {
     assert.equal((await learnAfterGate(root, s)).reason, "stale_or_unsupported_files");
     fs.writeFileSync(path.join(root, rel), body);
     s.gates.V.evidence.checks[0].status = "blocked";
-    assert.equal((await learnAfterGate(root, s)).reason, "no_verified_gate_v");
+    assert.equal((await learnAfterGate(root, s)).reason, "no_changed_files");
   });
   it("optional Jev never receives code or paths and cannot veto verified indexing", async () => {
     const s = session();

@@ -468,10 +468,10 @@ function loadVerified(root) {
  * Gate V/C stores independently verified, source-exact atomic evidence.
  * It never creates broad topic files or sends source material to an LLM.
  */
-function learnVerifiedSnapshot(root, session, verifiedFiles) {
+function learnVerifiedSnapshot(root, session, verifiedFiles, learn = {}) {
   const index = readAtomic(root) || buildAtomic(root);
   const sourceSet = new Set(verifiedFiles.map(asUnix));
-  const snapshot = session.gates.V.snapshot;
+  const snapshot = learn.snapshot || session?.gates?.V?.snapshot || {};
   const existing = loadVerified(root);
   const added = [];
   for (const node of index.nodes) {
@@ -482,7 +482,7 @@ function learnVerifiedSnapshot(root, session, verifiedFiles) {
     added.push({
       id, name: node.name, kind: node.kind, group: "verified-atom",
       topic: node.topic, resource: node.resource, file: node.file, line: node.line,
-      sourceHash: node.sourceHash, source: "gate-v-c", confidence: "verified",
+      sourceHash: node.sourceHash, source: learn.source || "gate-v-c", confidence: learn.confidence || "verified",
       content: node.content, symbols: [node.name], paths: [node.file],
       verifiedAt: new Date().toISOString(),
     });
