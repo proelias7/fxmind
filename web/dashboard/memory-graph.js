@@ -146,7 +146,7 @@ export function mountMemoryGraph(host, data) {
     const xs=nodes.map(n=>n.x),ys=nodes.map(n=>n.y);
     const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
     const contentW=Math.max(120,maxX-minX+110),contentH=Math.max(100,maxY-minY+110);
-    view.scale=clamp(Math.min((size.w-42)/contentW,(size.h-50)/contentH),.26,2.3);
+    view.scale=clamp(Math.min((size.w-42)/contentW,(size.h-50)/contentH),.26,1.4); // small graphs stay at a readable size
     view.x=-(minX+maxX)/2*view.scale;
     view.y=-(minY+maxY)/2*view.scale;drawRequest();
   }
