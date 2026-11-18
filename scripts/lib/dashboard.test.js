@@ -9,7 +9,7 @@ const { buildPainelArgs } = require("../serve");
 describe("FXMIND management dashboard", () => {
   it("ships a maintained source instead of the old chat bundle", () => {
     assert.equal(hasDashboardSource(), true);
-    for (const filename of ["index.html", "dashboard.css", "dashboard.js", "design-system.css", "workspace.css", "memory-graph.js", "memory-graph.css", "orchestration-canvas.js", "controls.js", "logo.png", "favicon.png"]) {
+    for (const filename of ["index.html", "dashboard.css", "dashboard.js", "design-system.css", "memory-graph.js", "orchestration-canvas.js", "controls.js", "logo.png", "favicon.png"]) {
       const source = fs.readFileSync(path.join(DASHBOARD_SOURCE, filename));
       const published = fs.readFileSync(path.join(WEB_DIST, filename));
       assert.deepEqual(source, published, filename);

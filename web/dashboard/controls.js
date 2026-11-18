@@ -1,5 +1,6 @@
-// Impeccable · accessible, portal-based searchable select.
-// Keeps the original <select> as the form's source of truth.
+// Accessible, portal-based select. Keeps the original <select> as the form's
+// source of truth; the search box only appears on long lists.
+const SEARCH_FROM = 8;
 let open = null;
 const esc = x => String(x ?? '');
 function hide() {
@@ -36,7 +37,9 @@ function show(select,button) {
   search.placeholder=select.id==='project-select'?'Buscar projeto…':'Filtrar opções…';
   search.setAttribute('aria-label','Pesquisar opções');
   const items=document.createElement('div');items.className='fx-select-list';
-  pop.append(search,items);
+  const searchable=all.length>=SEARCH_FROM;
+  if(searchable)pop.append(search);
+  pop.append(items);pop.tabIndex=-1;
   document.body.append(pop);
   const state={select,button,pop,search,items,index:0,filtered:all};
   open=state;
@@ -71,11 +74,12 @@ function show(select,button) {
     hide();
     select.value=opt.value;
     button.querySelector('.fx-selected-label').textContent=opt.text;
+    // Focus first: a change handler may re-render and restore focus by field.
+    button.focus();
     select.dispatchEvent(new Event('change',{bubbles:true}));
-    if(button.isConnected)button.focus();
   }
   search.addEventListener('input',()=>{state.index=0;paint()});
-  search.addEventListener('keydown',e=>{
+  pop.addEventListener('keydown',e=>{
     if(e.key==='Escape'){e.preventDefault();hide();button.focus();}
     if(e.key==='ArrowDown'||e.key==='ArrowUp'){
       e.preventDefault();if(!state.filtered.length)return;
@@ -84,7 +88,9 @@ function show(select,button) {
     }
     if(e.key==='Enter'){e.preventDefault();choose(state.index);}
   });
-  place(pop,button);paint();search.focus();
+  state.index=Math.max(0,all.findIndex(x=>x.value===select.value));
+  place(pop,button);paint();(searchable?search:pop).focus();
+  items.children[state.index]?.scrollIntoView({block:'nearest'});
 }
 export function enhanceSelects(root=document){
   for(const select of root.querySelectorAll('select:not([data-enhanced])')){

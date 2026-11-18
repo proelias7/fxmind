@@ -70,14 +70,14 @@ describe("memory graph Canvas view", () => {
     assert.equal(v.meta.truncated,true);
     assert.ok(!Object.hasOwn(v.nodes[0],"sourcePaths"));
   });
-  it("dashboard links a real interactive module and offers Canvas / Projects tabs", () => {
+  it("dashboard opens on a real interactive canvas with a memories / fragments toggle", () => {
     const base=path.resolve(__dirname,"../../web/dashboard");
     const dashboard=fs.readFileSync(path.join(base,"dashboard.js"),"utf8");
     const canvas=fs.readFileSync(path.join(base,"memory-graph.js"),"utf8");
-    assert.match(dashboard,/memoryTab: 'canvas'/);
+    assert.match(dashboard,/page: 'memory'/);
     assert.match(dashboard,/graph\/view\?mode=/);
-    assert.match(dashboard,/view-canvas/);
-    assert.match(dashboard,/view-list/);
+    assert.match(dashboard,/data-action="graph-mode" data-id="'\+id\+'"/);
+    assert.match(dashboard,/seg\('memories','Memórias'\)\+seg\('fragments','Fragmentos'\)/);
     assert.match(canvas,/pointerdown/);
     assert.match(canvas,/ResizeObserver/);
     assert.match(canvas,/graph-detail-source/);

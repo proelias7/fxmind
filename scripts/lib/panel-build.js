@@ -13,7 +13,7 @@ const { execFileSync } = require("child_process");
 const PACKAGE_ROOT = path.join(__dirname, "..", "..");
 const WEB_DIST = path.join(PACKAGE_ROOT, "web", "dist");
 const DASHBOARD_SOURCE = path.join(PACKAGE_ROOT, "web", "dashboard");
-const DASHBOARD_FILES = ["index.html", "dashboard.js", "dashboard.css", "design-system.css", "workspace.css", "memory-graph.css", "memory-graph.js", "orchestration-canvas.js", "controls.js", "logo.png", "favicon.png"];
+const DASHBOARD_FILES = ["index.html", "dashboard.js", "dashboard.css", "design-system.css", "memory-graph.js", "orchestration-canvas.js", "controls.js", "logo.png", "favicon.png"];
 
 function hasDashboardSource() {
   return DASHBOARD_FILES.every((name) => fs.existsSync(path.join(DASHBOARD_SOURCE, name)));

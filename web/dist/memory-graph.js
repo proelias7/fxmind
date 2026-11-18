@@ -1,11 +1,9 @@
 /**
  * Interactive local knowledge graph canvas. Browser receives only the
  * memory-focused projection (never the full 30k+ symbol index).
+ * Colours are the design-system tokens: mint, amber and pink.
  */
-const palette = {
-  memory: '#7ee0b4', fact: '#f2b45a', resource: '#8797e7',
-  edge: 'rgba(151,165,177,.26)', text: '#eef1ef', muted: '#98a2a6',
-};
+const palette = { memory: '#7ee0b4', fact: '#f2b45a', resource: '#ff8fd6' };
 const clamp = (n,lo,hi) => Math.min(hi, Math.max(lo,n));
 function hash(str) {
   let h = 2166136261;
@@ -56,11 +54,11 @@ function layout(rawNodes,edges) {
 }
 export function mountMemoryGraph(host, data) {
   const canvas=host.querySelector('canvas');
-  if(!canvas)return {destroy(){},zoom(){},fit(){},setQuery(){}};
+  const inert={destroy(){},zoom(){},fit(){},setQuery(){},selectMatch(){}};
+  if(!canvas)return inert;
   const ctx=canvas.getContext('2d');
-  if(!ctx)return {destroy(){},zoom(){},fit(){},setQuery(){}};
+  if(!ctx)return inert;
   const details=host.querySelector('[data-graph-details]');
-  const tooltip=host.querySelector('[data-graph-tooltip]');
   const {nodes,links}=layout(data.nodes||[],data.links||[]);
   let selected=null,hovered=null,query='',dragged=null,dragPan=false,moved=false;
   let view={x:0,y:0,scale:1},size={w:0,h:0},alive=true,raf=0;
@@ -91,10 +89,7 @@ export function mountMemoryGraph(host, data) {
   }
   function draw(){
     if(!alive||!size.w||!size.h)return;
-    ctx.clearRect(0,0,size.w,size.h);
-    const grad=ctx.createRadialGradient(size.w*.5,size.h*.4,8,size.w*.5,size.h*.5,Math.max(size.w,size.h));
-    grad.addColorStop(0,'#141d24');grad.addColorStop(1,'#0d1118');
-    ctx.fillStyle=grad;ctx.fillRect(0,0,size.w,size.h);
+    ctx.clearRect(0,0,size.w,size.h); // the page behind the canvas is the background
     ctx.save();ctx.translate(size.w/2+view.x,size.h/2+view.y);ctx.scale(view.scale,view.scale);
     const focus=selected||hovered;
     const near=neighbours(focus);
@@ -109,8 +104,8 @@ export function mountMemoryGraph(host, data) {
     const minLabel=view.scale>=.73;
     ctx.textAlign='center';ctx.textBaseline='top';
     for(const n of nodes){
-      const matched=!query||([n.name,n.topic,n.content].join(' ').toLowerCase().includes(query));
-      const dim=(query&&!matched)||(focus&&!near.has(n.id));
+      const matched=matches(n);
+      const dim=focus?!near.has(n.id):!matched; // a selection outranks the search
       const main=n.group==='learned';
       const r=radius(n)+(selected===n?3:hovered===n?2:0);
       ctx.globalAlpha=dim?.18:1;
@@ -130,6 +125,7 @@ export function mountMemoryGraph(host, data) {
     }
     ctx.restore();
   }
+  function matches(n){return !query||[n.name,n.topic,n.content].join(' ').toLowerCase().includes(query);}
   function world(px,py){return {x:(px-size.w/2-view.x)/view.scale,y:(py-size.h/2-view.y)/view.scale};}
   function pointer(e){
     const rect=canvas.getBoundingClientRect();
@@ -160,26 +156,52 @@ export function mountMemoryGraph(host, data) {
     view.x=position.x-size.w/2-before.x*view.scale;
     view.y=position.y-size.h/2-before.y*view.scale;drawRequest();
   }
+  const kind=n=>n.group==='learned'?'MEMÓRIA':n.group==='memory-atom'?'FRAGMENTO':'RECURSO';
   function selectNode(node){
-    selected=node;
+    selected=node||null;
     if(details){
-      if(!node)details.innerHTML='<div class="graph-detail-empty">Selecione uma memória para ver seus vínculos e a origem.</div>';
-      else{
-        const related=new Set();
+      details.hidden=!selected;
+      if(selected){
+        const related=new Map();
         for(const e of links){
-          if(nodes[e.a].id===node.id)related.add(nodes[e.b].name);
-          if(nodes[e.b].id===node.id)related.add(nodes[e.a].name);
+          const a=nodes[e.a],b=nodes[e.b];
+          if(a===selected)related.set(b.id,b);
+          if(b===selected)related.set(a.id,a);
         }
-        details.innerHTML='<div class="graph-detail-kicker">'+(node.group==='learned'?'MEMÓRIA':node.group==='memory-atom'?'FRAGMENTO':'RECURSO')+'</div>'
-        +'<h3>'+safe(node.name)+'</h3>'
-        +(node.topic&&node.topic!==node.name?'<p class="graph-detail-topic">'+safe(node.topic)+'</p>':'')
-        +(node.content?'<p class="graph-detail-content">'+safe(node.content)+'</p>':'')
-        +(node.file?'<div class="graph-detail-source"><span>ORIGEM</span><code>'+safe(node.file)+(node.line?':'+node.line:'')+'</code></div>':'')
-        +'<div class="graph-detail-source"><span>LIGAÇÕES CONFIRMADAS ('+related.size+')</span><div>'+[...related].slice(0,14).map(x=>'<span class="graph-link-chip">'+safe(x.slice(0,32))+'</span>').join('')+(related.size>14?'<small>+'+(related.size-14)+' outras</small>':'')+'</div></div>';
+        const near=[...related.values()];
+        details.innerHTML='<button class="detail-close" type="button" data-graph-close aria-label="Fechar detalhes">×</button>'
+        +'<div class="graph-detail-kicker">'+kind(selected)+'</div>'
+        +'<h2>'+safe(selected.name)+'</h2>'
+        +(selected.topic&&selected.topic!==selected.name?'<p class="graph-detail-topic">'+safe(selected.topic)+'</p>':'')
+        +(selected.content?'<p class="graph-detail-content">'+safe(selected.content)+'</p>':'')
+        +(selected.file?'<div class="graph-detail-source"><span>ORIGEM</span><code>'+safe(selected.file)+(selected.line?':'+selected.line:'')+'</code></div>':'')
+        +(near.length?'<div class="graph-detail-source"><span>LIGAÇÕES · '+near.length+'</span><div class="graph-links">'
+          +near.slice(0,14).map(n=>'<button type="button" class="graph-link-chip" data-node="'+safe(n.id)+'">'+safe(String(n.name).slice(0,32))+'</button>').join('')
+          +(near.length>14?'<small>+'+(near.length-14)+'</small>':'')+'</div></div>':'');
+        details.scrollTop=0;
       }
     }
     drawRequest();
   }
+  // Centre the view on a node, leaving room for the details panel beside it.
+  function centre(node){
+    const open=details&&!details.hidden,sheet=open&&details.offsetWidth>=size.w*.6;
+    view.scale=Math.max(view.scale,.9);
+    view.x=-node.x*view.scale-(open&&!sheet?details.offsetWidth/2:0);
+    view.y=-node.y*view.scale-(sheet?details.offsetHeight/2:0);drawRequest();
+  }
+  function selectMatch(){
+    if(!query)return;
+    const hit=nodes.find(n=>n.group==='learned'&&matches(n))||nodes.find(matches);
+    if(hit){selectNode(hit);centre(hit);}
+  }
+  function onDetailsClick(e){
+    if(e.target.closest('[data-graph-close]')){selectNode(null);canvas.focus();return;}
+    const id=e.target.closest('[data-node]')?.dataset.node;
+    const node=id&&nodes.find(n=>n.id===id);
+    if(node){selectNode(node);centre(node);}
+  }
+  function onKey(e){if(e.key==='Escape'&&selected)selectNode(null);}
   function down(e) {
     canvas.setPointerCapture(e.pointerId);
     const pos=pointer(e);
@@ -228,11 +250,13 @@ export function mountMemoryGraph(host, data) {
   canvas.addEventListener('pointerup',up);
   canvas.addEventListener('pointercancel',up);
   canvas.addEventListener('wheel',wheel,{passive:false});
+  document.addEventListener('keydown',onKey);
+  details?.addEventListener('click',onDetailsClick);
   const observer=new ResizeObserver(onResize);
   observer.observe(canvas);
   updateSize();fit();
   return {
-    fit,zoom,setQuery,
+    fit,zoom,setQuery,selectMatch,
     destroy(){
       alive=false;observer.disconnect();
       if(raf)cancelAnimationFrame(raf);
@@ -241,6 +265,8 @@ export function mountMemoryGraph(host, data) {
       canvas.removeEventListener('pointerup',up);
       canvas.removeEventListener('pointercancel',up);
       canvas.removeEventListener('wheel',wheel);
+      document.removeEventListener('keydown',onKey);
+      details?.removeEventListener('click',onDetailsClick);
     },
   };
 }

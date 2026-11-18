@@ -4,11 +4,14 @@ Interface de gerenciamento do FXMIND. **Não inclui chat**: as conversas continu
 
 ## Código-fonte
 
-A dashboard agora tem fonte versionada neste repositório, em `web/dashboard/`:
+A dashboard tem fonte versionada neste repositório, em `web/dashboard/`:
 
-- `index.html`: estrutura e navegação;
-- `dashboard.css`: design responsivo;
-- `dashboard.js`: integração com APIs locais e formulários.
+- `index.html`: barra superior (projeto e três destinos) e a barra única de salvar;
+- `dashboard.js`: telas, integração com as APIs locais e rascunhos das configurações;
+- `memory-graph.js`: Canvas interativo das memórias;
+- `orchestration-canvas.js`: mapa de roteamento da orquestração;
+- `controls.js`: seletor acessível usado no lugar do `<select>` nativo;
+- `design-system.css`: tokens e controles; `dashboard.css`: layout.
 
 `web/dist/` é gerado por `npm run build:web` e incluído no pacote npm. O antigo bundle React de chat foi removido.
 
@@ -21,7 +24,15 @@ fxmind painel
 npm run dev
 ```
 
-Abre `http://localhost:3847/` com gestão de orquestração, CLIs, modelos, subagentes, provedores, projetos e estado da memória.
+Abre `http://localhost:3847/` direto no Canvas de memórias do projeto ativo.
+
+## Telas
+
+- **Memórias** (`/`): o Canvas ocupa a tela inteira. Busca e o modo (memórias ou fragmentos) flutuam sobre ele; os detalhes de um nó só aparecem quando ele é selecionado.
+- **Orquestração** (`/orchestration`): o mapa é o editor. Selecione um agente ou o roteador para editar no painel ao lado.
+- **Configurações** (`/settings`): agente, revisão, subagentes e provedores em uma página só.
+
+Não há botão de salvar por seção: qualquer alteração pendente mostra a barra **Salvar / Descartar**. As rotas do layout anterior (`/overview`, `/agents`, `/subagents`, `/providers`, `/projects`) continuam abrindo a tela correspondente.
 
 ## Configurações
 
@@ -38,22 +49,20 @@ A dashboard é servida apenas no loopback, pela aplicação FXMIND. Não exponha
 ## Design system
 
 A dashboard usa a identidade visual da página oficial em `docs/index.html`:
-- `web/dashboard/design-system.css`: tokens oficiais (`#0d0f14`, `#131821`, `#7ee0b4`), Nunito e Geist Mono, superfícies, navegação, campos e botões;
+- `web/dashboard/design-system.css`: tokens oficiais (`#0d0f14`, `#131821`, `#7ee0b4`), Nunito e Geist Mono, botões em pílula, campos, seletor, alternadores;
 - `web/dashboard/logo.png` e `favicon.png`: cópias byte a byte dos arquivos oficiais em `docs/assets/`;
-- `dashboard.css`: somente layout e comportamento responsivo. As regras de identidade estão em `design-system.css`.
+- `dashboard.css`: somente layout e comportamento responsivo.
 
-Os testes em `scripts/lib/dashboard.test.js` verificam os tokens e a identidade dos arquivos de marca para impedir divergências futuras.
+Regras do layout: páginas planas divididas por linhas finas, sem cards dentro de cards; uma ação primária por tela; nenhuma cor fora dos tokens. Os testes em `scripts/lib/dashboard.test.js` e `scripts/lib/dashboard-impeccable.test.js` verificam os tokens, os arquivos de marca e essas regras.
+
 ## Canvas de memórias
 
-Em **Projetos e memória → Canvas**, é possível explorar ligações confirmadas das memórias do projeto. O modo **Memórias e ligações** mostra os tópicos principais; **Fragmentos detalhados** exibe fatos atômicos, sua proveniência e recursos relacionados. Interações: arrastar, zoom, busca, seleção de nó, painel com arquivo e linha de origem.
+Interações: arrastar, zoom (roda do mouse, pinça ou botões), busca (Enter seleciona o primeiro resultado), seleção de nó, navegação pelas ligações no painel de detalhes e Esc para fechar. **Fragmentos** exibe fatos atômicos, sua proveniência e recursos relacionados.
 
-O endpoint `GET /api/projects/:id/graph/view?mode=memories|fragments` produz uma projeção compacta do índice existente, limitada a 420 nós, sem enviar os milhares de símbolos de código ao navegador. O botão **Gerar grafo** só executa uma reconstrução por ação explícita.
+O endpoint `GET /api/projects/:id/graph/view?mode=memories|fragments` produz uma projeção compacta do índice existente, limitada a 420 nós, sem enviar os milhares de símbolos de código ao navegador. **Gerar grafo** só aparece quando o projeto ainda não tem grafo e só executa por ação explícita.
 
-Arquivos: `scripts/lib/panel-graph-view.js`, `web/dashboard/memory-graph.js` e `memory-graph.css`.
-## Fluxo de design (Impeccable)
+Arquivos: `scripts/lib/panel-graph-view.js` e `web/dashboard/memory-graph.js`.
 
-A interface FXMIND mantém o design system oficial em `web/dashboard/design-system.css`; o arquivo `workspace.css` aplica a hierarquia de operação, responsividade e componentes da dashboard. O plugin Claude respeita as mesmas superfícies, sem alterar as preferências de chat.
+## Orquestração
 
-Para novas alterações do frontend, use a skill **Impeccable** com foco em `layout`, `adapt`, `harden` e `polish`, preservando a identidade já definida. Valide num único ciclo as telas desktop e mobile, estados de foco/hover, combobox com teclado, Canvas e ausência de overflow. Evite usar cores novas ou componentes nativos visualmente desconexos sem justificativa.
-
-O mapa de orquestração exibe **regras de roteamento configuradas**; não representa as dependências reais de uma execução. A edição dos nós salva por meio da API de orquestração existente.
+O mapa exibe **regras de roteamento configuradas**; não representa as dependências reais de uma execução. A edição dos nós salva por meio da API de orquestração existente.
