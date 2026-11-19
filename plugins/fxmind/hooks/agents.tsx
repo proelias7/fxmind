@@ -312,7 +312,11 @@ function mapCard(d: AgentsDraw, modules: readonly Module[], links: readonly stri
         <Box flexGrow={1} />
         <Text dimColor>{`${modules.length} part${modules.length === 1 ? '' : 's'} touched`}</Text>
       </Box>
-      {Svg ? <Svg source={mapSvg(modules, links)} alt={`map of ${modules.length} parts of the code`} width={MAP_W} height={MAP_H} /> : null}
+      {Svg ? (
+        <Box alignItems="center" overflow="hidden">
+          <Svg source={mapSvg(modules, links)} alt={`map of ${modules.length} parts of the code`} width={MAP_W} height={MAP_H} />
+        </Box>
+      ) : null}
       {modules.map(m => {
         const isOpen = d.module === m.key
         const lead = m.live.length ? m.live.map(a => a.type).join(', ') : m.edited ? 'changed' : 'read'
@@ -491,11 +495,11 @@ function agentCard(d: AgentsDraw, a: AgentRec) {
       <Box position="relative" flexDirection="column">
         <Box position="absolute" top={0} left={0} />
         <Box flexDirection="row">
-          <Text color={look.color} bold>{a.parentId ? `└ ${a.type}` : a.type}</Text>
+          <Box flexShrink={0}><Text color={look.color} bold wrap="truncate">{a.parentId ? `└ ${a.type}` : a.type}</Text></Box>
           <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
             <Text color={TEXT} wrap="truncate">{`  ${a.task}`}</Text>
           </Box>
-          {a.endedAt ? <Text color={DIM}>{`  ${clockText(a.endedAt - a.startedAt)}`}</Text> : null}
+          {a.endedAt ? <Box flexShrink={0}><Text color={DIM} wrap="truncate">{`  ${clockText(a.endedAt - a.startedAt)}`}</Text></Box> : null}
         </Box>
         {agentLine(d, a)}
         {isOpen ? (
@@ -550,7 +554,7 @@ function doneCard(d: AgentsDraw, done: readonly AgentRec[]) {
       <Box position="relative" flexDirection="column">
         <Box position="absolute" top={0} left={0} />
         <Box flexDirection="row">
-          <Text color={look.color} bold>{`✓ ${done.length} done`}</Text>
+          <Box flexShrink={0}><Text color={look.color} bold wrap="truncate">{`✓ ${done.length} done`}</Text></Box>
           <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
             <Text dimColor wrap="truncate">  reported back</Text>
           </Box>
@@ -622,11 +626,11 @@ function orchestrationSubtaskCard(d: AgentsDraw, st: OrchestrationSubtask, sessi
       <Box position="relative" flexDirection="column">
         <Box position="absolute" top={0} left={0} />
         <Box flexDirection="row">
-          <Text color={look.color} bold>{`#${st.index} ${st.type}`}</Text>
+          <Box flexShrink={0}><Text color={look.color} bold wrap="truncate">{`#${st.index} ${st.type}`}</Text></Box>
           <Box flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
             <Text color={TEXT} wrap="truncate">{`  ${st.description}`}</Text>
           </Box>
-          {elapsed ? <Text color={DIM}>{`  ${elapsed}`}</Text> : null}
+          {elapsed ? <Box flexShrink={0}><Text color={DIM} wrap="truncate">{`  ${elapsed}`}</Text></Box> : null}
         </Box>
         <Text dimColor wrap="truncate">{statusLine}</Text>
         {isOpen && (st.error || st.result) ? (
@@ -653,11 +657,11 @@ function orchestrationBanner(d: AgentsDraw, session: OrchestrationSession) {
     : session.status === 'running' ? `running ${doneCount}/${total}`
     : `${session.status} ${doneCount}/${total}`
   return (
-    <Box key="agents-orch-head" flexDirection="column" paddingX={1} backgroundColor={CARD_BG} borderStyle="round" borderColor={CARD_EDGE}>
+    <Box key="agents-orch-head" position="relative" flexDirection="column" paddingX={1} overflow="hidden" backgroundColor={CARD_BG} borderStyle="round" borderColor={CARD_EDGE}>
       <Box flexDirection="row">
-        <Text color={accent()} bold>Orchestration</Text>
+        <Box flexShrink={0}><Text color={accent()} bold wrap="truncate">Orchestration</Text></Box>
         <Box flexGrow={1} />
-        <Text dimColor>{`${session.strategy} · ${statusTag}`}</Text>
+        <Box flexShrink={0}><Text dimColor wrap="truncate">{`${session.strategy} · ${statusTag}`}</Text></Box>
       </Box>
       <Text color={TEXT} wrap="truncate">{session.task}</Text>
     </Box>
@@ -675,12 +679,14 @@ export function agentsPane(d: AgentsDraw, agents: readonly AgentRec[]) {
   const { live, done } = splitAgents(agents)
   const mood = moodOf(all)
   // One row of the desktop pane is about 19 px; the background is drawn a little taller than the body.
-  const tall = Math.max(240, (d.rows + 2) * 19)
+  // The wash is wider and taller than the pane, pinned to the corner its glow is centred on, so the pane never shows its edge.
+  const tall = Math.max(480, (d.rows + 12) * 19)
+  const wide = 720
   return (
     <Box key="agents" position="relative" flexDirection="column" height={d.rows} overflow="hidden" backgroundColor={tintHex(PANE_BG)}>
       {Svg ? (
-        <Box key="agents-wash" position="absolute" top={0} left={0} right={0} bottom={0}>
-          <Svg source={paneWashSvg(mood, 400, tall)} alt={`agents ${mood}`} width={400} height={tall} />
+        <Box key="agents-wash" position="absolute" right={0} bottom={0}>
+          <Svg source={paneWashSvg(mood, wide, tall)} alt={`agents ${mood}`} width={wide} height={tall} />
         </Box>
       ) : null}
       {Svg ? (
