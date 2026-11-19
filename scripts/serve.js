@@ -249,7 +249,19 @@ async function handleApi(req, res, url) {
     return sendJson(res, 200, {
       ...panel.getHealth(),
       ...workspacePayload({ quick }),
+      build: BUILD_ID,
+      pid: process.pid,
     });
+  }
+
+  // Lets a newer fxmind replace this server after an update. Loopback only.
+  if (req.method === "POST" && pathname === "/api/shutdown") {
+    if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/i.test(String(req.headers.host || ""))) {
+      return sendJson(res, 403, { error: "forbidden" });
+    }
+    sendJson(res, 200, { ok: true });
+    setTimeout(() => process.exit(0), 100);
+    return;
   }
 
   if (req.method === "GET" && pathname === "/api/workspace") {
@@ -1215,7 +1227,7 @@ function serveStatic(req, res, url) {
   const ext = path.extname(target).toLowerCase();
   const type = MIME[ext] || "application/octet-stream";
   const data = fs.readFileSync(target);
-  res.writeHead(200, { "Content-Type": type, "Content-Length": data.length });
+  res.writeHead(200, { "Content-Type": type, "Content-Length": data.length, "Cache-Control": "no-cache" });
   res.end(data);
 }
 
@@ -1235,15 +1247,65 @@ function openBrowser(port, openPath = "/") {
 }
 
 async function isPanelUp(port) {
+  return Boolean((await panelStatus(port)).up);
+}
+
+/**
+ * Identity of the code this process serves: package version plus the built
+ * dashboard files. Taken once at startup, so a server that outlives an update
+ * reports the old value and can be told apart from a fresh one.
+ */
+function computeBuildId() {
+  let version = "";
+  try { version = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8")).version; } catch {}
+  const parts = [version];
+  try {
+    for (const name of fs.readdirSync(WEB_DIST).sort()) {
+      const stat = fs.statSync(path.join(WEB_DIST, name));
+      parts.push(name + ":" + stat.size + ":" + Math.round(stat.mtimeMs));
+    }
+  } catch {}
+  return require("node:crypto").createHash("sha1").update(parts.join("|")).digest("hex").slice(0, 12);
+}
+const BUILD_ID = computeBuildId();
+
+/** Whether a panel answers on the port, and which build it is (absent on servers that predate build ids). */
+async function panelStatus(port) {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/health`, {
       signal: AbortSignal.timeout(1500),
     });
     const data = await res.json();
-    return data.service === "fxmind-panel";
+    return { up: data.service === "fxmind-panel", build: data.build || null };
   } catch {
-    return false;
+    return { up: false, build: null };
   }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Picks the port to serve on. A panel left running from before an update is
+ * asked to shut down; one that predates the shutdown endpoint cannot be, so
+ * the next free port is used instead of reusing its old code.
+ */
+async function resolvePanelPort(port) {
+  const first = await panelStatus(port);
+  if (!first.up) return { port, reuse: false };
+  if (first.build === BUILD_ID) return { port, reuse: true };
+  try {
+    await fetch(`http://127.0.0.1:${port}/api/shutdown`, { method: "POST", signal: AbortSignal.timeout(1500) });
+  } catch {}
+  for (let i = 0; i < 12; i += 1) {
+    await sleep(150);
+    if (!(await panelStatus(port)).up) return { port, reuse: false };
+  }
+  for (let next = port + 1; next <= Math.min(65535, port + 9); next += 1) {
+    const status = await panelStatus(next);
+    if (!status.up) return { port: next, reuse: false };
+    if (status.build === BUILD_ID) return { port: next, reuse: true };
+  }
+  return { port, reuse: true };
 }
 
 function createServer() {
@@ -1350,7 +1412,8 @@ function runServeCli(argv = []) {
     return 0;
   }
 
-  isPanelUp(options.port).then(async (up) => {
+  resolvePanelPort(options.port).then(async ({ port, reuse: up }) => {
+    options.port = port;
     if (up) {
       const attached = await attachWorkspace(options.port, workspaceRoot);
       if (attached?.workspaceRoot) workspaceRoot = attached.workspaceRoot;
@@ -1402,6 +1465,9 @@ module.exports = {
   WEB_DIST,
   DEFAULT_PORT,
   isPanelUp,
+  panelStatus,
+  resolvePanelPort,
+  BUILD_ID,
   attachWorkspace,
   openBrowser,
   parseArgs,

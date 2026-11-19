@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { setTimeout: delay } = require("node:timers/promises");
-const { isPanelUp, attachWorkspace, openBrowser, DEFAULT_PORT } = require("../serve");
+const { isPanelUp, resolvePanelPort, attachWorkspace, openBrowser, DEFAULT_PORT } = require("../serve");
 
 function parseOpenArgs(argv = []) {
   const out = { root: process.cwd(), port: DEFAULT_PORT, open: true };
@@ -31,12 +31,18 @@ function parseOpenArgs(argv = []) {
  */
 async function openPanel(argv = [], dependencies = {}) {
   const opts = parseOpenArgs(argv);
+  // A panel left running from before an update is replaced, never reused as is.
+  const resolve = dependencies.healthy
+    ? async (port) => ({ port, reuse: await dependencies.healthy(port) })
+    : resolvePanelPort;
   const healthy = dependencies.healthy || isPanelUp;
   const attach = dependencies.attach || attachWorkspace;
   const launchBrowser = dependencies.browser || openBrowser;
   const spawnServer = dependencies.spawn || spawn;
   let started = false;
-  if (!(await healthy(opts.port))) {
+  const chosen = await resolve(opts.port);
+  opts.port = chosen.port;
+  if (!chosen.reuse) {
     const script = path.resolve(__dirname, "..", "serve.js");
     const child = spawnServer(process.execPath, [script, "--port", String(opts.port), "--cwd", opts.root], {
       cwd: opts.root,

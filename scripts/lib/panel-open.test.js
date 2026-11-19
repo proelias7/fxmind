@@ -63,3 +63,38 @@ describe("panel-open starts the dashboard before launching a browser",()=>{
     assert.equal(browsers,0);
   });
 });
+
+describe("a panel left running from before an update is replaced",()=>{
+  const http=require("node:http");
+  const { resolvePanelPort }=require("../serve");
+  const fake=(build,onShutdown)=>new Promise(resolve=>{
+    const server=http.createServer((req,res)=>{
+      if(req.url==="/api/shutdown"){res.end("{}");onShutdown?.(server);return;}
+      res.setHeader("Content-Type","application/json");
+      res.end(JSON.stringify({service:"fxmind-panel",build}));
+    });
+    server.listen(0,"127.0.0.1",()=>resolve(server));
+  });
+  it("shuts a stale server down and serves on the same port",async()=>{
+    const stale=await fake("old",s=>{s.close();s.closeAllConnections()});
+    const port=stale.address().port;
+    const chosen=await resolvePanelPort(port);
+    assert.deepEqual(chosen,{port,reuse:false});
+  });
+  it("moves to the next port when a stale server cannot be stopped",async()=>{
+    const stale=await fake("old");
+    const port=stale.address().port;
+    const chosen=await resolvePanelPort(port);
+    stale.close();stale.closeAllConnections();
+    assert.equal(chosen.reuse,false);
+    assert.ok(chosen.port>port&&chosen.port<=port+9);
+  });
+  it("reuses a server that already runs this build",async()=>{
+    const { BUILD_ID }=require("../serve");
+    const current=await fake(BUILD_ID);
+    const port=current.address().port;
+    const chosen=await resolvePanelPort(port);
+    current.close();current.closeAllConnections();
+    assert.deepEqual(chosen,{port,reuse:true});
+  });
+});
