@@ -663,7 +663,8 @@ function orchestrationBanner(d: AgentsDraw, session: OrchestrationSession) {
         <Box flexGrow={1} />
         <Box flexShrink={0}><Text dimColor wrap="truncate">{`${session.strategy} · ${statusTag}`}</Text></Box>
       </Box>
-      <Text color={TEXT} wrap="truncate">{session.task}</Text>
+      {/* Waiting for the person's yes: the whole goal is read here, since the band above the prompt only holds the buttons. */}
+      <Text color={TEXT} wrap={session.status === 'awaiting_approval' ? 'wrap' : 'truncate'}>{session.task}</Text>
     </Box>
   )
 }

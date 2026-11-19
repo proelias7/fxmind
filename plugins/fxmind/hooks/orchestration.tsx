@@ -176,40 +176,15 @@ export async function orchestrationBand($: EngineInterface, e: RenderInput<'Abov
   const session = await read($, orchestrationState)
   if (!session || session.status !== 'awaiting_approval') return null
 
-  const { Button, Text } = themedEls($.ui.resolve(e))
+  const { Button } = themedEls($.ui.resolve(e))
   const count = session.subtasks.length
-  const detail = `${count} subtask${count === 1 ? '' : 's'} · strategy: ${session.strategy}`
-
-  const rows: unknown[][] = [
-    [
-      <Text key="orch-goal" bold wrap="truncate">
-        {session.task}
-      </Text>,
-    ],
-  ]
-
-  const preview = session.subtasks.slice(0, 4)
-  for (const st of preview) {
-    const deps = st.dependsOn.length ? ` (after ${st.dependsOn.join(', ')})` : ''
-    const badge = `[${st.provider || 'agent'} · ${st.effort || 'medium'}]`
-    rows.push([
-      <Text key={`orch-st-${st.id}`} dimColor wrap="truncate">
-        {`${st.index}. ${st.description} ${badge}${deps}`}
-      </Text>,
-    ])
-  }
-  if (session.subtasks.length > preview.length) {
-    rows.push([
-      <Text key="orch-more" dimColor>
-        {`+${session.subtasks.length - preview.length} more subtask(s)`}
-      </Text>,
-    ])
-  }
+  // The goal and the subtasks are long: they are read in the side panel (agentsPane). Here only the decision.
+  const detail = `${count} subtask${count === 1 ? '' : 's'} · ${session.strategy} · details in the side panel`
 
   return frame({
     title: 'Multi-Agent Orchestration',
     detail,
-    rows,
+    rows: [],
     actions: [
       <Button
         key="orch-cancel"
