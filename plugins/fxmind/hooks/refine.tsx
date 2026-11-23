@@ -351,7 +351,7 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
     return frame({
       title,
       detail: now.stage === 'reading' ? 'reading the demand…' : 'writing the prompt…',
-      rows: [[<Text key="refine-demand" dimColor wrap="truncate">{stripReminders(now.demand).replace(/\s+/g, ' ').slice(0, 160)}</Text>]],
+      rows: [], // just the title and its state; the demand is not repeated here
       actions: [],
     })
   }
