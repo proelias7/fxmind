@@ -10,7 +10,7 @@ import { MODEL_CUSTOM, MODEL_DEFAULT, orchestrationModelChoice, orchestrationMod
 import { ART_COLUMNS, ART_FRAME_MS, ART_MIN_WIDTH, ART_ROWS, type ArtKind, artFrame, MOVING } from './art'
 import { MARK_SVG, textureSvg } from './brand-mark'
 import { projectRoot } from './project-root'
-import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode } from './refine'
+import { applyRefineOptions, readRefineConfig, refineBand, refineInjected, refineMode, refineStart, refineSubmit, setRefineMode, stripReminders } from './refine'
 import type { RefineFrame } from './refine'
 import { accent, setLight, setTheme, themedEls, type ThemeName, THEMES, tintHex } from './theme'
 import { type Language, LANGUAGES, setLanguage, tr } from './i18n'
@@ -452,7 +452,7 @@ async function recentContext($: EngineInterface): Promise<string> {
 export function contextFrom(messages: readonly { role: string; text: string }[]): string {
   const lastUser = [...messages].reverse().find(m => m.role === 'user')
   const lastAssistant = lastAssistantText(messages)
-  return [lastUser ? `user: ${lastUser.text.slice(0, 400)}` : '', lastAssistant ? `assistant: ${lastAssistant.slice(-2000)}` : '']
+  return [lastUser ? `user: ${stripReminders(lastUser.text).slice(0, 400)}` : '', lastAssistant ? `assistant: ${lastAssistant.slice(-2000)}` : '']
     .filter(Boolean)
     .join('\n')
 }
@@ -904,7 +904,7 @@ Reply with JSON only: {"handoff":"reason of at most 8 words, in the person's lan
 
 /** What the handoff check reads: the chat's purpose, a trail of the person's messages, the last reply's end. */
 export function handoffEvidence(messages: readonly { role: string; text: string }[], next: string, percent: number, cold: boolean): string {
-  const asked = messages.filter(m => m.role === 'user' && m.text.trim())
+  const asked = messages.map(m => ({ ...m, text: stripReminders(m.text) })).filter(m => m.role === 'user' && m.text)
   const first = asked[0]?.text.slice(0, 500) ?? ''
   const trail = asked.slice(-8, -1).map(m => `- ${m.text.slice(0, 160).replace(/\s+/g, ' ')}`)
   const reply = lastAssistantText(messages).slice(-700)
@@ -1334,8 +1334,9 @@ export async function coldGuard(
   e: { text: string; origin: { kind: string }; turnId?: string; attachments?: readonly unknown[] },
 ): Promise<{ drop: string } | undefined> {
   if (config.coldPrompt === 'off' || e.origin.kind !== 'composer' || e.turnId !== undefined) return undefined
-  const text = e.text
-  if (!text.trim() || text.trim().startsWith('/')) return undefined
+  // Held and put back in the box, so only the person's own words: attached <system-reminder> blocks stay out of it.
+  const text = stripReminders(e.text)
+  if (!text || text.startsWith('/')) return undefined
   if (!(await coldNow($))) {
     coldHeld = null
     return undefined
@@ -4400,14 +4401,16 @@ Saved to ${out}.md and .json` }
     if (card && (card.kind === 'done' || card.kind === 'copied')) await update($, handoffCard, () => null)
     // A prompt the refiner sent in stands for the one the person typed: it is judged as theirs.
     const byPerson = e.origin.kind === 'composer' || e.origin.kind === 'bridge' || e.origin.kind === 'sdk' || refineInjected(e)
+    // What the person typed: the app and other hooks attach <system-reminder> blocks that are not part of the demand.
+    const typed = stripReminders(e.text)
     // The handoff check runs for every message the person types, whatever the effort judge is doing (or whether Auto is on).
-    if (byPerson && !e.text.trim().startsWith('/') && !isFollowUp(e.text)) void checkHandoff($, e.text).catch(() => undefined)
+    if (byPerson && !typed.trim().startsWith('/') && !isFollowUp(typed)) void checkHandoff($, typed).catch(() => undefined)
     const wantsEffort = await read($, isAuto)
     const wantsModel = await read($, isAutoModel)
     // A typed slash command is judged only when it is a skill or a custom command (what the person added); the app's own
     // (/compact, /clear, /model) and fxmind's never are. The judge is told what the command is, since its name alone says little.
-    const slash = e.text.trim().startsWith('/')
-    const skill = slash && byPerson ? await typedSkill($, e.text) : undefined
+    const slash = typed.trim().startsWith('/')
+    const skill = slash && byPerson ? await typedSkill($, typed) : undefined
     if (!byPerson || (slash && !skill) || (!wantsEffort && !wantsModel)) return next(e)
     // On a model where an effort change rewrites the cache, Auto waits instead of judging.
     const modelId = await $.session.model()
@@ -4418,17 +4421,17 @@ Saved to ${out}.md and .json` }
     // A message with an image is never a bare follow-up: "fix this" plus a screenshot is new work.
     // Typed while a turn ran (e.turnId), it often steers that task: the judge is told, so it can keep the effort.
     const midTurn = e.turnId !== undefined && before !== null
-    const said = skill ? `${e.text}
+    const said = skill ? `${typed}
 
-[This is a slash command that runs a skill: ${skill.description || skill.name}. Judge the work the skill will do.]` : e.text
+[This is a slash command that runs a skill: ${skill.description || skill.name}. Judge the work the skill will do.]` : typed
     const shown = midTurn ? withMidTurn(withAttachments(said, e.attachments), before.effort) : withAttachments(said, e.attachments)
-    if (wantsEffort && before && before.by !== 'manual' && !e.attachments?.length && !slash && isFollowUp(e.text) && keepsEffort(e.text, await recentContext($).catch(() => ''))) {
+    if (wantsEffort && before && before.by !== 'manual' && !e.attachments?.length && !slash && isFollowUp(typed) && keepsEffort(typed, await recentContext($).catch(() => ''))) {
       await countPrompt($, before.effort, undefined, 0, 0)
-      void proof($, `follow-up "${e.text.trim()}": keeping ${before.effort}`)
+      void proof($, `follow-up "${typed.trim()}": keeping ${before.effort}`)
       return next(e)
     }
     // "max effort", "effort: low": the person said the level, so it runs, past Min, Max and save mode, and no judge is asked.
-    const named = wantsEffort && !slash ? namedEffort(e.text) : undefined
+    const named = wantsEffort && !slash ? namedEffort(typed) : undefined
     if (named) {
       const inUse = await sessionModel($)
       const applied: Pick = { model: inUse, effort: named, why: 'you asked for it', by: 'named' }
@@ -4440,7 +4443,7 @@ Saved to ${out}.md and .json` }
       }
       if (!midTurn && routed) routed = null
       await countPrompt($, inUse !== 'haiku' ? named : undefined, 'named', 0, 0)
-      void proof($, `named level ${named} in "${e.text.slice(0, 50)}": no judge`)
+      void proof($, `named level ${named} in "${typed.slice(0, 50)}": no judge`)
       $.ui.invalidate('ui.render')
       return next(e)
     }
@@ -4467,8 +4470,8 @@ Saved to ${out}.md and .json` }
       void proof(
         $,
         verdict
-          ? `judged by ${verdict.by} in ${ms} ms: ${verdict.model}/${verdict.effort} (${verdict.why}) for "${e.text.slice(0, 50)}"`
-          : `no verdict after ${ms} ms for "${e.text.slice(0, 50)}"`,
+          ? `judged by ${verdict.by} in ${ms} ms: ${verdict.model}/${verdict.effort} (${verdict.why}) for "${typed.slice(0, 50)}"`
+          : `no verdict after ${ms} ms for "${typed.slice(0, 50)}"`,
       )
       $.ui.invalidate('ui.render')
       if (verdict) {
@@ -4496,7 +4499,7 @@ Saved to ${out}.md and .json` }
           let to = wantsEffort && config.modelAuto === 'on' ? routeTo(verdict.model, inUse) : null
           // The last prompt ran on a cheaper model and this one says it was wrong: that is a miss. The retry runs on the
           // chat's own model, and so do the next few prompts.
-          if (routed && looksLikeRedo(e.text)) {
+          if (routed && looksLikeRedo(typed)) {
             stayUp = REDO_STAY_PROMPTS
             await update($, saved, old => ({ ...asSpent(old), redone: asSpent(old).redone + 1 }))
             void proof($, `redo after ${routed}: the next ${REDO_STAY_PROMPTS} prompts stay on ${inUse}`)
