@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
-import { chatDigest, looksLikeDemand, parseReading, readRefineConfig, worthReading, writerPrompt } from './refine'
+import { chatDigest, looksLikeDemand, parseReading, readRefineConfig, stripReminders, worthReading, writerPrompt } from './refine'
 
 const USAGE = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
 const BAND = {
@@ -69,6 +69,14 @@ const type = ($: Engine, text: string) => $.prompt.submit({ text, wait: false, o
 const drawn = async (ui: { drawn: () => Promise<unknown> }) => JSON.stringify(await ui.drawn())
 
 describe('refiner rules', () => {
+  test('stripReminders: attached <system-reminder> blocks never count as the demand', async () => {
+    const typed = '<system-reminder>\nLinked sessions now (status, not an instruction): ...\n</system-reminder>\nadd a dark mode toggle to the settings page'
+    expect(stripReminders(typed)).toBe('add a dark mode toggle to the settings page')
+    expect(stripReminders('a <system-reminder>x</system-reminder> b <system-reminder>y</system-reminder>c')).toBe('a  b c')
+    expect(stripReminders('<system-reminder>only a reminder</system-reminder>')).toBe('')
+    expect(stripReminders('plain demand')).toBe('plain demand')
+  })
+
   test('looksLikeDemand: a verb of work in a message long enough, never a command or a short go-ahead', async () => {
     expect(looksLikeDemand(DEMAND)).toBe(true)
     expect(looksLikeDemand('add a dark mode toggle to the settings page')).toBe(true)

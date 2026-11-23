@@ -65,6 +65,15 @@ export function readRefineConfig(options: unknown): RefineConfig {
 const BUILD_WORDS =
   /\b(implement\w*|cri[ea]\w*|adicion\w*|desenvolv\w*|constru\w*|mont[ea]\w*|fa[çc]a|fazer|refator\w*|corrij\w*|corrig\w*|consert\w*|integr\w*|migr\w*|port[ea]\w*|troqu\w*|substitu\w*|remov\w*|configur\w*|atualiz\w*|melhor\w*|add|build|create|make|write|refactor\w*|fix\w*|change|update|remove|replace|migrate|integrate|port|set up|wire)\b/i
 
+/** The person's own words: the app and other hooks attach <system-reminder> blocks to a message, and those are
+ * neither a demand to refine nor something to show in the band. */
+export function stripReminders(text: string): string {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+    .replace(/<\/?system-reminder>/gi, '')
+    .trim()
+}
+
 /** Whether a typed message could be a demand to build: long enough to be one, not a command, with a verb of work. */
 export function looksLikeDemand(text: string): boolean {
   const said = text.trim()
@@ -281,7 +290,7 @@ export async function refineSubmit(
 ): Promise<{ drop: string } | undefined> {
   try {
     if (e.origin.kind !== 'composer') return undefined
-    const said = e.text.trim()
+    const said = stripReminders(e.text)
     // A slash command is never a demand nor an answer.
     if (!said || said.startsWith('/')) return undefined
     const now = await read($, state)
@@ -307,7 +316,7 @@ export async function refineSubmit(
     const reading = reply ? parseReading(reply) : undefined
     // Not a demand, or the reader failed: the prompt goes on as typed.
     if (!reading?.implement) return undefined
-    await set($, { stage: 'asking', demand: e.text, questions: reading.questions, at: 0 })
+    await set($, { stage: 'asking', demand: said, questions: reading.questions, at: 0 })
     if (!reading.questions.length) {
       void write($).catch(() => undefined)
       return { drop: tr('fxmind: the demand is clear, writing the refined prompt…') }
@@ -342,7 +351,7 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
     return frame({
       title,
       detail: now.stage === 'reading' ? 'reading the demand…' : 'writing the prompt…',
-      rows: [[<Text key="refine-demand" dimColor wrap="truncate">{now.demand.trim().replace(/\s+/g, ' ').slice(0, 160)}</Text>]],
+      rows: [[<Text key="refine-demand" dimColor wrap="truncate">{stripReminders(now.demand).replace(/\s+/g, ' ').slice(0, 160)}</Text>]],
       actions: [],
     })
   }
