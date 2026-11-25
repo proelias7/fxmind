@@ -120,14 +120,16 @@ describe("mcp launch check", () => {
     fs.writeFileSync(path.join(npxBin, "fxmind-mcp"), "");
     try {
       const entry = { command: "fxmind-mcp", env: {} };
+      // Real platform and delimiter: Windows paths carry a drive colon.
+      const platform = process.platform;
       const onlyNpx = { PATH: npxBin };
-      assert.equal(mcp.commandOnPath("fxmind-mcp", onlyNpx, "linux"), false);
-      assert.match(mcp.mcpLaunchWarnings(entry, onlyNpx, "linux").join(""), /not on PATH/);
+      assert.equal(mcp.commandOnPath("fxmind-mcp", onlyNpx, platform), false);
+      assert.match(mcp.mcpLaunchWarnings(entry, onlyNpx, platform).join(""), /not on PATH/);
 
       fs.writeFileSync(path.join(globalBin, "fxmind-mcp"), "");
-      const withGlobal = { PATH: [npxBin, globalBin].join(":") };
-      assert.equal(mcp.commandOnPath("fxmind-mcp", withGlobal, "linux"), true);
-      assert.deepEqual(mcp.mcpLaunchWarnings(entry, withGlobal, "linux"), []);
+      const withGlobal = { PATH: [npxBin, globalBin].join(path.delimiter) };
+      assert.equal(mcp.commandOnPath("fxmind-mcp", withGlobal, platform), true);
+      assert.deepEqual(mcp.mcpLaunchWarnings(entry, withGlobal, platform), []);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

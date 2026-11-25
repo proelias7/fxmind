@@ -54,7 +54,7 @@ test("Dashboard: orchestration map edits configured rules and the router default
  const page=source("dashboard.js");
  assert.match(svg,/data-flow-agent/);
  assert.match(svg,/data-flow-router/);
- assert.match(svg,/Edges are routing rules, not the\n\/\/ dependencies of a real run/);
+ assert.match(svg,/Edges are routing rules, not the\r?\n\/\/ dependencies of a real run/);
  assert.match(page,/flowCanvas\(c,active,idx,narrow\.matches\)/);
  assert.match(page,/orch\.rule\.'\+idx\+'\.provider/);
  assert.match(page,/'orch\.defaultProvider'/);
