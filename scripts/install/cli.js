@@ -43,6 +43,7 @@ Recommended (install once globally, then use short command):
   fxmind --update -y
   fxmind graph               Build 3D knowledge graph + open browser
   fxmind graph --no-open     Build graph files only
+  fxmind health [--fix]      Check setup, memories, playbooks and graph; --fix repairs moved paths, hooks, graph
   fxmind panel-open           Inicia/reutiliza o painel e abre após confirmar saúde
   fxmind painel [--open]      Painel web local (Dashboard de gestão + API; abre /)
   fxmind serve --api-only     Dev: só API (UI via npm run dev)

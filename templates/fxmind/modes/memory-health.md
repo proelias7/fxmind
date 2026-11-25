@@ -29,6 +29,10 @@ If no `memory/` files exist → reply suggesting `/fxmind learn <topic>` first; 
 | `.fxmind/memory/<topic>.md` | Each topic to verify |
 | `.fxmind/graph/knowledge-graph.json` | If present — graph drift vs memories |
 
+## Step 2b — Deterministic repairs first
+
+Call MCP `fxmind_health { fix: true }` (or run `fxmind health --fix`). It rewrites paths of files that **moved** to a unique new location (memories and playbooks), the prompt hook and the graph, without an LLM. Then verify only what it left as `warn` — files gone or ambiguous, empty `paths[]` — in the steps below.
+
 ## Step 3 — Verify each memory (evidence required)
 
 For every topic file, extract and validate:

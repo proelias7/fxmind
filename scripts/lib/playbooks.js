@@ -481,7 +481,7 @@ function kindLine(plan) {
 
 function staleLine(plan) {
   if (!plan.stale) return "";
-  return `Playbook \`${plan.stale.id}\` matched but is stale (${plan.stale.problems.join("; ")}). Use the memory flow, then fix or re-teach it (\`.fxmind/modes/teach.md\`).`;
+  return `Playbook \`${plan.stale.id}\` matched but is stale (${plan.stale.problems.join("; ")}). Use the memory flow. Moved files: \`fxmind_health { fix: true }\` (or \`fxmind health --fix\`) repairs them; a changed anchor: re-teach it (\`.fxmind/modes/teach.md\`).`;
 }
 
 // ── Validation / lifecycle ──────────────────────────────────────────────────

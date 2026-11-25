@@ -213,6 +213,10 @@ async function main() {
     process.exit(1);
   }
 
+  if (argv[0] === "health" || argv[0] === "doctor") {
+    process.exit(require("./lib/health").runHealthCli(argv.slice(1)));
+  }
+
   if (argv[0] === "playbooks" || argv[0] === "playbook") {
     process.exit(runPlaybooksCli(argv.slice(1)));
   }
@@ -399,6 +403,21 @@ async function main() {
       ? require("./upgrade").finishGlobalMigration(options.target, agents)
       : null;
 
+    // Safe self-repair on every update: hook wiring, moved paths, stale graph.
+    let health = null;
+    try {
+      health = require("./lib/health").runHealth(options.target, { fix: true, skipVersion: true });
+    } catch {
+      health = null;
+    }
+    const printHealth = () => {
+      if (!health || health.error || (!health.fixed && health.ok)) return;
+      console.log("[Health]");
+      for (const item of health.items.filter((entry) => entry.status === "fixed")) console.log(`  ✓ ${item.message}`);
+      const left = health.fixable + health.warnings;
+      if (left) console.log(`  ⚠ ${left} item(s) need attention: run \`fxmind health\``);
+    };
+
     const changedCount =
       (atomicResult ? 1 : 0) +
       layoutRefresh.length +
@@ -413,6 +432,7 @@ async function main() {
 
     if (changedCount === 0) {
       console.log(`Already up to date (fxmind ${cliVersion}).`);
+      printHealth();
       return;
     }
 
@@ -433,6 +453,7 @@ async function main() {
     console.log(
       `Agents: ${agents.map((agent) => agent.label).join(", ")}\n`,
     );
+    printHealth();
 
     if (layoutRefresh.length > 0) {
       console.log("[Layout]");

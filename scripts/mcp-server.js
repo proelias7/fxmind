@@ -312,6 +312,17 @@ const TOOL_DEFS = [
     },
   },
   {
+    name: "fxmind_health",
+    description:
+      "Check the project's fxmind setup, memories, playbooks and graph (no LLM). fix=true applies only safe repairs: Claude prompt hook, paths of files that moved to a unique new location (memories + playbooks), graph rebuild. Items left as warn carry the agent command to run (/fxmind teach <id>, /fxmind memory health <topic> fix). Use when a playbook is reported stale or memories point at missing files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        fix: { type: "boolean", description: "Apply the safe repairs (writes memory/playbook files). Default false: report only." },
+      },
+    },
+  },
+  {
     name: "fxmind_gate_status",
     description: "Read Task Gate A/B/C session status. Read-only.",
     inputSchema: {
@@ -953,6 +964,9 @@ async function dispatchTool(name, args) {
 
     case "fxmind_playbook":
       return playbookTool(root, args);
+
+    case "fxmind_health":
+      return require("./lib/health").runHealth(root, { fix: args.fix === true });
 
     case "fxmind_search":
       return searchSource(root, args);

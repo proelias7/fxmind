@@ -313,6 +313,19 @@ Prove claims: **`/fxmind judge`**. Behavioral map: `.fxmind/policy/failure-modes
 
 ---
 
+## Health check (`fxmind health`)
+
+Deterministic (no LLM) check of a project, safe to run anytime:
+
+```bash
+fxmind health          # report: setup, memories, playbooks, graph
+fxmind health --fix    # apply the safe repairs, report what is left
+fxmind health --json   # machine-readable; exit 1 while something is left (CI)
+```
+
+- **Fixed automatically** (with `--fix`, on every `fxmind --update`, or by the agent through MCP `fxmind_health { fix: true }`): the Claude prompt hook (legacy `fxmind context --hook`, missing hook files), paths in memories and playbooks whose file **moved** to a single new location (same resource folder + file name, e.g. `resources/[old]/boxes/…` → `resources/[ecco]/boxes/…`), and a stale knowledge graph.
+- **Left to the agent**, each with its command: a file that no longer exists anywhere or has several candidates (`/fxmind memory health <topic> fix`), a playbook anchor whose text changed (`/fxmind teach <id>`), memories with empty `paths[]`.
+
 ## Memory quality
 
 Memories stay as **Markdown** (source of truth, git-friendly). The graph build also writes a compiled index:
@@ -446,6 +459,7 @@ The global binary avoids `npx.cmd` → `cmd.exe` on Windows, which breaks MCP sp
 | `fxmind_check_update` | Compare local vs GitHub fxmind version (read-only) |
 | `fxmind_list_memories` | List topic memories |
 | `fxmind_playbook` | List / match / get / check playbooks (surgical steps for repeated tasks) |
+| `fxmind_health` | Check setup, memories, playbooks, graph; `fix: true` repairs moved paths, the prompt hook and the graph |
 | `fxmind_validate_memories` | Schema + path checks + duplicates |
 | `fxmind_drift_check` | Memories referencing a file |
 | `fxmind_start_task` | Begin Task session |
