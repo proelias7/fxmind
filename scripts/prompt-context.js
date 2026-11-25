@@ -42,6 +42,24 @@ function findProjectRoot(start) {
   }
 }
 
+// Blocks the app or an integration wraps around the typed words: Claude in Chrome's browser instructions (4 KB with
+// "error", "failed"...), system reminders, IDE context, slash-command echoes. Retrieval and the task-kind guess read
+// them as the question: "o que faz a resource pelucia?" came out as a `fix` about other resources.
+const INJECTED_TAGS = [
+  "browser_instruction", "system-reminder", "system_reminder", "ide_selection", "ide_opened_file", "ide_diagnostics",
+  "command-name", "command-message", "command-args", "local-command-stdout", "local-command-stderr",
+  "local-command-caveat", "user-prompt-submit-hook",
+];
+const INJECTED_BLOCK = new RegExp(`<(${INJECTED_TAGS.join("|")}|[a-z_-]*instructions?)\\b[^>]*>[\\s\\S]*?<\\/\\1>`, "gi");
+
+/** Only what the person typed: injected blocks (see INJECTED_TAGS) removed. */
+function typedPrompt(prompt) {
+  return String(prompt || "")
+    .replace(INJECTED_BLOCK, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function shouldSkipPrompt(prompt) {
   const text = String(prompt || "").trim();
   if (text.length < MIN_PROMPT_CHARS) return true;
@@ -60,7 +78,8 @@ function preloadBudget(env = process.env) {
  * A matching playbook replaces memory retrieval (it already names the files);
  * otherwise memories load with the budget and section priority of the task kind.
  */
-function buildPromptContext(root, prompt, options = {}) {
+function buildPromptContext(root, rawPrompt, options = {}) {
+  const prompt = typedPrompt(rawPrompt);
   if (!root || shouldSkipPrompt(prompt)) return "";
   const playbooks = require("./lib/playbooks");
   const plan = options.plan || playbooks.planTask(root, prompt, { playbooks: options.playbooks });
@@ -95,7 +114,8 @@ function buildPromptContext(root, prompt, options = {}) {
 }
 
 /** Network-backed classification is optional; the sync API stays stable. */
-async function buildPromptContextAsync(root, prompt, options = {}) {
+async function buildPromptContextAsync(root, rawPrompt, options = {}) {
+  const prompt = typedPrompt(rawPrompt);
   if (!root || shouldSkipPrompt(prompt)) return "";
   const playbooks = require("./lib/playbooks");
   const plan = await playbooks.planTaskAsync(root, prompt, { playbooks: options.playbooks });
@@ -263,6 +283,7 @@ function installClaudePromptHook(targetRoot) {
 
 module.exports = {
   contextWithin,
+  typedPrompt,
   CLAUDE_HOOK_COMMAND,
   CLAUDE_HOOKS,
   findProjectRoot,

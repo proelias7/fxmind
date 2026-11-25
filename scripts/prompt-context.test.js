@@ -268,3 +268,25 @@ describe("prompt hook budget and topic retrieval", () => {
     }
   });
 });
+
+describe("injected blocks around the typed words", () => {
+  it("retrieval and the kind guess read only what was typed, not Claude in Chrome's instructions", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxtyped-"));
+    try {
+      writeProject(root);
+      const browser = "<browser_instruction># Claude in Chrome browser automation\n" +
+        "If a tool call failed with an error, the page is broken or not working, fix the selector and debug it.\n".repeat(20) +
+        "</browser_instruction>";
+      const typed = "o que faz a garagem?";
+      const plain = promptContext.buildPromptContext(root, typed);
+      const wrapped = promptContext.buildPromptContext(root, `${browser}\n\n${typed}`);
+      assert.equal(wrapped, plain, "the browser block changes nothing");
+      assert.doesNotMatch(wrapped, /Task kind: fix/);
+      assert.match(wrapped, /Garage opens NUI/);
+      // Only the browser block: nothing typed, nothing preloaded.
+      assert.equal(promptContext.buildPromptContext(root, browser), "");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
