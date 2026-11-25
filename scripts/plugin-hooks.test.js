@@ -130,3 +130,11 @@ test("Claude settings expose only chat preferences and a real link to management
   assert.match(source, /label="Report"/);
   assert.doesNotMatch(source.slice(source.indexOf("card === 'fxmind' ?"), source.indexOf("card === 'effort' ?", source.indexOf("card === 'fxmind' ?"))), /settings-project-setup|settings-fxmind-/);
 });
+
+test("Every Svg in the mod has a non-empty alt: the desktop app draws nothing for alt=\"\"", () => {
+  const dir = path.join(__dirname, "..", "plugins", "fxmind", "hooks");
+  for (const file of fs.readdirSync(dir).filter((f) => /\.tsx$/.test(f) && !/\.test\./.test(f))) {
+    const source = fs.readFileSync(path.join(dir, file), "utf8");
+    assert.doesNotMatch(source, /<(?:\w+\.)?Svg\b[^>\n]*\balt=""/, `${file}: an Svg with alt="" is never drawn on desktop`);
+  }
+});

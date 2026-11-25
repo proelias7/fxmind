@@ -334,9 +334,9 @@ function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: str
 }
 
 /** One full-surface texture for cards and every settings subview. */
-// Measured on the desktop app: an Svg wider than the box that holds it is not drawn at all (one taller is cut, which is
-// fine). The texture was drawn 960 px wide, wider than any band or the settings panel, so it never showed anywhere;
-// what read as "texture" in the bands was their brand art. Layers are sized to the band's own width instead.
+// Measured on the desktop app: an Svg with an empty `alt` is not drawn at all (alt is required). The texture always had
+// alt="", so it never showed anywhere; what read as "texture" in the bands was their brand art. It is also drawn no
+// wider than the band, so its mark (near the right edge) is not cut off in a narrow window.
 let bandPx = 0
 /** A width that fits the band being drawn, at most `max`; a safe 480 before the first band reports its columns. */
 export function fitPx(max: number, columns = 0): number {
@@ -352,8 +352,8 @@ function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = 
   const width = fitPx(960)
   return (
     <B key={`${key}-texture`} position="absolute" top={0} bottom={0} left={0} right={0}
-      overflow="hidden" flexDirection="row" alignItems={tall ? 'center' : 'flex-end'} justifyContent="flex-end">
-      <S source={textureSvg(width, height, BRAND_EDGE)} alt="" width={width} height={height} />
+      overflow="hidden" alignItems={tall ? 'center' : 'flex-end'} justifyContent="flex-end">
+      <S source={textureSvg(width, height, BRAND_EDGE)} alt="fxmind texture" width={width} height={height} />
     </B>
   )
 }
@@ -363,7 +363,7 @@ function introLayer(els: { Box: unknown; Svg?: unknown }, key: string, show: boo
   const { Box: B, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Svg: (p: Record<string, unknown>) => unknown }
   return (
     <B key={`${key}-intro`} position="absolute" top={-1} left={0} right={0} bottom={-1}>
-      <S source={inPhase(INTRO_SVG.replace('#8b6cff', wash).replace('#b9a7ff', light), introElapsed)} alt="" width={1600} height={240} />
+      <S source={inPhase(INTRO_SVG.replace('#8b6cff', wash).replace('#b9a7ff', light), introElapsed)} alt="fxmind entrance" width={1600} height={240} />
     </B>
   )
 }
@@ -5539,7 +5539,7 @@ Saved to ${out}.md and .json` }
           {/* Opening from the swamped band: its green fades out over the violet, then the entrance sweep. */}
           {nowCompact - compactOpenedAt < COMPACT_FADE_MS + 100 ? (
             <Box key="compact-fade" position="absolute" top={-1} left={0} right={0} bottom={-1}>
-              <Svg source={compactFadeSvg(nowCompact - compactOpenedAt)} alt="" width={1600} height={240} />
+              <Svg source={compactFadeSvg(nowCompact - compactOpenedAt)} alt="fxmind fade" width={1600} height={240} />
             </Box>
           ) : null}
           {introLayer({ Box, Svg }, 'compact', await introShows($, 'compact'))}
