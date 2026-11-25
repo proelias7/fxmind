@@ -47,7 +47,7 @@ const TOOL_DEFS = [
   },
   {
     name: "type_text",
-    description: "Type text into the active window.",
+    description: "Type text into the active window. Line breaks (\\n or \\r\\n) are sent as Enter and \\t as Tab.",
     inputSchema: { type: "object", properties: {
       ...AGENT_ID, text: { type: "string" },
     }, required: ["text"], additionalProperties: false },
@@ -328,7 +328,8 @@ function validateGuiStep(step, screen) {
 // ---- native helper process ----
 
 class DesktopHost {
-  constructor() {
+  constructor(options = {}) {
+    this.spawn = options.spawn || spawn;
     this.child = null;
     this.ready = null;
     this.pending = new Map();
@@ -340,17 +341,24 @@ class DesktopHost {
   start() {
     if (this.ready) return this.ready;
     this.ready = new Promise((resolve, reject) => {
-      const child = spawn("powershell.exe", [
+      const child = this.spawn("powershell.exe", [
         "-NoProfile", "-NonInteractive", "-MTA", "-ExecutionPolicy", "Bypass",
         "-File", HOST_SCRIPT, "-Source", NATIVE_SOURCE,
       ], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
       this.child = child;
+      this.stderr = "";
       const timer = setTimeout(() => {
-        this.stop(new Error("desktop helper did not start in time"));
+        const error = new Error("desktop helper did not start in time");
+        reject(error);
+        if (current()) this.stop(error);
       }, STARTUP_TIMEOUT_MS);
       let started = false;
+      // A helper replaced after a timeout still emits exit/error/output later;
+      // those events must never stop or answer for the helper that replaced it.
+      const current = () => this.child === child;
       const lines = readline.createInterface({ input: child.stdout });
       lines.on("line", (line) => {
+        if (!current()) return;
         let message;
         try { message = JSON.parse(line); } catch { return; }
         if (!started) {
@@ -371,19 +379,19 @@ class DesktopHost {
         else entry.reject(new ToolError(message.error || "desktop operation failed"));
       });
       child.stderr.on("data", (chunk) => {
-        this.stderr = (this.stderr + chunk).slice(-4000);
+        if (current()) this.stderr = (this.stderr + chunk).slice(-4000);
       });
       child.on("error", (error) => {
         clearTimeout(timer);
         if (!started) reject(error);
-        this.stop(error);
+        if (current()) this.stop(error);
       });
       child.on("exit", (code) => {
         clearTimeout(timer);
         const detail = this.stderr.trim();
         const error = new Error(`desktop helper exited (${code})${detail ? `: ${detail.split("\n").pop()}` : ""}`);
         if (!started) reject(error);
-        this.stop(error);
+        if (current()) this.stop(error);
       });
       child.unref();
       child.stdin.unref?.();
@@ -503,6 +511,16 @@ async function guiSequence(desktop, windowTitle, pid, steps) {
     }
   }
   return { dispatched: steps.length, verified: false, elapsedMs: Date.now() - started };
+}
+
+/**
+ * Host timeout for a uia_task: room for every wait_for plus a per-step budget
+ * to locate and act. A fixed 100 s was shorter than 24 wait_for steps of 5 s,
+ * which restarted the helper mid-flow without saying which steps had run.
+ */
+function uiaTaskTimeout(steps) {
+  const waits = steps.reduce((sum, step) => sum + (step.op === "wait_for" && isInt(step.timeoutMs) ? step.timeoutMs : 0), 0);
+  return 30_000 + waits + steps.length * 5_000;
 }
 
 // ---- tool dispatch ----
@@ -666,7 +684,7 @@ async function run(name, args, desktop) {
         types: steps.map((step) => (isInt(step.selector.controlType) ? step.selector.controlType : 0)),
         values: steps.map((step) => str(step.value) ?? ""),
         timeouts: steps.map((step) => (isInt(step.timeoutMs) ? step.timeoutMs : 0)),
-      }, 100_000);
+      }, uiaTaskTimeout(steps));
       return { ok: true, ...value, note: "A dispatched invoke does not prove the result (e.g. a save); use assert_exists/wait_for. The application's provider may change focus even though fxmind does not ask for it." };
     }
     case "gui_sequence": {

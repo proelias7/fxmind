@@ -110,3 +110,32 @@ describe("claude mcp entry", () => {
     }
   });
 });
+
+describe("mcp launch check", () => {
+  it("warns when fxmind-mcp is only reachable through npx's temporary cache", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fxmcp-path-"));
+    const npxBin = path.join(dir, "_npx", "abc", "node_modules", ".bin");
+    const globalBin = path.join(dir, "global", "bin");
+    for (const bin of [npxBin, globalBin]) fs.mkdirSync(bin, { recursive: true });
+    fs.writeFileSync(path.join(npxBin, "fxmind-mcp"), "");
+    try {
+      const entry = { command: "fxmind-mcp", env: {} };
+      const onlyNpx = { PATH: npxBin };
+      assert.equal(mcp.commandOnPath("fxmind-mcp", onlyNpx, "linux"), false);
+      assert.match(mcp.mcpLaunchWarnings(entry, onlyNpx, "linux").join(""), /not on PATH/);
+
+      fs.writeFileSync(path.join(globalBin, "fxmind-mcp"), "");
+      const withGlobal = { PATH: [npxBin, globalBin].join(":") };
+      assert.equal(mcp.commandOnPath("fxmind-mcp", withGlobal, "linux"), true);
+      assert.deepEqual(mcp.mcpLaunchWarnings(entry, withGlobal, "linux"), []);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("warns on Windows when the global server script is missing", () => {
+    const entry = { command: "node", args: ["${env:APPDATA}/npm/node_modules/fxmind/scripts/mcp-server.js"] };
+    const env = { APPDATA: path.join(os.tmpdir(), "fxmind-no-appdata") };
+    assert.match(mcp.mcpLaunchWarnings(entry, env, "win32").join(""), /not found/);
+  });
+});

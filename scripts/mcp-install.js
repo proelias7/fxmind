@@ -94,6 +94,50 @@ function claudeMcpEntry(entry) {
   return claude;
 }
 
+/**
+ * Whether `name` resolves on PATH the way the agent client will see it later.
+ * PATH entries inside npx's temporary cache (`_npx`) are ignored: during
+ * `npx github:proelias7/fxmind ...` the bin is on PATH, but not once npx exits.
+ */
+function commandOnPath(name, env = process.env, platform = process.platform) {
+  const sep = platform === "win32" ? ";" : ":";
+  const exts = platform === "win32"
+    ? ["", ...String(env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)]
+    : [""];
+  const dirs = String(env.PATH || env.Path || "").split(sep).filter(Boolean)
+    .filter((dir) => !/[\\/]_npx[\\/]/i.test(`${dir}/`));
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      try {
+        const file = path.join(dir, name + ext);
+        const stat = fs.statSync(file);
+        if (stat.isFile()) return true;
+      } catch {
+        // not here
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Warnings for an MCP entry that will not start for the agent client,
+ * e.g. a project install run through npx without the global package.
+ */
+function mcpLaunchWarnings(entry, env = process.env, platform = process.platform) {
+  if (!entry) return [];
+  if (entry.command === FXMIND_MCP_COMMAND && !commandOnPath(FXMIND_MCP_COMMAND, env, platform)) {
+    return [`"${FXMIND_MCP_COMMAND}" is not on PATH: the MCP server will not start. Install globally: npm install -g github:proelias7/fxmind`];
+  }
+  if (platform === "win32" && entry.command === "node" && entry.args?.[0]) {
+    const script = String(entry.args[0]).replace("${env:APPDATA}", env.APPDATA || "").replace("${APPDATA}", env.APPDATA || "");
+    if (!script.includes("${") && !fs.existsSync(script)) {
+      return [`MCP server not found at ${script}: the MCP server will not start. Install globally: npm install -g github:proelias7/fxmind`];
+    }
+  }
+  return [];
+}
+
 function buildFxmindMcpEntry(agentId) {
   // Requires: npm install -g github:proelias7/fxmind
   //
@@ -711,4 +755,6 @@ module.exports = {
   hasAgentInstallMarker,
   buildFxmindMcpEntry,
   resolveOpenCodeMcpLaunch,
+  commandOnPath,
+  mcpLaunchWarnings,
 };

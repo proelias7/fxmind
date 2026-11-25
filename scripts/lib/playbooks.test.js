@@ -282,6 +282,35 @@ describe("playbooks", () => {
       assert.equal(data.gates.A, undefined);
     });
 
+    const closeTask = (sessionId, extra = {}) => {
+      tools.startTask(root, { playbook: "add-weapon-skin", sessionId });
+      tools.recordGate(root, "A", true, { sessionId });
+      tools.recordGate(root, "B", true, { sessionId });
+      return tools.recordGate(root, "C", true, { sessionId, ...extra });
+    };
+
+    it("closing Gate C alone never promotes a draft playbook", () => {
+      const data = closeTask("p1");
+      assert.equal(data.playbookPromotion, "not_requested");
+      assert.equal(playbooks.loadPlaybooks(root)[0].status, "draft");
+    });
+
+    it("Gate C with playbook_verified promotes a draft whose anchors still resolve", () => {
+      const data = closeTask("p2", { playbookVerified: true });
+      assert.equal(data.playbookPromotion, "promoted");
+      assert.equal(playbooks.loadPlaybooks(root)[0].status, "verified");
+    });
+
+    it("playbook_verified does not promote a playbook whose anchors no longer resolve", () => {
+      tools.startTask(root, { playbook: "add-weapon-skin", sessionId: "p3" });
+      tools.recordGate(root, "A", true, { sessionId: "p3" });
+      tools.recordGate(root, "B", true, { sessionId: "p3" });
+      write(root, "resources/boxes/weapons.lua", "-- rewritten\n");
+      const data = tools.recordGate(root, "C", true, { sessionId: "p3", playbookVerified: true });
+      assert.equal(data.playbookPromotion, "playbook_check_failed");
+      assert.equal(playbooks.loadPlaybooks(root)[0].status, "draft");
+    });
+
     it("markVerified promotes a draft once and stamps last_verified", () => {
       assert.equal(playbooks.markVerified(root, "add-weapon-skin"), true);
       const [pb] = playbooks.loadPlaybooks(root);

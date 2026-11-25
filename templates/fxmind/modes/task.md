@@ -25,7 +25,7 @@ Every task has a **kind**; it decides how context loads. State `KIND: <kind>` in
 
 1. Confirm the request fits the playbook and collect its inputs; ask only for what is missing.
 2. `fxmind_start_task { kind, playbook }`. A **verified** playbook auto-completes Gates A and B; a `draft` one still records A/B normally. C can close directly after checks.
-3. Read ~25 lines around each listed anchor, edit, then run the playbook's `Verify` checks before closing. Skip `fxmind_query` and repository search.
+3. Read ~25 lines around each listed anchor, edit, then run the playbook's `Verify` checks before closing. Skip `fxmind_query` and repository search. If every `Verify` check passed, close with `fxmind_record_gate { gate: "C", playbook_verified: true }` — this is what promotes a `draft` playbook to `verified`; never pass it when a check was skipped or failed.
 4. File or anchor not found, or the code contradicts a step → stop, say so, continue with the memory flow, and at Gate C fix the playbook (`.fxmind/modes/teach.md`). Never edit at a guessed location.
 
 `fxmind_playbook` (MCP) lists, matches, shows and checks playbooks when the preload did not include one but the request looks like a repeated task.

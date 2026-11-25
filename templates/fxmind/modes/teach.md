@@ -24,7 +24,7 @@ Only `kind: config` (data/config entries) or a diagnostic checklist for `fix` ma
 4. **Inputs.** Each `{{placeholder}}` becomes one bullet `- name — hint` (where the value comes from, constraints, default).
 5. **Verify.** The observable checks the task actually ran before completion (ensure + console, in-game flow). Same standard as `task-verify.md`.
 6. **memories[].** Slugs of the related memories; their `Pitfalls` are appended automatically when the playbook loads. Do not copy them into the playbook.
-7. **Write** `.fxmind/playbooks/<id>.md` from `.fxmind/templates/playbook.md`: `status: draft`, `updated` today. It becomes `verified` by itself the first time a task using it closes Gate C.
+7. **Write** `.fxmind/playbooks/<id>.md` from `.fxmind/templates/playbook.md`: `status: draft`, `updated` today. It becomes `verified` the first time a task using it closes Gate C with `playbook_verified: true` (every `Verify` check ran and passed, and all anchors still resolve).
 8. **Check.** Run `fxmind playbooks check <id>` (MCP `fxmind_playbook` action `check`): every file and anchor must resolve. Fix errors before finishing. Then `fxmind playbooks match "<a real request>"` must select it.
 
 ## Rules

@@ -173,7 +173,7 @@ id: add-weapon-skin
 kind: config
 triggers: [cadastrar skin de arma, adicionar skin]
 memories: [skins-armas]        # their Pitfalls are appended automatically
-status: draft                  # becomes verified after one task closes Gate C with it
+status: draft                  # becomes verified when a task closes Gate C with playbook_verified: true
 ---
 Inputs:
 - skinId — key in ConfigWeapons (= skinid in DB)
@@ -197,7 +197,8 @@ Verify:
 | mechanic | whole flow + graph neighbours (dfs) | 2200 |
 | create | `modes/create.md` flow | 1200 |
 
-- A **verified** playbook auto-completes Gates A/B (V and C still required); a draft one keeps them manual. UI tasks never auto-complete.
+- A **verified** playbook auto-completes Gates A/B (C still required); a draft one keeps them manual. UI tasks never auto-complete.
+- A draft is promoted only when Gate C is recorded with `playbook_verified: true` (the agent ran every `Verify` check and they passed) and `fxmind playbooks check` still passes. Closing C alone never promotes it.
 
 ```bash
 fxmind playbooks list                     # id, kind, status, uses

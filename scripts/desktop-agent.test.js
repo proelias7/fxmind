@@ -25,7 +25,7 @@ function fakeDesktop(foreground = { pid: 42, title: "Notepad - notes.txt" }) {
 const run = (name, args, fake = fakeDesktop()) => desktop.dispatch(name, args, { platform: "win32", desktop: fake });
 
 describe("desktop agent tools", () => {
-  it("registers all 16 tools in the MCP core, always listed", () => {
+  it("registers all 16 tools, listed on Windows only", () => {
     const expected = [
       "view_screen", "click_screen", "type_text", "scroll_screen", "drag_screen", "hotkey", "press_key",
       "hover_screen", "double_click_screen", "window_info", "activate_window",
@@ -33,8 +33,14 @@ describe("desktop agent tools", () => {
       "inspect_background_ui", "execute_background_ui", "gui_sequence",
     ];
     assert.deepEqual(desktop.TOOL_DEFS.map((tool) => tool.name), expected);
-    const listed = mcp.listTools(process.cwd(), {}).map((tool) => tool.name);
+    const listed = mcp.listTools(process.cwd(), {}, "win32").map((tool) => tool.name);
     for (const name of expected) assert.ok(listed.includes(name), name);
+    for (const platform of ["linux", "darwin"]) {
+      const off = mcp.listTools(process.cwd(), {}, platform).map((tool) => tool.name);
+      for (const name of expected) assert.ok(!off.includes(name), `${name} hidden on ${platform}`);
+      const forced = mcp.listTools(process.cwd(), { FXMIND_MCP_TOOLS: "all" }, platform).map((tool) => tool.name);
+      assert.ok(!forced.includes("view_screen"), `FXMIND_MCP_TOOLS=all cannot list desktop tools on ${platform}`);
+    }
     const all = mcp.TOOL_DEFS.map((tool) => tool.name);
     assert.equal(new Set(all).size, all.length, "tool names are unique");
   });
@@ -214,5 +220,49 @@ describe("desktop agent tools", () => {
       ops: ["wait_for", "set_value"], names: ["", "Text"], ids: ["Edit", ""],
       types: [0, 50004], values: ["", "hello"], timeouts: [500, 0],
     } });
+  });
+
+  it("gives uia_task room for every wait_for (24 x 5 s does not hit the host timeout)", async () => {
+    let timeout = 0;
+    const fake = { async call(op, params, ms) { timeout = ms; return { dispatched: 24 }; } };
+    const steps = Array.from({ length: 24 }, () => ({ op: "wait_for", selector: { name: "a" }, timeoutMs: 5000 }));
+    assert.equal((await run("execute_background_ui", { window_title: "x", steps }, fake)).ok, true);
+    assert.ok(timeout > 24 * 5000, `host timeout ${timeout} must exceed the 120 s of waits`);
+  });
+});
+
+describe("desktop helper process", () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const { spawn } = require("node:child_process");
+
+  // Fake helper: ready, never answers "hang", exits 300 ms after SIGTERM (like a slow PowerShell).
+  const FAKE = `
+process.on("SIGTERM", () => setTimeout(() => process.exit(1), 300));
+console.log(JSON.stringify({ ready: true }));
+require("readline").createInterface({ input: process.stdin }).on("line", (l) => {
+  const m = JSON.parse(l);
+  if (m.op === "hang") return;
+  if (m.op === "slow") return setTimeout(() => console.log(JSON.stringify({ id: m.id, ok: true, value: { pid: process.pid } })), 600);
+  console.log(JSON.stringify({ id: m.id, ok: true, value: { pid: process.pid } }));
+});`;
+
+  it("a helper replaced after a timeout cannot kill its replacement", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fxmind-desktop-"));
+    const script = path.join(dir, "fake-host.js");
+    fs.writeFileSync(script, FAKE);
+    const host = new desktop.DesktopHost({ spawn: (cmd, args, opts) => spawn(process.execPath, [script], { stdio: opts.stdio }) });
+    try {
+      const first = await host.call("screen");
+      await assert.rejects(host.call("hang", {}, 200), /exceeded 200 ms/);
+      // The old helper exits ~300 ms after the kill, while this call runs on the new one.
+      const second = await host.call("slow", {}, 5000);
+      assert.notEqual(second.pid, first.pid);
+      assert.equal((await host.call("screen")).pid, second.pid);
+    } finally {
+      host.stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

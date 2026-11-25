@@ -335,6 +335,10 @@ const TOOL_DEFS = [
             "START begins a task; A/B unlock edits; C closes after normal checks.",
         },
         note: { type: "string", description: "Optional note (e.g. memories loaded). Gate A also restates: user replies stay short and direct." },
+        playbook_verified: {
+          type: "boolean",
+          description: "Gate C of a task started with a playbook: true only if you ran every Verify check of that playbook and they passed. Promotes a draft playbook to verified; omit otherwise.",
+        },
         ...SESSION_ID_PROP,
       },
       required: ["gate"],
@@ -798,11 +802,18 @@ const TOOL_DEFS = [
       },
     },
   },
-  // Desktop agent (Windows): core tools, always listed.
+  // Desktop agent: listed on Windows only (tool group "desktop").
   ...desktopAgent.TOOL_DEFS,
 ];
 
 let activeHostThreadId = null;
+let pendingCalls = 0;
+let inputClosed = false;
+
+// Pipes are asynchronous on Windows: exit only once the last reply is written.
+function exitAfterFlush() {
+  process.stdout.write("", () => process.exit(0));
+}
 
 function hostToolDetail(args = {}) {
   const value =
@@ -953,7 +964,7 @@ async function dispatchTool(name, args) {
       return tools.gateStatus(root, sessionExtra(args));
 
     case "fxmind_record_gate": {
-      const gate = String(args.gate).toUpperCase();
+      const gate = String(args.gate ?? "").toUpperCase();
       if (gate === "V") {
         // Old Claude sessions may still call V. Acknowledge without writing state,
         // running a reviewer, or triggering a retry loop.
@@ -962,6 +973,7 @@ async function dispatchTool(name, args) {
       const data = tools.recordGate(root, gate, true, {
         note: args.note || "",
         evidence: args.evidence,
+        playbookVerified: args.playbook_verified === true,
         ...sessionExtra(args),
       });
       if (data?.error === "multiple_active_sessions") {
@@ -1211,6 +1223,8 @@ const TOOL_GROUPS = {
     name.startsWith("fxmind_panel_") ||
     name === "fxmind_subagent_run" ||
     name.startsWith("fxmind_orchestrat"),
+  // Windows-only: off Windows every call fails, so the schemas would only cost context.
+  desktop: (name) => desktopAgent.TOOL_NAMES.has(name),
 };
 
 function toolGroupOf(name) {
@@ -1228,14 +1242,19 @@ function hasFivemPack(root) {
   }
 }
 
-function enabledToolGroups(root, env = process.env) {
+function enabledToolGroups(root, env = process.env, platform = process.platform) {
   const explicit = String(env.FXMIND_MCP_TOOLS || "").trim().toLowerCase();
   if (explicit) {
     const wanted = new Set(explicit.split(/[\s,]+/).filter(Boolean));
-    if (wanted.has("all")) return new Set(Object.keys(TOOL_GROUPS));
-    return new Set(Object.keys(TOOL_GROUPS).filter((group) => wanted.has(group)));
+    const groups = wanted.has("all")
+      ? new Set(Object.keys(TOOL_GROUPS))
+      : new Set(Object.keys(TOOL_GROUPS).filter((group) => wanted.has(group)));
+    // Desktop tools never work off Windows, whatever the override says.
+    if (platform !== "win32") groups.delete("desktop");
+    return groups;
   }
   const groups = new Set(["panel"]);
+  if (platform === "win32") groups.add("desktop");
   if (storage.status(root, env).configured) groups.add("storage");
   if (hasFivemPack(root)) groups.add("fivem");
   try {
@@ -1281,8 +1300,8 @@ const SAFE_MEMORY_TOOLS = new Set([
   "fxmind_route_tool", "fxmind_list_memories", "fxmind_query",
   "fxmind_search", "fxmind_read_file",
 ]);
-function listTools(root = targetRoot(), env = process.env) {
-  const groups = enabledToolGroups(root, env);
+function listTools(root = targetRoot(), env = process.env, platform = process.platform) {
+  const groups = enabledToolGroups(root, env, platform);
   const readonly = isReadonly(env);
   return TOOL_DEFS.filter((tool) => {
     if (readonly && !READONLY_TOOLS.has(tool.name)) return false;
@@ -1324,6 +1343,12 @@ function handleMessage(msg) {
     return;
   }
 
+  // MCP liveness check: the spec requires an empty result.
+  if (method === "ping") {
+    if (id !== undefined) send({ jsonrpc: "2.0", id, result: {} });
+    return;
+  }
+
   if (method === "tools/list") {
     send({
       jsonrpc: "2.0",
@@ -1349,6 +1374,7 @@ function handleMessage(msg) {
     }
     const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
     const trackedThreadId = isPanelTool ? null : activeHostThreadId;
+    pendingCalls += 1;
     Promise.resolve()
       .then(() => reportHostMcp(trackedThreadId, toolName, args, "running"))
       .then(() => dispatchTool(toolName, args))
@@ -1388,6 +1414,10 @@ function handleMessage(msg) {
             },
           });
         });
+      })
+      .finally(() => {
+        pendingCalls -= 1;
+        if (pendingCalls === 0 && inputClosed) exitAfterFlush();
       });
     return;
   }
@@ -1411,15 +1441,30 @@ function startServer() {
       const line = buffer.slice(0, idx).trim();
       buffer = buffer.slice(idx + 1);
       if (!line) continue;
+      let message;
       try {
-        handleMessage(JSON.parse(line));
+        message = JSON.parse(line);
       } catch {
-        // ignore malformed lines
+        // JSON-RPC 2.0: unparseable request → Parse error with a null id.
+        send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+        continue;
+      }
+      try {
+        handleMessage(message);
+      } catch (error) {
+        if (message && message.id !== undefined) {
+          send({ jsonrpc: "2.0", id: message.id, error: { code: -32603, message: `Internal error: ${error.message}` } });
+        }
       }
     }
   });
 
-  process.stdin.on("end", () => process.exit(0));
+  // Answer the calls already in flight before leaving (e.g. a client that
+  // sends its last request and closes stdin).
+  process.stdin.on("end", () => {
+    inputClosed = true;
+    if (pendingCalls === 0) exitAfterFlush();
+  });
 }
 
 if (require.main === module) {

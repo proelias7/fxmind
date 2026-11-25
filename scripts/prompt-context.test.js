@@ -162,7 +162,9 @@ describe("mcp tool groups", () => {
   });
 
   it("FXMIND_MCP_TOOLS overrides detection", () => {
-    assert.equal(mcp.listTools(root, { FXMIND_MCP_TOOLS: "all" }).length, mcp.TOOL_DEFS.length);
+    assert.equal(mcp.listTools(root, { FXMIND_MCP_TOOLS: "all" }, "win32").length, mcp.TOOL_DEFS.length);
+    // Off Windows "all" still leaves out the desktop tools, which cannot run there.
+    assert.equal(mcp.listTools(root, { FXMIND_MCP_TOOLS: "all" }, "linux").length, mcp.TOOL_DEFS.length - 16);
     const core = names(mcp.listTools(root, { FXMIND_MCP_TOOLS: "core" }));
     assert.ok(!core.includes("fxmind_panel_wait"));
     assert.ok(core.includes("fxmind_record_gate"));

@@ -25,10 +25,25 @@ function filesIn(folder) {
   return files.sort();
 }
 
+/**
+ * Copies real content, following every link (nested ones included), so the
+ * backup never points back at the live data. fs.cpSync({ dereference: true })
+ * only resolves the top-level source and recreates nested links as links.
+ */
+function copyResolved(source, target) {
+  const stat = fs.statSync(source);
+  if (stat.isDirectory()) {
+    fs.mkdirSync(target, { recursive: true });
+    for (const name of fs.readdirSync(source)) copyResolved(path.join(source, name), path.join(target, name));
+  } else if (stat.isFile()) {
+    fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
+  }
+}
+
 function makeBackup(source, target) {
   if (fs.existsSync(target)) throw new Error("Backup destination exists: " + target);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.cpSync(source, target, { recursive: true, dereference: true, force: false, errorOnExist: true });
+  copyResolved(source, target);
   const from = filesIn(source), to = filesIn(target);
   if (from.length !== to.length) throw new Error("Backup file count mismatch");
   for (let i = 0; i < from.length; i++) {

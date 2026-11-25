@@ -231,8 +231,14 @@ namespace FxmindDesktop
                 List<INPUT> batch = new List<INPUT>((end - i) * 2);
                 for (int j = i; j < end; j++)
                 {
-                    batch.Add(Unicode(text[j], 0));
-                    batch.Add(Unicode(text[j], KEY_UP));
+                    char c = text[j];
+                    // Most apps ignore a Unicode LF/CR/TAB: send the real keys.
+                    // CRLF becomes a single Enter.
+                    if (c == '\r' && j + 1 < text.Length && text[j + 1] == '\n') continue;
+                    if (c == '\n' || c == '\r') { batch.Add(VirtualKey(0x0D, false)); batch.Add(VirtualKey(0x0D, true)); continue; }
+                    if (c == '\t') { batch.Add(VirtualKey(0x09, false)); batch.Add(VirtualKey(0x09, true)); continue; }
+                    batch.Add(Unicode(c, 0));
+                    batch.Add(Unicode(c, KEY_UP));
                 }
                 Send(batch.ToArray());
             }

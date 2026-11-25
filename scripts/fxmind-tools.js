@@ -1038,7 +1038,7 @@ function recordGate(targetRoot, gate, value = true, extra = {}) {
   }
 
   if (!["A", "B", "V", "C"].includes(letter)) {
-    throw new Error(`Invalid gate: ${gate} (use START, A, B, V, or C)`);
+    throw new Error(`Invalid gate: ${gate || "(missing)"} (use START, A, B or C)`);
   }
 
   const data = taskSessions.recordSessionGate(targetRoot, letter, value, {
@@ -1058,14 +1058,28 @@ function recordGate(targetRoot, gate, value = true, extra = {}) {
     sessionId: data.sessionId,
   });
   if (letter === "C" && value && data.playbook) {
-    // Gate C requires a passing V, so a draft playbook that got this far worked.
+    // Closing C alone proves nothing (there is no review gate any more): a draft
+    // is promoted only when the agent states the playbook's Verify checks passed
+    // and every file/anchor still resolves after the edit.
     let promoted = false;
-    try {
-      promoted = require("./lib/playbooks").markVerified(targetRoot, data.playbook);
-    } catch {
-      // promotion is best-effort; the task itself is already complete
+    let promotion = "not_requested";
+    if (extra.playbookVerified === true) {
+      try {
+        const playbooks = require("./lib/playbooks");
+        const playbook = playbooks.getPlaybook(targetRoot, data.playbook);
+        if (!playbook) promotion = "playbook_not_found";
+        else if (!playbooks.checkPlaybook(targetRoot, playbook).ok) promotion = "playbook_check_failed";
+        else {
+          promoted = playbooks.markVerified(targetRoot, data.playbook);
+          promotion = promoted ? "promoted" : "already_verified";
+        }
+      } catch {
+        // promotion is best-effort; the task itself is already complete
+        promotion = "error";
+      }
     }
-    appendMetric(targetRoot, { event: "playbook_done", sessionId: data.sessionId, playbook: data.playbook, promoted });
+    appendMetric(targetRoot, { event: "playbook_done", sessionId: data.sessionId, playbook: data.playbook, promoted, promotion });
+    return withUserReply({ ...data, playbookPromotion: promotion }, letter);
   }
   return withUserReply(data, letter);
 }

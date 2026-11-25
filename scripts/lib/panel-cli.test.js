@@ -121,23 +121,12 @@ describe("panel-cli", () => {
     const repo = fs.mkdtempSync(path.join(os.tmpdir(), "fxcli-repo-"));
     try {
       execFileSync("git", ["init", "-q", repo], { windowsHide: true });
+      // Real machines have an author identity; the commit under test needs one too.
+      execFileSync("git", ["-C", repo, "config", "user.name", "fxmind-test"], { windowsHide: true });
+      execFileSync("git", ["-C", repo, "config", "user.email", "fxmind@example.test"], { windowsHide: true });
       fs.writeFileSync(path.join(repo, "README.md"), "base\n", "utf8");
       execFileSync("git", ["-C", repo, "add", "README.md"], { windowsHide: true });
-      execFileSync(
-        "git",
-        [
-          "-C",
-          repo,
-          "-c",
-          "user.name=fxmind-test",
-          "-c",
-          "user.email=fxmind@example.test",
-          "commit",
-          "-qm",
-          "base",
-        ],
-        { windowsHide: true },
-      );
+      execFileSync("git", ["-C", repo, "commit", "-qm", "base"], { windowsHide: true });
 
       const { thread } = threads.createThread({
         projectRoot: repo,
@@ -160,6 +149,29 @@ describe("panel-cli", () => {
       );
     } finally {
       threads._resetForTests();
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("explains a missing git author identity instead of returning git's raw prompt", () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "fxcli-noid-"));
+    const saved = { ...process.env };
+    try {
+      execFileSync("git", ["init", "-q", repo], { windowsHide: true });
+      fs.writeFileSync(path.join(repo, "README.md"), "x\n", "utf8");
+      // No global/system config and no guessed identity: like a fresh machine.
+      Object.assign(process.env, {
+        GIT_CONFIG_GLOBAL: path.join(repo, "no-global"), GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "user.useConfigOnly", GIT_CONFIG_VALUE_0: "true",
+      });
+      for (const key of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "EMAIL"]) delete process.env[key];
+      const result = require("./panel-task-git").commitTask(repo, "first");
+      assert.equal(result.ok, false);
+      assert.equal(result.code, "git_identity_missing");
+      assert.match(result.error, /git config --global user.email/);
+    } finally {
+      for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+      Object.assign(process.env, saved);
       fs.rmSync(repo, { recursive: true, force: true });
     }
   });

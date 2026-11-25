@@ -334,7 +334,16 @@ function commitTask(worktreePath, message) {
   }
 
   const committed = runGit(["commit", "-m", commitMessage], root);
-  if (!committed.ok) return { ok: false, error: committed.error };
+  if (!committed.ok) {
+    if (/Author identity unknown|Please tell me who you are|empty ident name|no email was given/i.test(String(committed.error || ""))) {
+      return {
+        ok: false,
+        code: "git_identity_missing",
+        error: 'Git has no author identity on this machine. Run git config --global user.name "Your Name" and git config --global user.email "you@example.com", then approve again.',
+      };
+    }
+    return { ok: false, error: committed.error };
+  }
   const hash = runGit(["rev-parse", "HEAD"], root);
   if (!hash.ok) return { ok: false, error: hash.error };
   return {
