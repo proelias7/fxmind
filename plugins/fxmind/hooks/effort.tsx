@@ -334,26 +334,26 @@ function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: str
 }
 
 /** One full-surface texture for cards and every settings subview. */
-// Tall enough for the settings panel at its roomiest; the mark sits at mid-height, inside it.
+// Measured on the desktop app: an Svg wider than the box that holds it is not drawn at all (one taller is cut, which is
+// fine). The texture was drawn 960 px wide, wider than any band or the settings panel, so it never showed anywhere;
+// what read as "texture" in the bands was their brand art. Layers are sized to the band's own width instead.
+let bandPx = 0
+/** A width that fits the band being drawn, at most `max`; a safe 480 before the first band reports its columns. */
+export function fitPx(max: number, columns = 0): number {
+  const px = columns > 0 ? Math.floor((columns - 4) * CELL_PX) : bandPx
+  return px > 0 ? Math.max(160, Math.min(max, px)) : Math.min(max, 480)
+}
+// The settings panel's texture height: as tall as the panel at its roomiest; a taller image is cut, never dropped.
 const TEXTURE_TALL_H = 192
 function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = false) {
   if (!els.Svg) return null
   const { Box: B, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Svg: (p: Record<string, unknown>) => unknown }
-  if (tall) {
-    // The settings panel: the texture in the art's own box, anchored right and as tall as the panel, the way the
-    // bands' art is laid out. The full-cover box with a centred image (below) drew nothing in this taller column
-    // panel on desktop, while the same box showed in the one-line bands.
-    return (
-      <B key={`${key}-texture`} position="absolute" top={-1} right={0} bottom={-1}>
-        <S source={textureSvg(960, TEXTURE_TALL_H, BRAND_EDGE)} alt="" width={960} height={TEXTURE_TALL_H} />
-      </B>
-    )
-  }
-  const height = 96
+  const height = tall ? TEXTURE_TALL_H : 96
+  const width = fitPx(960)
   return (
     <B key={`${key}-texture`} position="absolute" top={0} bottom={0} left={0} right={0}
-      overflow="hidden" alignItems="flex-end" justifyContent="center">
-      <S source={textureSvg(960, height, BRAND_EDGE)} alt="" width={960} height={height} />
+      overflow="hidden" flexDirection="row" alignItems={tall ? 'center' : 'flex-end'} justifyContent="flex-end">
+      <S source={textureSvg(width, height, BRAND_EDGE)} alt="" width={width} height={height} />
     </B>
   )
 }
@@ -4925,6 +4925,7 @@ Saved to ${out}.md and .json` }
   // Draws the bands and the settings panel. Counted and guarded so /fxmind-effort debug can say whether the app asks
   // for it at all and whether drawing failed: an error here otherwise only leaves the slot empty.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (typeof e.props.bodyColumns === 'number') bandPx = fitPx(Number.MAX_SAFE_INTEGER, e.props.bodyColumns)
     // The prompt refiner's band takes the slot while it works on a demand (./refine), in the bar's own frame.
     const refining = await refineBand($, e, band => refineFrame($, e, band))
     if (refining) return refining
@@ -5172,7 +5173,7 @@ Saved to ${out}.md and .json` }
           {term ? null : textureLayer({ Box, Svg }, 'settings', true)}
           {term ? null : (
             <Box key="settings-art" position="absolute" top={-1} left={0} height={FROST_HEIGHT * 2}>
-              <Svg source={PANEL_GLOW_SVG} alt="fxmind" width={FROST_WIDTH * 2} height={FROST_HEIGHT * 2} />
+              <Svg source={PANEL_GLOW_SVG} alt="fxmind" width={fitPx(FROST_WIDTH * 2)} height={FROST_HEIGHT * 2} />
             </Box>
           )}
           {term ? null : introLayer({ Box, Svg }, 'settings', await introShows($, 'settings'))}

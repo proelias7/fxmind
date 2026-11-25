@@ -48,7 +48,9 @@ test("All settings pages share a full-panel FXMIND texture", () => {
   const ui = read("effort.tsx");
   const art = read("brand-mark.ts");
   assert.match(ui, /textureLayer\(\{ Box, Svg \}, [\x27"]settings[\x27"], true\)/);
-  assert.match(ui, /textureSvg\(960, height, BRAND_EDGE\)/);
+  // Sized to the band: the desktop draws nothing for an Svg wider than its box.
+  assert.match(ui, /textureSvg\(width, height, BRAND_EDGE\)/);
+  assert.match(ui, /const width = fitPx\(960\)/);
   assert.match(art, /TEXTURE_TALL_SVG = textureSvg\(960, 160\)/);
   assert.match(art, /fxdots/);
 });
