@@ -183,9 +183,9 @@ describe('refiner', () => {
     expect(await drawn(band)).toContain('question 1 of 2')
     await band.press({ key: 'refine-option-0' })
     expect(await drawn(band)).toContain('Qual a validade do token?')
-    // No second input in the band: an open answer goes in the prompt box.
-    expect(await band.find({ key: 'refine-answer-1' }).catch(() => undefined)).toBeUndefined()
-    await type($, '15 minutos')
+    // An open answer is typed in the band's own field (the prompt box works too: see the next test).
+    expect(await band.find({ key: 'refine-answer-1' })).toBeDefined()
+    await band.input({ key: 'refine-answer-1', text: '15 minutos' })
     await clock.advance(10)
 
     expect(seen.writer).toHaveLength(1)

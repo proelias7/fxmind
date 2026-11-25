@@ -344,7 +344,7 @@ export type RefineFrame = (band: {
 export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt'>, frame: RefineFrame) {
   const now = await read($, state)
   if (!now) return null
-  const { Button, Text } = themedEls($.ui.resolve(e))
+  const { Box, Button, Text, Input } = themedEls($.ui.resolve(e))
   const title = 'Prompt refiner'
 
   if (now.stage === 'reading' || now.stage === 'writing') {
@@ -356,7 +356,8 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
     })
   }
 
-  // An answer is a choice below or a line typed in the prompt box (refineSubmit): one place to type, not two.
+  // An answer is a choice below, a line typed in the band's own field, or one typed in the prompt box (refineSubmit).
+  // The field is there because the prompt box alone did not read as a place to answer: people looked for one.
   const question = now.questions[now.at]
   const rows: unknown[][] = []
   if (now.error) rows.push([<Text key="refine-error" color="#e0a33a" wrap="truncate">{now.error}</Text>])
@@ -369,10 +370,18 @@ export async function refineBand($: EngineInterface, e: RenderInput<'AbovePrompt
       )))
     const pick = question.recommended !== undefined ? question.options[question.recommended] : undefined
     if (pick) rows.push([<Text key="refine-rec" dimColor wrap="truncate">{`${tr('Recommended')}: ${pick}${question.why ? ` — ${question.why}` : ''}`}</Text>])
+    // Keyed by the question, so the field starts empty for each one.
+    if (Input)
+      rows.push([
+        <Box key={`refine-answer-box-${now.at}`} width={56} flexShrink={1}>
+          <Input key={`refine-answer-${now.at}`} placeholder={question.options.length ? 'Or type your own answer' : 'Type your answer'}
+            submitLabel="ok" onSubmit={(text: string) => (text.trim() ? answer($, text) : undefined)} />
+        </Box>,
+      ])
   }
   return frame({
     title,
-    detail: question ? `question ${now.at + 1} of ${now.questions.length} · pick or answer in the chat` : 'ready to write',
+    detail: question ? `question ${now.at + 1} of ${now.questions.length} · pick or type your answer` : 'ready to write',
     rows,
     actions: [
       ...(question ? [<Button key="refine-skip" plain dimColor label="Skip" onPress={() => answer($, null)} />] : []),
