@@ -276,7 +276,10 @@ function sectionScore(section, concepts) {
  * knows what to read from the file.
  */
 function fitMemory(doc, concepts, cap, priority = PRIORITY_SECTIONS) {
-  const header = doc.memory.paths.length ? `Paths: ${doc.memory.paths.join(", ")}\n` : "";
+  // A memory may list dozens of paths; the first few say where to start without eating the budget.
+  const shown = doc.memory.paths.slice(0, 6);
+  const more = doc.memory.paths.length - shown.length;
+  const header = shown.length ? `Paths: ${shown.join(", ")}${more > 0 ? ` (+${more} more)` : ""}\n` : "";
   const full = `${header}${doc.body.trim()}`;
   if (estimateTokens(full) <= cap) {
     return { content: full, truncated: false, omittedSections: [] };
