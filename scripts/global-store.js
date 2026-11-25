@@ -175,8 +175,36 @@ function createSymlink(target, linkPath, type = "dir") {
   return linkOrMirror(target, linkPath, type);
 }
 
+/**
+ * Copies into `globalDir` every file of `localDir` it lacks (recursively), and keeps a local file that differs
+ * from the global one beside it as `<name>.local-<stamp><ext>`: nothing in a real local folder is lost when the
+ * folder is replaced by a link. Global files are never overwritten and never deleted.
+ */
+function mergeIntoGlobal(localDir, globalDir, stamp, report) {
+  fs.mkdirSync(globalDir, { recursive: true });
+  for (const entry of fs.readdirSync(localDir, { withFileTypes: true })) {
+    const from = path.join(localDir, entry.name);
+    const to = path.join(globalDir, entry.name);
+    if (entry.isDirectory()) {
+      mergeIntoGlobal(from, to, stamp, report);
+    } else if (entry.isFile()) {
+      if (!fs.existsSync(to)) {
+        fs.copyFileSync(from, to);
+        report.copied += 1;
+      } else if (!fs.readFileSync(from).equals(fs.readFileSync(to))) {
+        const ext = path.extname(entry.name);
+        const kept = path.join(globalDir, `${path.basename(entry.name, ext)}.local-${stamp}${ext}`);
+        fs.copyFileSync(from, kept);
+        report.conflicts.push(path.relative(globalDir, kept));
+      }
+    }
+  }
+}
+
 function migrateLocalDataToGlobal(localFxmind, globalProjectDir) {
   fs.mkdirSync(globalProjectDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const report = { copied: 0, conflicts: [] };
 
   for (const name of PROJECT_DATA_LINKS) {
     const localPath = path.join(localFxmind, name);
@@ -192,8 +220,12 @@ function migrateLocalDataToGlobal(localFxmind, globalProjectDir) {
     }
 
     if (stat.isDirectory()) {
+      // The local folder is replaced by a link next (wireProjectLinks). When the global folder already existed,
+      // its files used to be skipped and then deleted with the folder; merge them first.
       if (!fs.existsSync(globalPath)) {
         fs.cpSync(localPath, globalPath, { recursive: true, force: true });
+      } else {
+        mergeIntoGlobal(localPath, globalPath, stamp, report);
       }
       continue;
     }
@@ -202,6 +234,48 @@ function migrateLocalDataToGlobal(localFxmind, globalProjectDir) {
       fs.mkdirSync(path.dirname(globalPath), { recursive: true });
       fs.copyFileSync(localPath, globalPath);
     }
+  }
+  return report;
+}
+
+/**
+ * Claude Code asks before every read of `.fxmind/memory` when it is a link into ~/.fxmind (outside the project).
+ * The project's own global folder and the shared skills are added to `permissions.additionalDirectories` in
+ * `.claude/settings.local.json`: per user and machine (the paths differ), never committed. Returns true if changed.
+ */
+function ensureClaudeStoreAccess(projectRoot) {
+  const store = readStore(projectRoot);
+  if (!(store?.mode === "global" && store.globalRoot)) return false;
+  const dirs = [store.globalRoot, store.sharedSkills].filter(Boolean).map((dir) => path.resolve(dir).replace(/\\/g, "/"));
+  const settingsPath = path.join(path.resolve(projectRoot), ".claude", "settings.local.json");
+  let settings = {};
+  if (fs.existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(fs.readFileSync(settingsPath, "utf8")) || {};
+    } catch {
+      return false; // never rewrite a file the person may be editing by hand
+    }
+  }
+  const permissions = settings.permissions && typeof settings.permissions === "object" ? settings.permissions : {};
+  const current = Array.isArray(permissions.additionalDirectories) ? permissions.additionalDirectories : [];
+  const norm = (dir) => String(dir).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  const missing = dirs.filter((dir) => !current.some((have) => norm(have) === norm(dir)));
+  if (!missing.length) return false;
+  settings.permissions = { ...permissions, additionalDirectories: [...current, ...missing] };
+  writeJson(settingsPath, settings);
+  return true;
+}
+
+/** Whether Claude Code may read the project's global folder without asking (see ensureClaudeStoreAccess). */
+function claudeStoreAccessMissing(projectRoot) {
+  const store = readStore(projectRoot);
+  if (!(store?.mode === "global" && store.globalRoot)) return false;
+  try {
+    const settings = JSON.parse(fs.readFileSync(path.join(path.resolve(projectRoot), ".claude", "settings.local.json"), "utf8"));
+    const have = (settings?.permissions?.additionalDirectories || []).map((dir) => String(dir).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase());
+    return !have.includes(path.resolve(store.globalRoot).replace(/\\/g, "/").toLowerCase());
+  } catch {
+    return true;
   }
 }
 
@@ -270,7 +344,7 @@ function setupGlobalStore(projectRoot, meta = {}) {
 
   fs.mkdirSync(globalProjectDir, { recursive: true });
   migrateLayoutInDir(localFxmind);
-  migrateLocalDataToGlobal(localFxmind, globalProjectDir);
+  const merged = migrateLocalDataToGlobal(localFxmind, globalProjectDir);
   migrateLayoutInDir(globalProjectDir);
   registerProject(resolvedRoot, meta);
   writeProjectStore(resolvedRoot, projectId, globalProjectDir);
@@ -295,6 +369,7 @@ function setupGlobalStore(projectRoot, meta = {}) {
     registryPath: REGISTRY_PATH,
     linkModes,
     copyFallbacks,
+    merged,
   };
 }
 
@@ -404,6 +479,9 @@ function runGlobalCli(argv = []) {
 }
 
 module.exports = {
+  ensureClaudeStoreAccess,
+  claudeStoreAccessMissing,
+  mergeIntoGlobal,
   SHARED_DIR,
   GLOBAL_ROOT,
   GLOBAL_SHARED_SKILLS,

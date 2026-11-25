@@ -146,6 +146,17 @@ function checkSetup(root, report, options) {
     }
   }
 
+  // Global store: Claude Code asks before each read through the .fxmind links unless their target is allowed.
+  if (fs.existsSync(path.join(root, ".claude"))) {
+    const store = require("../global-store");
+    if (store.claudeStoreAccessMissing(root)) {
+      const what = "Claude Code asks permission for every memory read: the global store (~/.fxmind) is not in additionalDirectories";
+      if (options.fix && store.ensureClaudeStoreAccess(root)) report("setup", "fixed", `${what}: added to .claude/settings.local.json`);
+      else if (options.fix) report("setup", "warn", what, { hint: "fix .claude/settings.local.json (invalid JSON?), then fxmind health --fix" });
+      else report("setup", "fixable", what);
+    }
+  }
+
   const mcpPath = path.join(root, ".mcp.json");
   if (fs.existsSync(mcpPath)) {
     try {

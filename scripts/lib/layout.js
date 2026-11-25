@@ -92,6 +92,8 @@ const DEPRECATED_ROOT_FILES = [
 
 const PROJECT_GITIGNORE_LINES = [
   ".env",
+  // Per user and machine (e.g. the global store's paths in additionalDirectories).
+  ".claude/settings.local.json",
   ".fxmind/storage.json",
   ".fxmind/graph/",
   ".fxmind/state/",

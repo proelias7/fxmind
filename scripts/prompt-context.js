@@ -256,6 +256,8 @@ function installClaudePromptHook(targetRoot) {
   copyHookBundle(targetRoot, CLAUDE_HOOKS_DIR_REL, CLAUDE_HOOK_SCRIPTS);
   fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
   const written = writeJsonIfChanged(settingsPath, settings);
+  // Global store: .fxmind/memory links into ~/.fxmind, which Claude Code asks about on every read.
+  try { require("./global-store").ensureClaudeStoreAccess(targetRoot); } catch { /* optional */ }
   return { changed: Boolean(written?.changed), path: CLAUDE_SETTINGS_REL.replace(/\\/g, "/") };
 }
 

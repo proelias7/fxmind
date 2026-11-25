@@ -429,6 +429,11 @@ function applyGlobalStore(targetRoot, packs, enabled) {
 }
 
 function printGlobalStoreWarnings(result) {
+  const merged = result?.merged;
+  if (merged && (merged.copied || merged.conflicts?.length)) {
+    console.log(`[global] Kept ${merged.copied} local file(s) by copying them into ~/.fxmind before linking.`);
+    for (const kept of merged.conflicts || []) console.log(`  ⚠ local copy differed from the global one, kept as ${kept}`);
+  }
   if (!result || !Array.isArray(result.copyFallbacks) || result.copyFallbacks.length === 0) {
     return;
   }
