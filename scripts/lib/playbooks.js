@@ -19,7 +19,8 @@ const retrieval = require("./memory-retrieval");
 
 const KINDS = ["config", "fix", "mechanic", "create"];
 const PLAYBOOKS_DIR = "playbooks";
-const MAX_FILE_BYTES = 2 * 1024 * 1024;
+// FiveM .meta files are often 5-15 MB (weapons.meta, weaponanimations.meta).
+const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_ANCHOR_LINES = 5;
 const PITFALLS_TOKENS = 300;
 
@@ -240,38 +241,66 @@ function anchorRegex(anchor) {
   return new RegExp(parts.join(".+?"));
 }
 
-function readLines(root, file, cache) {
+/** { kind: "file", content } | { kind: "dir" } | { kind: "missing", reason }, cached per file. */
+function readTarget(root, file, cache) {
   if (cache.has(file)) return cache.get(file);
-  let lines = null;
+  let target;
   try {
     const abs = path.resolve(root, file);
     const rel = path.relative(path.resolve(root), abs);
-    const stat = fs.statSync(abs);
-    if (!rel.startsWith("..") && !path.isAbsolute(rel) && stat.isFile() && stat.size <= MAX_FILE_BYTES) {
-      lines = fs.readFileSync(abs, "utf8").split(/\r?\n/);
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      target = { kind: "missing", reason: `path outside the project: ${file}` };
+    } else {
+      const stat = fs.statSync(abs);
+      if (stat.isDirectory()) target = { kind: "dir" };
+      else if (!stat.isFile()) target = { kind: "missing", reason: `not a file: ${file}` };
+      else if (stat.size > MAX_FILE_BYTES) target = { kind: "missing", reason: `file too large to resolve anchors (> ${MAX_FILE_BYTES >> 20} MB): ${file}` };
+      else target = { kind: "file", content: fs.readFileSync(abs, "utf8") };
     }
   } catch {
-    lines = null;
+    target = { kind: "missing", reason: `file not found: ${file}` };
   }
-  cache.set(file, lines);
-  return lines;
+  cache.set(file, target);
+  return target;
 }
 
-/** Steps with `resolved` = { ok, lines[], count, reason }. */
+/** Line numbers (1-based) of the anchor, scanning the whole text once. */
+function findAnchor(content, anchor) {
+  const re = new RegExp(anchorRegex(anchor).source, "g");
+  const found = [];
+  let count = 0;
+  let line = 1;
+  let scanned = 0;
+  let match;
+  while ((match = re.exec(content))) {
+    for (let i = content.indexOf("\n", scanned); i !== -1 && i < match.index; i = content.indexOf("\n", i + 1)) line += 1;
+    scanned = match.index;
+    // One hit per line, as a line-by-line scan would count it.
+    const lineEnd = content.indexOf("\n", match.index);
+    re.lastIndex = lineEnd === -1 ? content.length : lineEnd + 1;
+    count += 1;
+    if (found.length < MAX_ANCHOR_LINES) found.push(line);
+    if (lineEnd === -1) break;
+    line += 1;
+    scanned = lineEnd + 1;
+  }
+  return { found, count };
+}
+
+/** Steps with `resolved` = { ok, lines[], count, reason, dir }. */
 function resolveSteps(root, playbook) {
   const cache = new Map();
   const steps = playbook.steps.map((step) => {
-    const lines = readLines(root, step.file, cache);
-    if (!lines) return { ...step, resolved: { ok: false, lines: [], count: 0, reason: `file not found: ${step.file}` } };
+    const target = readTarget(root, step.file, cache);
+    if (target.kind === "missing") return { ...step, resolved: { ok: false, lines: [], count: 0, reason: target.reason } };
+    if (target.kind === "dir") {
+      // A folder step (e.g. "copy the files into stream/") has no line to resolve.
+      return step.anchor
+        ? { ...step, resolved: { ok: false, lines: [], count: 0, reason: `anchor on a folder (use a file): ${step.file}` } }
+        : { ...step, resolved: { ok: true, lines: [], count: 0, reason: "", dir: true } };
+    }
     if (!step.anchor) return { ...step, resolved: { ok: true, lines: [], count: 0, reason: "" } };
-    const re = anchorRegex(step.anchor);
-    const found = [];
-    let count = 0;
-    lines.forEach((text, index) => {
-      if (!re.test(text)) return;
-      count += 1;
-      if (found.length < MAX_ANCHOR_LINES) found.push(index + 1);
-    });
+    const { found, count } = findAnchor(target.content, step.anchor);
     return {
       ...step,
       resolved: count
@@ -355,7 +384,7 @@ function readMemoryPitfalls(root, slug, maxTokens = PITFALLS_TOKENS) {
 
 function anchorNote(step) {
   const r = step.resolved;
-  if (!step.anchor) return `\`${step.file}\``;
+  if (!step.anchor) return `\`${step.file}\`${r.dir ? " (folder)" : ""}`;
   const where = r.count > 1 ? `lines ${r.lines.join(", ")}${r.count > r.lines.length ? ", …" : ""}` : `line ${r.lines[0]}`;
   return `\`${step.file}\` ${where} (anchor \`${step.anchor}\`)`;
 }

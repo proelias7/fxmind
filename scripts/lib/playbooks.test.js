@@ -236,6 +236,31 @@ describe("playbooks", () => {
       assert.match(result.errors[0], /anchor not found/);
     });
 
+    it("accepts folder steps and refuses an anchor on a folder", () => {
+      fs.mkdirSync(path.join(root, "resources", "boxes", "stream"), { recursive: true });
+      const pb = playbooks.parsePlaybook(
+        "---\nid: f\nkind: config\ntriggers: [copiar stream]\n---\nSteps:\n1. `resources/boxes/stream/` — copy the .ydr files here\n2. `resources/boxes/stream/` @ `x` — wrong\n",
+        "f.md",
+      );
+      const { steps } = playbooks.resolveSteps(root, pb);
+      assert.equal(steps[0].resolved.ok, true);
+      assert.equal(steps[1].resolved.ok, false);
+      assert.match(steps[1].resolved.reason, /anchor on a folder/);
+      assert.match(playbooks.renderPlaybook(root, { ...pb, steps: pb.steps.slice(0, 1), verify: [], memories: [] }, { steps: steps.slice(0, 1) }), /stream\/` \(folder\)/);
+    });
+
+    it("resolves anchors in multi-megabyte files (FiveM .meta)", () => {
+      const filler = "<Item>filler</Item>\r\n".repeat(400000); // ~8 MB, CRLF
+      write(root, "resources/boxes/weapons.meta", `${filler}<Name>txd_armas</Name>\r\n${filler}`);
+      const pb = playbooks.parsePlaybook(
+        "---\nid: m\nkind: config\ntriggers: [meta arma]\n---\nSteps:\n1. `resources/boxes/weapons.meta` @ `<Name>txd_armas</Name>` — paste\n",
+        "m.md",
+      );
+      const [step] = playbooks.resolveSteps(root, pb).steps;
+      assert.equal(step.resolved.ok, true, step.resolved.reason);
+      assert.deepEqual(step.resolved.lines, [400001]);
+    });
+
     it("flags one-word triggers and unknown kinds", () => {
       const pb = playbooks.parsePlaybook("---\nid: x\nkind: nope\ntriggers: [skin]\n---\nSteps:\n1. `resources/boxes/weapons.lua` — y\n", "x.md");
       const result = playbooks.checkPlaybook(root, pb);
