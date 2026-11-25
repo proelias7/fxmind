@@ -87,6 +87,54 @@ describe("prompt-context", () => {
     }
   });
 
+  it("replaces the legacy bare `fxmind context --hook` and keeps other prompt hooks", () => {
+    const settingsPath = path.join(root, ".claude", "settings.json");
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ hooks: { UserPromptSubmit: [
+      { hooks: [{ type: "command", command: "fxmind context --hook", timeout: 10 }] },
+      { hooks: [{ type: "command", command: "node other-vendor-prompt.js", timeout: 5 }] },
+    ] } }));
+    assert.equal(promptContext.installClaudePromptHook(root).changed, true);
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+    const commands = settings.hooks.UserPromptSubmit.flatMap((g) => g.hooks.map((h) => h.command));
+    assert.deepEqual(commands, ["node other-vendor-prompt.js", promptContext.CLAUDE_HOOK_COMMAND]);
+    assert.equal(promptContext.installClaudePromptHook(root).changed, false);
+  });
+
+  it("the installed prompt hook works with no `fxmind` on PATH", () => {
+    promptContext.installClaudePromptHook(root);
+    const adapter = path.join(root, ".claude", "hooks", "claude-adapter.js");
+    const run = spawnSync(process.execPath, [adapter, "prompt"], {
+      cwd: root,
+      input: JSON.stringify({ prompt: "a garagem nao abre", cwd: root, hook_event_name: "UserPromptSubmit" }),
+      encoding: "utf8",
+      env: {
+        ...process.env, CLAUDE_PROJECT_DIR: root, PATH: path.dirname(process.execPath), Path: undefined,
+        FXMIND_CLI: path.join(__dirname, "install.js"), FXMIND_BIN: "",
+        FXMIND_NO_UPDATE_CHECK: "1", FXMIND_JEV_ENABLED: "false",
+      },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    const out = JSON.parse(run.stdout);
+    assert.equal(out.hookSpecificOutput.hookEventName, "UserPromptSubmit");
+    assert.match(out.hookSpecificOutput.additionalContext, /Garage opens NUI/);
+  });
+
+  it("locates a global fxmind CLI in the Windows npm folder without PATH", () => {
+    const { locateCli } = require("./lib/fxmind-cli");
+    const appData = fs.mkdtempSync(path.join(os.tmpdir(), "fxappdata-"));
+    const cli = path.join(appData, "npm", "node_modules", "fxmind", "scripts", "install.js");
+    fs.mkdirSync(path.dirname(cli), { recursive: true });
+    fs.writeFileSync(cli, "");
+    try {
+      const env = { APPDATA: appData, PATH: "", HOME: appData };
+      assert.equal(locateCli(env, path.join(appData, "nowhere", "node.exe"), "win32"), cli);
+      assert.equal(locateCli({ PATH: "", HOME: appData }, path.join(appData, "nowhere", "node"), "linux"), null);
+    } finally {
+      fs.rmSync(appData, { recursive: true, force: true });
+    }
+  });
+
   it("installer removes legacy FXMIND Stop while preserving another provider", () => {
     const settingsPath = path.join(root, ".claude", "settings.json");
     fs.mkdirSync(path.dirname(settingsPath), { recursive: true });

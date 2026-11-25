@@ -1,7 +1,8 @@
 /**
  * fxmind context — memory preload for agent prompts.
  *
- * `fxmind context --hook` is the Claude Code UserPromptSubmit hook: it reads
+ * `fxmind context --hook` backs the Claude Code UserPromptSubmit hook (run via
+ * `.claude/hooks/claude-adapter.js prompt`, which locates this CLI): it reads
  * the hook payload from stdin, ranks project memories for the prompt and
  * prints them as additionalContext, so the agent starts with the relevant
  * memory instead of spending a turn on fxmind_query. No match → no output
@@ -16,11 +17,15 @@ const path = require("path");
 const DEFAULT_BUDGET = 1200;
 const MIN_PROMPT_CHARS = 8;
 const CLAUDE_SETTINGS_REL = path.join(".claude", "settings.json");
-const CLAUDE_HOOK_COMMAND = "fxmind context --hook";
 const CLAUDE_HOOKS_DIR_REL = path.join(".claude", "hooks");
 const CLAUDE_HOOK_SCRIPTS = ["claude-adapter.js", "gate-guard.js", "drift-watcher.js"];
 const EDIT_TOOLS = "Edit|Write|MultiEdit|NotebookEdit";
 const adapter = (event) => `node "$CLAUDE_PROJECT_DIR/.claude/hooks/claude-adapter.js" ${event}`;
+// Runs `fxmind context --hook` through the project's adapter, which finds the
+// CLI itself: npm's global bin is often not on PATH (Windows %APPDATA%\npm).
+const CLAUDE_HOOK_COMMAND = adapter("prompt");
+// Older installs registered the bare command; it is replaced, never duplicated.
+const LEGACY_HOOK_COMMANDS = new Set(["fxmind context --hook"]);
 const CLAUDE_HOOKS = {
   UserPromptSubmit: { command: CLAUDE_HOOK_COMMAND, timeout: 10 },
   PreToolUse: { matcher: EDIT_TOOLS, command: adapter("pre"), timeout: 15 },
@@ -202,6 +207,14 @@ function installClaudePromptHook(targetRoot) {
         : [],
     })).filter((group) => group.hooks.length);
     if (settings.hooks.Stop.length === 0) delete settings.hooks.Stop;
+  }
+  if (Array.isArray(settings.hooks.UserPromptSubmit)) {
+    settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit.map((group) => ({
+      ...group,
+      hooks: Array.isArray(group?.hooks)
+        ? group.hooks.filter((hook) => !LEGACY_HOOK_COMMANDS.has(hook?.command))
+        : [],
+    })).filter((group) => group.hooks.length);
   }
   for (const [event, spec] of Object.entries(CLAUDE_HOOKS)) {
     const groups = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];

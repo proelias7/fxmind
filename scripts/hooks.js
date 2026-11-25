@@ -41,7 +41,7 @@ const HOOK_SCRIPTS = [
   "pre-commit.js",
 ];
 
-const HOOK_LIB_FILES = ["memory-drift.js", "update-check.js", "cleanup-tmp.js", "layout.js", "fs-lock.js", "task-sessions.js", "verification.js", "lua-scope-check.js", "independent-review.js", "ui-impact.js"];
+const HOOK_LIB_FILES = ["memory-drift.js", "fxmind-cli.js", "update-check.js", "cleanup-tmp.js", "layout.js", "fs-lock.js", "task-sessions.js", "verification.js", "lua-scope-check.js", "independent-review.js", "ui-impact.js"];
 
 const FXMIND_COMMANDS = {
   preToolUse: [

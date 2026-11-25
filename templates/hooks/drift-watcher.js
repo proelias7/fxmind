@@ -25,13 +25,14 @@ function autoRebuildGraph() {
     // ignore
   }
 
-  const bin = process.env.FXMIND_BIN || "fxmind";
+  // node + the located CLI: `fxmind` is often not on PATH (Windows npm prefix).
+  const cmd = require("./lib/fxmind-cli.js").fxmindCommand(["graph", "--no-open", "--no-html"]);
   let child;
   try {
     child = spawn(
-      bin,
-      ["graph", "--no-open", "--no-html"],
-      { cwd: PROJECT_ROOT, detached: true, stdio: "ignore", shell: true },
+      cmd.command,
+      cmd.args,
+      { cwd: PROJECT_ROOT, detached: true, stdio: "ignore", shell: cmd.shell, windowsHide: true },
     );
   } catch {
     return false;

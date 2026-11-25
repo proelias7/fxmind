@@ -5,9 +5,9 @@ const fs = require("fs");
 const path = require("path");
 
 const { installHooks, isGitHookInstalled } = require("../hooks");
-const { installMcp, mcpLaunchWarnings, commandOnPath } = require("../mcp-install");
+const { installMcp, mcpLaunchWarnings } = require("../mcp-install");
 const fivemRcon = require("../fivem-rcon");
-const { installClaudePromptHook, CLAUDE_HOOK_COMMAND } = require("../prompt-context");
+const { installClaudePromptHook } = require("../prompt-context");
 
 function cursorHooksPresent(targetRoot) {
   return fs.existsSync(path.join(path.resolve(targetRoot), ".cursor", "hooks.json"));
@@ -199,11 +199,8 @@ function installProjectClaudeHook(targetRoot) {
     }
     if (!result.changed) return { changed: false };
     console.log("[Claude hook]");
-    console.log(`  ✓ ${result.path} → UserPromptSubmit: ${CLAUDE_HOOK_COMMAND} (memory preload)`);
+    console.log(`  ✓ ${result.path} → UserPromptSubmit: fxmind context --hook (memory preload)`);
     console.log("  ✓ .claude/hooks → PreToolUse gates A/B · PostToolUse memory drift");
-    if (!commandOnPath("fxmind")) {
-      console.log('  ⚠ "fxmind" is not on PATH: the memory preload hook will not run. Install globally: npm install -g github:proelias7/fxmind');
-    }
     return { changed: true };
   } catch (error) {
     console.log(`[Claude hook] skipped: ${error.message}`);

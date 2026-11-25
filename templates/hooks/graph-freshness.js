@@ -32,12 +32,14 @@ function main() {
       return;
     }
 
-    const bin = process.env.FXMIND_BIN || "fxmind";
-    spawnSync(bin, ["graph", "--no-open", "--no-html"], {
+    // node + the located CLI: `fxmind` is often not on PATH (Windows npm prefix).
+    const cmd = require("./lib/fxmind-cli.js").fxmindCommand(["graph", "--no-open", "--no-html"]);
+    spawnSync(cmd.command, cmd.args, {
       cwd: PROJECT_ROOT,
       timeout: 12000,
       stdio: "ignore",
-      shell: true,
+      shell: cmd.shell,
+      windowsHide: true,
     });
   } catch {
     // fail-open
