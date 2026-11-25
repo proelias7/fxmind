@@ -344,6 +344,7 @@ export function fitPx(max: number, columns = 0): number {
   return px > 0 ? Math.max(160, Math.min(max, px)) : Math.min(max, 480)
 }
 // The settings panel's texture height: as tall as the panel at its roomiest; a taller image is cut, never dropped.
+// Anchored at the top, its mark sits below the title bar, so it never sits behind the version and Report.
 const TEXTURE_TALL_H = 192
 function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = false) {
   if (!els.Svg) return null
@@ -352,7 +353,7 @@ function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = 
   const width = fitPx(960)
   return (
     <B key={`${key}-texture`} position="absolute" top={0} bottom={0} left={0} right={0}
-      overflow="hidden" alignItems={tall ? 'center' : 'flex-end'} justifyContent="flex-end">
+      overflow="hidden" alignItems={tall ? 'flex-start' : 'flex-end'} justifyContent="flex-end">
       <S source={textureSvg(width, height, BRAND_EDGE)} alt="fxmind texture" width={width} height={height} />
     </B>
   )
