@@ -1,7 +1,7 @@
 import { describe, expect, mock, test as baseTest } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import type { Engine } from 'claude-code/testing'
-import { SETUP_PROMPT, behindHint, helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, handoffPillSvg, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
+import { SETUP_PROMPT, behindHint, helperFloor, namedEffort, hotVisible, looksLikeRedo, REDO_STAY_PROMPTS, routeWorth, syncPlan, tipped, bounded, handoffEvidence, parseHandoffAnswer, withJevKey, parseVerdict, capped, resetLabel, HANDOFF_PROMPT, handoffMessage, withAttachments, endsOnQuestion, keepsEffort, benchGrade, benchReport, judgeFailure, contextFrom, readConfig, asSpent, cacheColor, cacheLabel, cacheClock, cacheSafe, cacheTtlOf, mostlyCached, isFollowUp, parseJevAnswer, parseJevKey, savedText, forkOutcome, setupNext, setupBack, setupCounter, dashboardLines, flashColor, handoffGlowStep, weighted, handoffLook, handoffPillSvg, isNewer, latestRelease, updateSnoozed, updateFailure, claudeCandidates, fxmindCandidates, pillCells, ghostPillSvg, noClaudeHint, compactTranscript, judgeGlowSvg, judgeGlowAt, judgeBrightnessAt, JUDGE_RISE_MS, JUDGE_FADE_MS, JUDGE_STEP_MS, JUDGE_PIECE_MS } from './effort'
 import { ART_COLUMNS, artFrame, artPixel, MOVING } from './art'
 import { MARK_SVG } from './brand-mark'
 import { setLanguage, tr } from './i18n'
@@ -1337,7 +1337,7 @@ describe('setup guide', () => {
     await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
     await $.command.run({ command: 'fxmind-effort', args: 'settings' })
     const panel = await $.ui.mount(DESK)
-    expect(await drawn(panel)).not.toContain('"key":"settings-card-judge"')
+    expect(await drawn(panel)).toContain('"key":"settings-card-judge"')
     expect(await drawn(panel)).toContain('settings-card-system')
     expect(await drawn(panel)).not.toContain('custom')
     await panel.unmount()
@@ -2415,10 +2415,17 @@ describe('settings panel', () => {
     await guide.unmount()
     const band = await $.ui.mount(DESK_BAND)
     await band.press({ key: 'dash-settings' })
-    // Judge models are now managed by the web dashboard, not Claude's chat panel.
-    const surface = await drawn(band)
-    expect(surface).toContain('settings-card-system')
-    expect(surface).not.toContain('"key":"settings-card-judge"')
+    // The judge's key and its test stay in the chat panel: the web dashboard has no place for them.
+    expect(await drawn(band)).toContain('settings-card-system')
+    await band.press({ key: 'settings-card-judge' })
+    await band.select({ key: 'settings-judge-pick', value: 'auto' })
+    await band.press({ key: 'settings-judge-test' })
+    const result = async () => (await band.findAll({ type: 'Text' })).map(t => t.text).find(t => /^[✓✗]/.test(t))
+    expect(await result()).toContain('✓ Jev answered: low in')
+    status = 401
+    await band.press({ key: 'settings-judge-test' })
+    expect(await result()).toBe('✗ Jev rejected the key (401)')
+    // A test warns nobody: no toast, no judge-down band.
     expect(toasts).toEqual([])
     await band.unmount()
   })
@@ -2428,6 +2435,21 @@ describe('settings panel', () => {
     on('command.register', () => ({ value: undefined }) as never)
     await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true } as never)
   }
+
+  test('the Painel button finds the fxmind CLI off PATH: npm\'s global folder through node', () => {
+    const win = fxmindCandidates('C:\\Users\\x\\AppData\\Roaming', 'C:\\Users\\x')
+    expect(win[0]).toEqual(['fxmind'])
+    expect(win.at(-1)).toEqual(['node', 'C:\\Users\\x\\AppData\\Roaming\\npm\\node_modules\\fxmind\\scripts\\install.js'])
+    expect(fxmindCandidates(undefined, '/home/x').some(c => c[1] === '/home/x/.npm-global/lib/node_modules/fxmind/scripts/install.js')).toBe(true)
+  })
+
+  test('pills fit the translated word: "Compactar" gets a wider pill than "Compact"', () => {
+    expect(pillCells('Compactar', 5)).toBeGreaterThan(pillCells('Compact', 5) - 1)
+    expect(pillCells('Compactar', 5)).toBe(14)
+    expect(pillCells('Fazer handoff', 3)).toBe(16)
+    expect(ghostPillSvg(100)).toContain('stroke-opacity=".28"')
+    expect(ghostPillSvg(100, true)).toContain('stroke-opacity=".55"')
+  })
 
   test('the slider tips only close calls; floor and ceiling clamp; the key line is set in place', () => {
     expect(tipped('medium', 0.6, 1)).toBe('high')
@@ -2485,8 +2507,9 @@ describe('settings panel', () => {
     await panel.press({ key: 'settings-helpers-switch' })
     expect(await drawn(panel)).toContain('Helpers on')
     await panel.press({ key: 'settings-back' })
-    // Judge credentials moved to the dashboard.
-    expect(await drawn(panel)).not.toContain('"key":"settings-card-judge"')
+    await panel.press({ key: 'settings-card-judge' })
+    await panel.input({ key: 'settings-key', text: ' tk-new ' })
+    await panel.press({ key: 'settings-back' })
     await panel.press({ key: 'settings-card-handoff' })
     await panel.select({ key: 'settings-skill', value: 'session-handoff' })
     expect(await panel.find({ key: 'show-box-swamp' })).toBeDefined()
@@ -4135,7 +4158,8 @@ describe('language and the fxmind theme', () => {
     expect(await drawn(panel)).toContain('Painel')
     expect((await drawn(panel))).not.toContain('http://localhost:3847/')
     expect(frame).not.toContain('"key":"settings-card-orchestration"')
-    expect(frame).not.toContain('"key":"settings-card-judge"')
+    // The judge's key stays here: chat-local, and the dashboard has no place for it.
+    expect(frame).toContain('"key":"settings-card-judge"')
     expect(frame).toContain('"key":"settings-card-effort"')
     await panel.unmount()
   })

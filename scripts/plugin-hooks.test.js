@@ -62,9 +62,13 @@ test("Cards remain dark; only primary actions are light and readable on hover", 
   assert.match(overview, /color=\{DASH_TEXT\} bold/);
   assert.doesNotMatch(overview, /#292220|#30262c|#f3f8f4/);
   const action = ui.slice(ui.indexOf('const panelAction ='), ui.indexOf('const skillNames ='));
-  assert.match(action, /backgroundColor="#f5f8f5"/);
-  assert.match(action, /color="#0b1610" bold hover=\{\{ color: "#0b1610" \}\}/);
+  // Primary: white with dark ink. Quiet (secondary): an outline with light ink.
+  assert.match(action, /backgroundColor=\{quiet \? '#ffffff0a' : '#f5f8f5'\}/);
+  assert.match(action, /color=\{quiet \? DASH_TEXT : '#0b1610'\} bold=\{!quiet\}/);
   assert.match(action, /hover=\{\{ backgroundColor: "#00000000" \}\}/);
+  // Looking for updates is secondary: a white "Updates" read as "an update is waiting".
+  assert.match(ui, /panelAction\("settings-check-update", "Check for updates", \(\) => checkUpdateNow\(\$\), undefined, true\)/);
+  assert.match(ui, /panelAction\("settings-update", "Update " \+ checking\.slice\(6\)/);
   for (const key of ["settings-check-update", "settings-back", "settings-save"]) {
     assert.ok(ui.includes('panelAction(') && ui.includes(key), key);
   }
@@ -110,12 +114,15 @@ test("Agents settings render per-role CLI and model pickers and a custom ID inpu
 test("Claude settings expose only chat preferences and a real link to management dashboard", () => {
   const source = read("effort.tsx");
   const cards = source.slice(source.indexOf("const CARDS:"), source.indexOf("const MODEL_CHOICES", source.indexOf("const CARDS:")));
-  for (const title of ["Prompt", "Effort", "Model", "Handoff", "Customize", "System"]) assert.ok(cards.includes("title: '" + title + "'"));
-  for (const legacy of ["title: 'Judge'", "title: 'Agents'", "title: 'fxmind'"]) assert.ok(!cards.includes(legacy));
+  // Judge stays: its key and test are chat-local and the web dashboard has no place for them.
+  for (const title of ["Prompt", "Effort", "Model", "Judge", "Handoff", "Customize", "System"]) assert.ok(cards.includes("title: '" + title + "'"));
+  for (const legacy of ["title: 'Agents'", "title: 'fxmind'"]) assert.ok(!cards.includes(legacy));
   assert.match(source, /card === 'system'/);
   assert.match(source, /settings-system-panel/);
   assert.match(source, /const args = \['panel-open', '--cwd', dir\]/);
-  assert.match(source, /\['fxmind', \.\.\.args\]/);
+  // The CLI is found without PATH too (npm's global bin is often off PATH on Windows).
+  assert.match(source, /runFxmind\(\$, args, \{ timeoutMs: 25_000 \}\)/);
+  assert.match(source, /export function fxmindCandidates\(/);
   assert.match(source, /settings-check-update/);
   assert.doesNotMatch(source, /<Link href="http:\/\/localhost:3847\/" label="Painel"/);
   assert.match(source, /label="Report"/);

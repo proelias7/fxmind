@@ -215,6 +215,8 @@ const CARDS: readonly { id: SettingsCard; title: string }[] = [
   { id: 'fxmind', title: 'Prompt' },
   { id: 'effort', title: 'Effort' },
   { id: 'model', title: 'Model' },
+  // The judge's key (TypeSafe / Jev) and its test: chat-local, and the web panel has no place for it.
+  { id: 'judge', title: 'Judge' },
   { id: 'handoff', title: 'Handoff' },
   { id: 'show', title: 'Customize' },
   { id: 'system', title: 'System' },
@@ -332,10 +334,22 @@ function markTitle(els: { Box: unknown; Text: unknown; Svg?: unknown }, key: str
 }
 
 /** One full-surface texture for cards and every settings subview. */
+// Tall enough for the settings panel at its roomiest; the mark sits at mid-height, inside it.
+const TEXTURE_TALL_H = 192
 function textureLayer(els: { Box: unknown; Svg?: unknown }, key: string, tall = false) {
   if (!els.Svg) return null
   const { Box: B, Svg: S } = els as unknown as { Box: (p: Record<string, unknown>) => unknown; Svg: (p: Record<string, unknown>) => unknown }
-  const height = tall ? 160 : 96
+  if (tall) {
+    // The settings panel: the texture in the art's own box, anchored right and as tall as the panel, the way the
+    // bands' art is laid out. The full-cover box with a centred image (below) drew nothing in this taller column
+    // panel on desktop, while the same box showed in the one-line bands.
+    return (
+      <B key={`${key}-texture`} position="absolute" top={-1} right={0} bottom={-1}>
+        <S source={textureSvg(960, TEXTURE_TALL_H, BRAND_EDGE)} alt="" width={960} height={TEXTURE_TALL_H} />
+      </B>
+    )
+  }
+  const height = 96
   return (
     <B key={`${key}-texture`} position="absolute" top={0} bottom={0} left={0} right={0}
       overflow="hidden" alignItems="flex-end" justifyContent="center">
@@ -1768,9 +1782,46 @@ export function enterSvg(color: string): string {
 // The narrowest bar (in cells) that still has room for a Compact button beside Auto and Handoff.
 const COMPACT_BUTTON_MIN_COLUMNS = 80
 const GO_CELLS = 12
-const GO_W = Math.round(GO_CELLS * 7.9)
-function goPillSvg(): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${GO_W}" height="20" viewBox="0 0 ${GO_W} 20"><rect width="${GO_W}" height="20" rx="5" fill="#ffffff"/></svg>`
+/** Cells for a pill holding `label` (already in the chosen language) plus `extra` cells (an icon, padding). Sized by
+ * the translated word: a fixed width made for "Compact" squeezed "Compactar ↵" against the pill's edges. */
+export function pillCells(label: string, extra = 4): number {
+  return Math.max(GO_CELLS, Array.from(label).length + extra)
+}
+function goPillSvg(width: number): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20" viewBox="0 0 ${width} 20"><rect width="${width}" height="20" rx="6" fill="#ffffff"/></svg>`
+}
+/** A secondary action's pill: no fill, a light outline that brightens on hover, so it reads as a button. */
+export function ghostPillSvg(width: number, hovered = false): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="20" viewBox="0 0 ${width} 20"><rect x=".5" y=".5" width="${width - 1}" height="19" rx="6" fill="#ffffff" fill-opacity="${hovered ? '.12' : '.04'}" stroke="#ffffff" stroke-opacity="${hovered ? '.55' : '.28'}"/></svg>`
+}
+/**
+ * A secondary action for the one-line bands: an outlined pill with its word inside and a blank button over both (a
+ * Button holds text only, and a plain one read as body text). One row tall, so the band keeps its height; sized by
+ * the translated label.
+ */
+function ghostAction(els: { Box: unknown; Text: unknown; Button: unknown; Svg?: unknown }, key: string, label: string, onPress: () => unknown) {
+  const { Box: B, Text: T, Button: Btn, Svg: S } = els as unknown as Record<'Box' | 'Text' | 'Button' | 'Svg', (p: Record<string, unknown>) => unknown>
+  if (!S) return <Btn key={key} variant="secondary" label={label} onPress={onPress} />
+  const cells = pillCells(tr(label), 3)
+  const width = Math.round(cells * CELL_PX)
+  return (
+    <B key={`${key}-box`} position="relative" flexShrink={0} flexDirection="row" alignItems="center">
+      <B width={cells} height={1} flexShrink={0} />
+      <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
+        <S source={ghostPillSvg(width)} alt={label} width={width} height={20} />
+      </B>
+      <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center"
+        display="none" hover={{ scope: key, display: 'flex' }}>
+        <S source={ghostPillSvg(width, true)} alt={label} width={width} height={20} />
+      </B>
+      <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
+        <T color={DASH_TEXT} hover={{ scope: key, color: '#ffffff' }}>{label}</T>
+      </B>
+      <B position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
+        <Btn key={key} plain hover={{ scope: key, backgroundColor: '#00000000' }} label={'\u00a0'.repeat(cells)} onPress={onPress} />
+      </B>
+    </B>
+  )
 }
 /** Compact pressed: on desktop a bar asks for an optional note first; the terminal compacts at once. */
 async function openCompact($: EngineInterface, e: { surface: string }) {
@@ -3119,6 +3170,35 @@ async function runClaude($: EngineInterface, args: string[], opts: Parameters<En
   for (const bin of claudeCandidates(await homeDir($))) {
     try {
       return await $.process.run([bin, ...args], opts)
+    } catch (error) {
+      last = error
+      if (!NOT_STARTED.test(String(error))) throw error
+    }
+  }
+  throw last
+}
+/**
+ * Where the fxmind CLI may be: on PATH, then npm's global folder run through node. On Windows npm's global bin
+ * (%APPDATA%/npm) is often missing from PATH, so `fxmind` and `fxmind.cmd` do not start there.
+ */
+export function fxmindCandidates(appData: string | undefined, home: string | undefined): string[][] {
+  const out = [['fxmind'], ['fxmind.cmd']]
+  const win = (appData ?? home ?? '').match(/^[A-Za-z]:/)
+  if (appData) out.push(['node', `${appData.replace(/[\\/]+$/, '')}\\npm\\node_modules\\fxmind\\scripts\\install.js`])
+  if (home && !win) {
+    out.push(['node', `${home.replace(/\/+$/, '')}/.npm-global/lib/node_modules/fxmind/scripts/install.js`])
+    out.push(['node', '/usr/local/lib/node_modules/fxmind/scripts/install.js'])
+  }
+  return out
+}
+let askAppData: EnvAsk
+/** `fxmind <args>`, from the next place it may be when one will not start. */
+async function runFxmind($: EngineInterface, args: string[], opts: Parameters<EngineInterface['process']['run']>[1]) {
+  let last: unknown
+  const appData = (askAppData = askAppData ?? $.env.get('APPDATA'))
+  for (const argv of fxmindCandidates((await appData) || undefined, await homeDir($))) {
+    try {
+      return await $.process.run([...argv, ...args], opts)
     } catch (error) {
       last = error
       if (!NOT_STARTED.test(String(error))) throw error
@@ -4890,13 +4970,16 @@ Saved to ${out}.md and .json` }
       const opts = (values: readonly string[]) => values.map(value => ({ value, label: value }))
       // Primary actions only: Update, Back, Save and explicit commands. Keep
       // their ink dark on hover; the transparent hit area must not repaint it.
-      const panelAction = (key: string, label: string, press: () => unknown, hotkey?: string) => term ? (
-        <Button key={key} variant="primary" label={label} hotkey={hotkey} onPress={() => Promise.resolve(press()).then(() => undefined)} />
+      // quiet: a secondary action (an outline, light ink), e.g. looking for updates when none is known yet. White is
+      // kept for what acts now, so a white Updates no longer reads as "an update is waiting".
+      const panelAction = (key: string, label: string, press: () => unknown, hotkey?: string, quiet = false) => term ? (
+        <Button key={key} variant={quiet ? 'secondary' : 'primary'} label={label} hotkey={hotkey} onPress={() => Promise.resolve(press()).then(() => undefined)} />
       ) : (
         <Box key={key + '-surface'} position="relative" flexDirection="row" alignItems="center" height={1.65}
-          overflow="hidden" paddingX={1} borderStyle="round" borderColor="#cedbd2"
-          backgroundColor="#f5f8f5" hover={{ backgroundColor: "#e4eee6", borderColor: "#ffffff" }}>
-          <Text color="#0b1610" bold hover={{ color: "#0b1610" }}>{label}</Text>
+          overflow="hidden" paddingX={1} borderStyle="round" borderColor={quiet ? '#ffffff47' : '#cedbd2'}
+          backgroundColor={quiet ? '#ffffff0a' : '#f5f8f5'}
+          hover={quiet ? { backgroundColor: '#ffffff1f', borderColor: '#ffffff8c' } : { backgroundColor: "#e4eee6", borderColor: "#ffffff" }}>
+          <Text color={quiet ? DASH_TEXT : '#0b1610'} bold={!quiet} hover={{ color: quiet ? '#ffffff' : '#0b1610' }}>{label}</Text>
           <Box position="absolute" top={0} left={0} right={0} bottom={0}
             flexDirection="row" alignItems="center" overflow="hidden">
             <Box flexShrink={0}>
@@ -5063,7 +5146,7 @@ Saved to ${out}.md and .json` }
             await close()
           })
         ) : (
-          panelAction("settings-check-update", "Updates", () => checkUpdateNow($))
+          panelAction("settings-check-update", "Check for updates", () => checkUpdateNow($), undefined, true)
         )
        )
        const upkeep = [
@@ -5186,13 +5269,7 @@ Saved to ${out}.md and .json` }
                try {
                  const dir = await $.session.cwd()
                  const args = ['panel-open', '--cwd', dir]
-                 let result
-                 try {
-                   result = await $.process.run(['fxmind', ...args], { timeoutMs: 25_000 })
-                 } catch (failure) {
-                   if (!/^[A-Za-z]:[\\/]/.test(dir) || !/ENOENT|not found|unsafe location/i.test(String(failure))) throw failure
-                   result = await $.process.run(['fxmind.cmd', ...args], { timeoutMs: 25_000 })
-                 }
+                 const result = await runFxmind($, args, { timeoutMs: 25_000 })
                  if (result.exitCode !== 0) throw new Error((result.stderr || result.stdout || '').trim() || String(result.exitCode))
                  $.ui.toast('FXMIND: painel aberto no navegador')
                } catch (error) {
@@ -5445,6 +5522,9 @@ Saved to ${out}.md and .json` }
     if (!isPlain(e) && (await read($, compactAsk))) {
       const { Input } = themedEls($.ui.resolve(e))
       const go = () => compactCold($, compactNote)
+      // The pill fits the translated word and the Enter mark ("Compactar ↵" is wider than "Compact ↵").
+      const goCells = pillCells(tr('Compact'), 5)
+      const goW = Math.round(goCells * CELL_PX)
       const nowCompact = await $.clock.now()
       // One redraw once the fade is over, to drop its layer.
       if (nowCompact - compactOpenedAt < COMPACT_FADE_MS) $.clock.after(COMPACT_FADE_MS + 150 - (nowCompact - compactOpenedAt), () => $.ui.invalidate('ui.render'))
@@ -5467,7 +5547,7 @@ Saved to ${out}.md and .json` }
             {markTitle({ Box, Text, Svg }, 'compact-title', ACCENT, '✦ Compact')}
             <Box key="compact-switch-box" position="relative" flexShrink={0} marginLeft={1}>
               <Box position="absolute" top={0} left={0} />
-              <Button key="compact-to-handoff" plain dimColor label="Handoff instead" onPress={async () => { await update($, compactAsk, () => false); await openHandoffBar($) }} />
+              {ghostAction({ Box, Text, Button, Svg }, 'compact-to-handoff', 'Handoff instead', async () => { await update($, compactAsk, () => false); await openHandoffBar($) })}
             </Box>
           </Box>
           <Box key="compact-controls" position="relative" flexGrow={1} flexShrink={1} minWidth={0} flexDirection="row" justifyContent="flex-end" alignItems="center" gap={1}>
@@ -5490,16 +5570,16 @@ Saved to ${out}.md and .json` }
                 box draws its own, and a blank button over all three. A Button's label is text only, and ↵ there was a
                 hairline. */}
             <Box key="compact-go-box" position="relative" flexShrink={0} flexDirection="row" alignItems="center">
-              <Box width={GO_CELLS} height={1} flexShrink={0} />
+              <Box width={goCells} height={1} flexShrink={0} />
               <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                <Svg source={goPillSvg()} alt="Compact" width={GO_W} height={20} />
+                <Svg source={goPillSvg(goW)} alt="Compact" width={goW} height={20} />
               </Box>
               <Box position="absolute" top={0} bottom={0} left={0} right={0} flexDirection="row" alignItems="center" justifyContent="center" gap={1}>
                 <Text color="#141416">Compact</Text>
                 <Svg source={enterSvg('#141416')} alt="Enter" width={14} height={14} />
               </Box>
               <Box position="absolute" top={0} bottom={0} left={0} right={0} alignItems="center" justifyContent="center">
-                <Button key="compact-go" plain hover={{ backgroundColor: '#00000000' }} label={' '.repeat(GO_CELLS)} onPress={go} />
+                <Button key="compact-go" plain hover={{ backgroundColor: '#00000000' }} label={' '.repeat(goCells)} onPress={go} />
               </Box>
             </Box>
             <Box key="compact-close-box" position="relative" flexShrink={0}>
@@ -5594,7 +5674,7 @@ Saved to ${out}.md and .json` }
           </Box>
           <Box flexGrow={1} minWidth={48} />
           <Box key="handoff-actions" position="absolute" top={0} right={1} bottom={0} flexDirection="row" gap={1} alignItems="center">
-            {!term ? <Button key="handoff-to-compact" plain dimColor label="Compact instead" onPress={async () => { await closeHandoffBar($); await openCompact($, e) }} /> : null}
+            {!term ? ghostAction({ Box, Text, Button, Svg }, 'handoff-to-compact', 'Compact instead', async () => { await closeHandoffBar($); await openCompact($, e) }) : null}
             {controls}
           </Box>
         </Box>
