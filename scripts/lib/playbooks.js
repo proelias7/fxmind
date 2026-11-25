@@ -99,7 +99,22 @@ function parseFrontmatter(content) {
   const match = String(content).match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!match) return { meta: {}, body: String(content) };
   const meta = {};
+  let listKey = null;
   for (const line of match[1].split(/\r?\n/)) {
+    // YAML block lists ("triggers:" then "  - item") as well as inline [a, b].
+    const item = line.match(/^\s*-\s*(.*?)\s*$/);
+    if (item && listKey) {
+      const value = item[1].replace(/^["']|["']$/g, "");
+      if (value) meta[listKey].push(value);
+      continue;
+    }
+    listKey = null;
+    const open = line.match(/^([a-zA-Z0-9_]+):\s*$/);
+    if (open) {
+      listKey = open[1];
+      meta[listKey] = [];
+      continue;
+    }
     const list = line.match(/^([a-zA-Z0-9_]+):\s*\[(.*)\]\s*$/);
     if (list) {
       meta[list[1]] = list[2]

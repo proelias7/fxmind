@@ -380,13 +380,29 @@ function parseFrontmatter(content) {
   }
   const meta = {};
   const body = match[1];
+  // YAML block lists ("paths:" then "  - item" lines) count as well as inline [a, b]:
+  // memories written that way lost their paths, triggers and resources.
+  let listKey = null;
   for (const line of body.split(/\r?\n/)) {
+    const itemMatch = line.match(/^\s*-\s*(.*?)\s*$/);
+    if (itemMatch && listKey) {
+      const value = itemMatch[1].replace(/^["']|["']$/g, "");
+      if (value) meta[listKey].push(value);
+      continue;
+    }
+    listKey = null;
     const arrayMatch = line.match(/^([a-zA-Z0-9_]+):\s*\[(.*)\]\s*$/);
     if (arrayMatch) {
       meta[arrayMatch[1]] = arrayMatch[2]
         .split(",")
         .map((item) => item.trim().replace(/^["']|["']$/g, ""))
         .filter(Boolean);
+      continue;
+    }
+    const openList = line.match(/^([a-zA-Z0-9_]+):\s*$/);
+    if (openList) {
+      listKey = openList[1];
+      meta[listKey] = [];
       continue;
     }
     const scalarMatch = line.match(/^([a-zA-Z0-9_]+):\s*(.+?)\s*$/);
@@ -738,6 +754,20 @@ function loadGraphData(targetRoot) {
 }
 
 /**
+ * Topic memories the question names outright: their slug or topic as whole
+ * word(s) of the question. Those answer "what is X / how does X work" better
+ * than code fragments that merely mention X.
+ */
+function namedTopics(targetRoot, question) {
+  const text = ` ${retrieval.canonicalize(question).replace(/[^a-z0-9]+/g, " ").trim()} `;
+  if (!text.trim()) return [];
+  return listMemories(targetRoot).filter((memory) => [memory.slug, memory.topic].some((name) => {
+    const words = retrieval.canonicalize(String(name || "")).replace(/[^a-z0-9]+/g, " ").trim();
+    return words.length >= 3 && text.includes(` ${words} `);
+  }));
+}
+
+/**
  * Query project memories for a question. Read-only. Ranks memories with
  * lib/memory-retrieval (PT↔EN, rare terms weigh more), loads only the
  * matching sections that fit the token budget (chars/4) and lists graph
@@ -761,12 +791,20 @@ function queryGraph(targetRoot, question, options = {}) {
 
   // Atomic-first: no topic Markdown is read when a verified fragment or code
   // symbol answers the question. Legacy topic retrieval remains the fallback.
-  let atom = atomic.queryAtomic(targetRoot, question, { budget });
-  if (!atom && fs.existsSync(fxmindDir(targetRoot))) {
-    try {
-      atomic.buildAtomic(targetRoot);
-      atom = atomic.queryAtomic(targetRoot, question, { budget });
-    } catch { /* keep legacy queries available on index failures */ }
+  // Except when the question names a topic memory outright ("o que é a resource
+  // pelucia"): code symbols of other resources that mention the word answered
+  // that before, and the topic memory itself was never read.
+  let atom = null;
+  // Inventory questions ("o que tem dentro da garages?") keep the atomic resource overview.
+  const asksInventory = /\b(dentro|quais|listar|liste|possui|cont[eé]m|tinha|overview)\b/i.test(question);
+  if (asksInventory || !namedTopics(targetRoot, question).length) {
+    atom = atomic.queryAtomic(targetRoot, question, { budget });
+    if (!atom && fs.existsSync(fxmindDir(targetRoot))) {
+      try {
+        atomic.buildAtomic(targetRoot);
+        atom = atomic.queryAtomic(targetRoot, question, { budget });
+      } catch { /* keep legacy queries available on index failures */ }
+    }
   }
   if (atom?.hits?.length) {
     const memories = atom.hits.map(({ node, score, tokens, via }) => ({

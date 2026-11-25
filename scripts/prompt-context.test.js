@@ -231,3 +231,40 @@ describe("mcp tool groups", () => {
     assert.match(query, /## x — \.fxmind\/memory\/x\.md\nBody/);
   });
 });
+
+describe("prompt hook budget and topic retrieval", () => {
+  it("falls back to the local context when the network part runs past its budget", async () => {
+    const slow = () => new Promise((resolve) => setTimeout(() => resolve("jev context"), 2000));
+    const t0 = Date.now();
+    const out = await promptContext.contextWithin(50, slow, () => "local context");
+    assert.equal(out, "local context");
+    assert.ok(Date.now() - t0 < 1000, "does not wait for the slow network part");
+    assert.equal(await promptContext.contextWithin(500, async () => "jev context", () => "local"), "jev context");
+    assert.equal(await promptContext.contextWithin(500, async () => { throw new Error("down"); }, () => "local"), "local");
+  });
+
+  it("a question naming a topic memory loads that memory, not code of other resources that mention it", () => {
+    const tools = require("./fxmind-tools");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxnamed-"));
+    try {
+      const write = (rel, text) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), text); };
+      write(".fxmind/packs.json", '{"packs":[]}');
+      // Block-list frontmatter, as real memories are often written.
+      write(".fxmind/memory/pelucia.md", "---\ntopic: pelucia\nresources: [pelucia]\npaths:\n  - resources/pelucia/fxmanifest.lua\ntriggers:\n  - pelucia\n  - colecoes\n---\n# pelucia\n\nFiles:\n- manifest: `resources/pelucia/fxmanifest.lua`\n\nRecipe:\n1. Colecoes, pets, trocas e puffs de pelucias.\n");
+      write("resources/pelucia/fxmanifest.lua", "fx_version 'cerulean'\n");
+      // Other resources whose code mentions the word.
+      write("resources/boxes/shared/config.lua", "local function loadPeluciaCatalog()\n  return LoadResourceFile('pelucia', 'config/catalog.lua')\nend\n");
+      write("resources/jogos/bridge.lua", "function Bridge.PeluciaAtiva()\n  return GetResourceState('pelucia') == 'started'\nend\n");
+      // The code index reads tracked files: without git the bug did not show.
+      require("child_process").execFileSync("git", ["init", "-q"], { cwd: root });
+      require("child_process").execFileSync("git", ["add", "-A"], { cwd: root });
+      tools.buildGraph(root, { updateHtml: false });
+      const result = tools.queryGraph(root, "o que e a resource pelucia", { budget: 1200 });
+      assert.equal(result.ok, true);
+      assert.equal(result.memories[0].slug, "pelucia", JSON.stringify(result.memories.map((m) => m.slug || m.id)));
+      assert.deepEqual(tools.listMemories(root)[0].paths, ["resources/pelucia/fxmanifest.lua"]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

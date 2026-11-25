@@ -141,7 +141,25 @@ function readStdin(timeoutMs = 1500) {
   });
 }
 
-async function runHook(env = process.env) {
+// Claude Code kills the UserPromptSubmit hook at 10 s. The optional Jev calls (up to three, each with its own network
+// timeout) once took a cold hook to 14 s, so nothing was preloaded; past this budget the local, network-free context
+// is used instead.
+const HOOK_NETWORK_BUDGET_MS = 5000;
+
+/** The async (Jev-assisted) context, or the local one when the network part is not done within `budgetMs`. */
+async function contextWithin(budgetMs, asyncBuild, syncBuild) {
+  const late = Symbol("late");
+  let timer;
+  const deadline = new Promise((resolve) => { timer = setTimeout(() => resolve(late), budgetMs); });
+  try {
+    const first = await Promise.race([Promise.resolve().then(asyncBuild).catch(() => late), deadline]);
+    return first === late ? syncBuild() : first;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runHook(env = process.env, builders = {}) {
   if (env.FXMIND_PRELOAD === "0") return 0;
   let payload = {};
   try {
@@ -151,7 +169,11 @@ async function runHook(env = process.env) {
   }
   try {
     const root = findProjectRoot(payload.cwd || env.CLAUDE_PROJECT_DIR || process.cwd());
-    const context = await buildPromptContextAsync(root, payload.prompt, { budget: preloadBudget(env) });
+    const options = { budget: preloadBudget(env) };
+    const budgetMs = Number(env.FXMIND_HOOK_BUDGET_MS) > 0 ? Number(env.FXMIND_HOOK_BUDGET_MS) : HOOK_NETWORK_BUDGET_MS;
+    const context = await contextWithin(budgetMs,
+      builders.asyncBuild || (() => buildPromptContextAsync(root, payload.prompt, options)),
+      builders.syncBuild || (() => buildPromptContext(root, payload.prompt, options)));
     if (context) {
       process.stdout.write(
         JSON.stringify({
@@ -238,6 +260,7 @@ function installClaudePromptHook(targetRoot) {
 }
 
 module.exports = {
+  contextWithin,
   CLAUDE_HOOK_COMMAND,
   CLAUDE_HOOKS,
   findProjectRoot,
