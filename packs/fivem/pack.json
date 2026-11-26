@@ -42,7 +42,7 @@
           { "file": "skills/vrp-framework/patterns.md", "max": 2000 }
         ]
       },
-      { "ui": true, "files": [{ "file": "skills/fivem-react-nui/SKILL.md", "max": 2200 }] }
+      { "ui": true, "files": [{ "file": "skills/fivem-react-nui/SKILL.md", "max": 2200 }, { "file": "policy/nui-boilerplate.md", "max": 2600 }] }
     ]
   },
   "templateFiles": [
@@ -53,6 +53,7 @@
     { "src": "fivem-principles.md", "dest": "policy/fivem-principles.md" },
     { "src": "resource-design.template.md", "dest": "templates/resource-design.md" },
     { "src": "domain-routing.md", "dest": "policy/domain-routing.md" },
+    { "src": "nui-boilerplate.md", "dest": "policy/nui-boilerplate.md" },
     { "src": "audit-procedure.md", "dest": "audits/procedure.md" }
   ]
 }
