@@ -121,3 +121,121 @@ it("sends no response for a cancelled in-flight call", async () => {
   assert.equal(code, 0);
   assert.deepEqual(replies.map((r) => r.id), [11]);
 });
+
+/** Interactive client: call(method, params) resolves with the reply for that id. */
+function startClient() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmcp-task-"));
+  const child = spawn(process.execPath, [path.join(__dirname, "mcp-server.js")], {
+    cwd: root, env: { ...process.env, NODE_ENV: "test", FXMIND_TARGET: root },
+    stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
+  });
+  const waiting = new Map();
+  let nextId = 100;
+  readline.createInterface({ input: child.stdout }).on("line", (line) => {
+    const msg = JSON.parse(line);
+    waiting.get(msg.id)?.(msg);
+    waiting.delete(msg.id);
+  });
+  return {
+    call(method, params = {}) {
+      const id = nextId++;
+      return new Promise((resolve) => {
+        waiting.set(id, resolve);
+        child.stdin.write(`${rpc(id, method, params)}\n`);
+      });
+    },
+    close: () => new Promise((resolve) => { child.on("exit", resolve); child.stdin.end(); }),
+  };
+}
+
+const TASK_META = {
+  ...MODERN_META,
+  "io.modelcontextprotocol/clientCapabilities": { extensions: { "io.modelcontextprotocol/tasks": {} } },
+};
+
+it("server/discover advertises the tasks extension", async () => {
+  const { replies } = await exchange([rpc(1, "server/discover", { _meta: MODERN_META })]);
+  assert.deepEqual(replies[0].result.capabilities.extensions, { "io.modelcontextprotocol/tasks": {} });
+});
+
+it("runs a long tool as a task and returns its result through tasks/get", async () => {
+  const client = startClient();
+  try {
+    const created = await client.call("tools/call", {
+      name: "fxmind_independent_review", arguments: {}, _meta: TASK_META,
+    });
+    const task = created.result;
+    assert.equal(task.resultType, "task");
+    assert.equal(task.status, "working");
+    assert.match(task.taskId, /^[0-9a-f-]{36}$/);
+    assert.ok(task.createdAt && task.lastUpdatedAt && task.ttlMs > 0 && task.pollIntervalMs > 0);
+
+    let got;
+    for (let i = 0; i < 50; i++) {
+      got = (await client.call("tasks/get", { taskId: task.taskId, _meta: TASK_META })).result;
+      if (got.status !== "working") break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.equal(got.resultType, "complete");
+    assert.equal(got.status, "completed");
+    // No active session: the tool reports an error, which is still a completed task.
+    assert.equal(got.result.isError, true);
+    assert.match(got.result.content[0].text, /no_active_session/);
+    assert.equal(got.pollIntervalMs, undefined);
+  } finally {
+    await client.close();
+  }
+});
+
+it("cancelling a working task makes it terminal and drops the late result", () => {
+  const { cancelTask, taskView } = require("./mcp-server.js")._tasks;
+  const task = { taskId: "t", status: "working", createdAt: "x", lastUpdatedAt: "x", result: null, orchestrationId: null };
+  cancelTask(task);
+  assert.equal(task.status, "cancelled");
+  const view = taskView(task, { withOutcome: true });
+  assert.equal(view.pollIntervalMs, undefined);
+  assert.equal(view.result, undefined);
+  cancelTask(task); // idempotent
+  assert.equal(task.status, "cancelled");
+});
+
+it("tasks/cancel on a finished task is acknowledged and leaves it completed", async () => {
+  const client = startClient();
+  try {
+    const { result: task } = await client.call("tools/call", {
+      name: "fxmind_independent_review", arguments: {}, _meta: TASK_META,
+    });
+    let got;
+    for (let i = 0; i < 50; i++) {
+      got = (await client.call("tasks/get", { taskId: task.taskId, _meta: TASK_META })).result;
+      if (got.status !== "working") break;
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const cancelled = await client.call("tasks/cancel", { taskId: task.taskId, _meta: TASK_META });
+    assert.equal(cancelled.result.resultType, "complete");
+    got = (await client.call("tasks/get", { taskId: task.taskId, _meta: TASK_META })).result;
+    assert.equal(got.status, "completed");
+  } finally {
+    await client.close();
+  }
+});
+
+it("rejects task methods without the capability or with an unknown id", async () => {
+  const { replies } = await exchange([
+    rpc(1, "tasks/get", { taskId: "x", _meta: MODERN_META }),
+    rpc(2, "tasks/get", { taskId: "missing", _meta: TASK_META }),
+    rpc(3, "tasks/get", { taskId: "x" }),
+  ]);
+  const byId = Object.fromEntries(replies.map((r) => [r.id, r.error]));
+  assert.equal(byId[1].code, -32021);
+  assert.equal(byId[2].code, -32602);
+  assert.equal(byId[3].code, -32021);
+});
+
+it("answers task-eligible tools synchronously when the client lacks the extension", async () => {
+  const { replies } = await exchange([
+    rpc(1, "tools/call", { name: "fxmind_independent_review", arguments: {}, _meta: MODERN_META }),
+  ]);
+  assert.equal(replies[0].result.resultType, "complete");
+  assert.ok(Array.isArray(replies[0].result.content));
+});

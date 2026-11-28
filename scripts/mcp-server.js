@@ -899,7 +899,7 @@ async function playbookTool(root, args = {}) {
   return { ok: false, error: `Unknown action: ${action}` };
 }
 
-async function dispatchTool(name, args) {
+async function dispatchTool(name, args, ctx = {}) {
   const root = targetRoot();
   const dbOptions = { root, environment: args.environment, readOnly: isReadonly() };
   if (desktopAgent.TOOL_NAMES.has(name)) {
@@ -1190,6 +1190,7 @@ async function dispatchTool(name, args) {
         plan: { task: args.task || "", strategy: args.strategy, subtasks: args.subtasks || [] },
         timeoutMs: args.timeoutMs,
       });
+      if (started.ok && started.orchestrationId) ctx.onOrchestrationStarted?.(started.orchestrationId);
       if (!started.ok || started.awaitingApproval || args.wait === false) return started;
       return brokerCall(root, "wait", {
         id: started.orchestrationId, timeoutMs: args.timeoutMs,
@@ -1343,6 +1344,116 @@ function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+/** Runs a tool with host reporting and returns a CallToolResult (never rejects). */
+function runToolCall(toolName, args, ctx = {}) {
+  const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
+  const trackedThreadId = isPanelTool ? null : activeHostThreadId;
+  return Promise.resolve()
+    .then(() => reportHostMcp(trackedThreadId, toolName, args, "running"))
+    .then(() => dispatchTool(toolName, args, ctx))
+    .then((result) => {
+      if (toolName === "fxmind_panel_wait" && result?.jobs?.length) {
+        activeHostThreadId = String(result.jobs[0].id || "");
+      }
+      if (toolName === "fxmind_panel_reply" || toolName === "fxmind_panel_fail") {
+        activeHostThreadId = null;
+      }
+      const status = result && result.ok === false ? "error" : "done";
+      return reportHostMcp(trackedThreadId, toolName, args, status).then(() => ({
+        // Tools may return MCP content blocks (view_screen sends an image).
+        content: Array.isArray(result?.mcpContent)
+          ? result.mcpContent
+          : [{ type: "text", text: formatToolResult(toolName, result) }],
+        isError: Boolean(result && result.ok === false),
+      }));
+    })
+    .catch((error) =>
+      reportHostMcp(trackedThreadId, toolName, args, "error").then(() => ({
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      })));
+}
+
+// ---- MCP tasks extension (io.modelcontextprotocol/tasks, 2026-07-28) ----
+// Tasks live in this process: the stdio client owns the process, so a
+// restart loses them (tasks/get then answers "Task not found", which the
+// spec allows). The orchestration broker keeps its own durable state.
+const TASKS_EXTENSION = "io.modelcontextprotocol/tasks";
+const TASK_TOOLS = new Set(["fxmind_orchestrate", "fxmind_independent_review", "fxmind_subagent_run"]);
+const TASK_TTL_MS = 60 * 60 * 1000;
+const TASK_POLL_INTERVAL_MS = 2000;
+const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const tasksById = new Map();
+
+function clientSupportsTasks(msg) {
+  const extensions = msg.params?._meta?.[META_CLIENT_CAPS]?.extensions;
+  return Boolean(extensions && typeof extensions === "object" && extensions[TASKS_EXTENSION]);
+}
+
+function touchTask(task, status, fields = {}) {
+  Object.assign(task, fields, { status, lastUpdatedAt: new Date().toISOString() });
+}
+
+function createTask(toolName, args) {
+  const now = new Date().toISOString();
+  const task = {
+    taskId: require("crypto").randomUUID(),
+    toolName,
+    status: "working",
+    statusMessage: `${toolName} is running.`,
+    createdAt: now,
+    lastUpdatedAt: now,
+    createdAtMs: Date.now(),
+    result: null,
+    orchestrationId: null,
+  };
+  // Registered before the reply so a tasks/get for this id always resolves.
+  tasksById.set(task.taskId, task);
+  const ctx = { onOrchestrationStarted: (orchestrationId) => { task.orchestrationId = orchestrationId; } };
+  runToolCall(toolName, args, ctx).then((result) => {
+    if (TERMINAL_TASK_STATUSES.has(task.status)) return; // cancelled meanwhile
+    // A tool error (isError) is still a completed task per the extension spec.
+    touchTask(task, "completed", { result, statusMessage: `${toolName} finished.` });
+  });
+  return task;
+}
+
+function getTask(taskId) {
+  pruneExpiredTasks();
+  return typeof taskId === "string" ? tasksById.get(taskId) || null : null;
+}
+
+function pruneExpiredTasks(now = Date.now()) {
+  for (const [taskId, task] of tasksById) {
+    if (now - task.createdAtMs > TASK_TTL_MS) tasksById.delete(taskId);
+  }
+}
+
+function cancelTask(task) {
+  if (TERMINAL_TASK_STATUSES.has(task.status)) return;
+  touchTask(task, "cancelled", { statusMessage: "Cancelled by the client." });
+  // Cooperative: only orchestrations can actually be stopped; subagent and
+  // review runs finish in the background and their result is dropped.
+  if (task.orchestrationId) {
+    const { brokerCall } = require("./lib/orchestration-client");
+    Promise.resolve(brokerCall(targetRoot(), "cancel", { id: task.orchestrationId })).catch(() => {});
+  }
+}
+
+function taskView(task, { withOutcome = false } = {}) {
+  const view = {
+    taskId: task.taskId,
+    status: task.status,
+    statusMessage: task.statusMessage,
+    createdAt: task.createdAt,
+    lastUpdatedAt: task.lastUpdatedAt,
+    ttlMs: TASK_TTL_MS,
+  };
+  if (!TERMINAL_TASK_STATUSES.has(task.status)) view.pollIntervalMs = TASK_POLL_INTERVAL_MS;
+  if (withOutcome && task.status === "completed") view.result = task.result;
+  return view;
+}
+
 // Request ids in flight / cancelled by notifications/cancelled. JSON-encoded
 // so 1 and "1" stay distinct.
 const inFlightCalls = new Set();
@@ -1412,7 +1523,7 @@ function handleMessage(msg) {
   if (method === "server/discover") {
     reply({
       supportedVersions: [MODERN_PROTOCOL_VERSION],
-      capabilities: SERVER_CAPABILITIES,
+      capabilities: { ...SERVER_CAPABILITIES, extensions: { [TASKS_EXTENSION]: {} } },
       ...CACHE_HINTS,
     });
     return;
@@ -1458,47 +1569,21 @@ function handleMessage(msg) {
       });
       return;
     }
+    // Long-running tools become MCP tasks for clients that declared the
+    // extension; the call returns at once and the client polls tasks/get.
+    if (modern && TASK_TOOLS.has(String(toolName)) && clientSupportsTasks(msg)) {
+      const task = createTask(toolName, args);
+      reply({ ...taskView(task), resultType: "task" });
+      return;
+    }
     const callKey = JSON.stringify(id);
     inFlightCalls.add(callKey);
-    // A cancelled request gets no response (spec); the tool itself still runs
-    // to completion because dispatchTool has no abort signal.
-    const replyUnlessCancelled = (result) => {
-      if (!cancelledCalls.has(callKey)) reply(result);
-    };
-    const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
-    const trackedThreadId = isPanelTool ? null : activeHostThreadId;
     pendingCalls += 1;
-    Promise.resolve()
-      .then(() => reportHostMcp(trackedThreadId, toolName, args, "running"))
-      .then(() => dispatchTool(toolName, args))
+    runToolCall(toolName, args)
       .then((result) => {
-        if (toolName === "fxmind_panel_wait" && result?.jobs?.length) {
-          activeHostThreadId = String(result.jobs[0].id || "");
-        }
-        if (
-          toolName === "fxmind_panel_reply" ||
-          toolName === "fxmind_panel_fail"
-        ) {
-          activeHostThreadId = null;
-        }
-        const status = result && result.ok === false ? "error" : "done";
-        return reportHostMcp(trackedThreadId, toolName, args, status).then(() => {
-          replyUnlessCancelled({
-            // Tools may return MCP content blocks (view_screen sends an image).
-            content: Array.isArray(result?.mcpContent)
-              ? result.mcpContent
-              : [{ type: "text", text: formatToolResult(toolName, result) }],
-            isError: Boolean(result && result.ok === false),
-          });
-        });
-      })
-      .catch((error) => {
-        return reportHostMcp(trackedThreadId, toolName, args, "error").then(() => {
-          replyUnlessCancelled({
-            content: [{ type: "text", text: `Error: ${error.message}` }],
-            isError: true,
-          });
-        });
+        // A cancelled request gets no response (spec); the tool itself still
+        // runs to completion because dispatchTool has no abort signal.
+        if (!cancelledCalls.has(callKey)) reply(result);
       })
       .finally(() => {
         inFlightCalls.delete(callKey);
@@ -1506,6 +1591,36 @@ function handleMessage(msg) {
         pendingCalls -= 1;
         if (pendingCalls === 0 && inputClosed) exitAfterFlush();
       });
+    return;
+  }
+
+  if (method === "tasks/get" || method === "tasks/cancel" || method === "tasks/update") {
+    if (!modern || !clientSupportsTasks(msg)) {
+      send({
+        jsonrpc: "2.0",
+        id,
+        error: {
+          code: -32021,
+          message: "Missing required client capability",
+          data: { requiredCapabilities: { extensions: { [TASKS_EXTENSION]: {} } } },
+        },
+      });
+      return;
+    }
+    const task = getTask(msg.params?.taskId);
+    if (!task) {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: "Failed to retrieve task: Task not found" } });
+      return;
+    }
+    if (method === "tasks/get") {
+      reply(taskView(task, { withOutcome: true }));
+    } else if (method === "tasks/cancel") {
+      cancelTask(task);
+      reply({});
+    } else {
+      // No fxmind task asks for input, so there is nothing to apply.
+      reply({});
+    }
     return;
   }
 
@@ -1564,4 +1679,6 @@ module.exports = {
   listTools,
   enabledToolGroups,
   formatToolResult,
+  // Exposed for tests only.
+  _tasks: { cancelTask, taskView },
 };
