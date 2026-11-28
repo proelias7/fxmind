@@ -89,6 +89,31 @@ describe("Cursor FxMind strict memory gate", () => {
       assert.equal(denied().permission, "deny", JSON.stringify([data, props]));
     }
   });
+  it("accepts a workspace-prefixed FxMind server and other result shapes", () => {
+    const server = "project-0-ecco-base-fxmind";
+    event("beforeSubmitPrompt");
+    assert.equal(event("beforeMCPExecution", { mcp_server_name: server, tool_name: "fxmind_query" }).permission, "allow");
+    assert.equal(denied("mcp__" + server + "__fxmind_query").permission, "allow");
+    assert.equal(denied("mcp__other__fxmind_query").permission, "deny");
+    assert.equal(event("beforeMCPExecution", { mcp_server_name: "evilfxmind", tool_name: "fxmind_query" }).permission, "deny");
+    const shapes = [
+      { structuredContent: { answer: "memory item" } },
+      { result: { content: [{ type: "text", text: "memory item" }] } },
+      "memory item as plain text",
+      [{ type: "text", text: "memory item" }],
+    ];
+    for (const shape of shapes) {
+      event("beforeSubmitPrompt");
+      assert.equal(denied("Grep").permission, "deny");
+      lookup(shape, { mcp_server_name: server, tool_name: "mcp__" + server + "__fxmind_query" });
+      assert.equal(denied("Grep").permission, "allow", JSON.stringify(shape));
+    }
+    for (const bad of [{ structuredContent: { text: " " } }, "Error: down", { isError: true, structuredContent: { a: "x" } }]) {
+      event("beforeSubmitPrompt");
+      lookup(bad, { mcp_server_name: server });
+      assert.equal(denied("Grep").permission, "deny", JSON.stringify(bad));
+    }
+  });
   it("does not reuse successful FxMind result across user turns", () => {
     event("beforeSubmitPrompt");
     lookup();

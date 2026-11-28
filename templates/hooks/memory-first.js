@@ -82,36 +82,49 @@ function save(root, consulted, input = {}) {
 function nameOf(input) {
   return String(input?.tool_name || "");
 }
+function isFxMindServer(server) {
+  // Cursor may prefix the server id (e.g. project-0-<workspace>-fxmind).
+  return /(^|[-_])fxmind$/i.test(String(server || "").trim());
+}
+function toolBase(name) {
+  return String(name || "").replace(/^MCP:/, "").replace(/^mcp__.+?__(?=fxmind_)/, "");
+}
 function isFxMindTool(name) {
   // Only memory retrieval may run before FxMind context is loaded.
-  // Cursor preToolUse names MCP calls as MCP:<tool_name>.
-  return /^MCP:fxmind_(?:query|read_file|search|playbook)$/.test(name) ||
-    /^mcp__fxmind__fxmind_(?:query|read_file|search|playbook)$/.test(name);
+  // Cursor preToolUse names MCP calls as MCP:<tool_name>, or mcp__<server>__<tool>.
+  name = String(name || "");
+  return READ_TOOLS.has(toolBase(name)) &&
+    (/^MCP:/.test(name) || /^mcp__(?:[\w.-]*[-_])?fxmind__/i.test(name));
 }
 function isFxMindMcpRead(name) {
-  return READ_TOOLS.has(name.replace(/^MCP:/, "").replace(/^mcp__fxmind__/, ""));
+  return READ_TOOLS.has(toolBase(name));
+}
+function resultTexts(result) {
+  const out = [];
+  // Wrapper keys are followed by name; inside structured payloads every value counts.
+  const walk = (v, depth, any) => {
+    if (v == null || depth > 4) return;
+    if (typeof v === "string") { out.push(v); return; }
+    if (Array.isArray(v)) { v.forEach((x) => walk(x, depth + 1, any)); return; }
+    if (typeof v !== "object") return;
+    if (typeof v.text === "string") out.push(v.text);
+    if (any) { Object.values(v).forEach((x) => walk(x, depth + 1, true)); return; }
+    for (const k of ["content", "result"]) walk(v[k], depth + 1, false);
+    for (const k of ["structuredContent", "data", "output"]) walk(v[k], depth + 1, true);
+  };
+  walk(result, 0, false);
+  return out;
 }
 function memoryReadSucceeded(input) {
-  if (String(input?.mcp_server_name || "").toLowerCase() !== "fxmind") return false;
-  const name = nameOf(input).replace(/^MCP:/, "").replace(/^mcp__fxmind__/, "");
-  if (!READ_TOOLS.has(name)) return false;
+  if (!isFxMindServer(input?.mcp_server_name)) return false;
+  if (!READ_TOOLS.has(toolBase(nameOf(input)))) return false;
   let result = input.result_json;
   if (result == null) return false;
-  try { if (typeof result === "string") result = JSON.parse(result); } catch { return false; }
-  if (!result || typeof result !== "object" || result.isError === true ||
-      result.error != null || result.ok === false) return false;
-  const content = result.content;
+  if (typeof result === "string") { try { result = JSON.parse(result); } catch { /* plain text result */ } }
+  if (result && typeof result === "object" && !Array.isArray(result) &&
+      (result.isError === true || result.error != null || result.ok === false)) return false;
   // Require actual returned context, not merely a 200/empty result.
-  if (Array.isArray(content)) {
-    return content.some((item) => item && item.type === "text" &&
-      typeof item.text === "string" && item.text.trim().length > 0 &&
-      !/^(error|erro|falha)\s*:/i.test(item.text.trim()));
-  }
-  // Some MCP implementations wrap JSON in result_json.result.
-  if (result.result && Array.isArray(result.result.content)) {
-    return result.result.content.some((item) => typeof item?.text === "string" && item.text.trim().length > 0);
-  }
-  return false;
+  return resultTexts(result).some((t) => t.trim().length > 0 && !/^(error|erro|falha)\s*:/i.test(t.trim()));
 }
 function deny() {
   return { permission: "deny", user_message: FAILURE, agent_message: FAILURE };
@@ -137,7 +150,7 @@ function run(event, input = {}, env = process.env) {
       if (isFxMindTool(nameOf(input))) return { permission: "allow" };
       return load(root, input) ? { permission: "allow" } : deny();
     case "beforeMCPExecution":
-      if (String(input.mcp_server_name || "").toLowerCase() === "fxmind" &&
+      if (isFxMindServer(input.mcp_server_name) &&
           isFxMindMcpRead(nameOf(input))) return { permission: "allow" };
       return load(root, input) ? { permission: "allow" } : deny();
     case "beforeShellExecution":
@@ -162,7 +175,7 @@ function recoverMalformedInput(event, raw) {
     if (tool && isFxMindTool(tool[1]) && event === "preToolUse") {
       return { permission: "allow" };
     }
-    if (tool && server && server[1].toLowerCase() === "fxmind" &&
+    if (tool && server && isFxMindServer(server[1]) &&
         isFxMindMcpRead(tool[1]) && event === "beforeMCPExecution") {
       return { permission: "allow" };
     }
