@@ -39,8 +39,18 @@ const { formatQueryResult } = require("./lib/memory-retrieval");
 const independentReview = require("./lib/independent-review");
 const desktopAgent = require("./desktop-agent");
 
-const PROTOCOL_VERSION = "2024-11-05";
+// Dual-era: the stateless 2026-07-28 revision (server/discover, per-request
+// _meta) and the legacy initialize handshake for older clients.
+const MODERN_PROTOCOL_VERSION = "2026-07-28";
+const LEGACY_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+const META_VERSION = "io.modelcontextprotocol/protocolVersion";
+const META_CLIENT_CAPS = "io.modelcontextprotocol/clientCapabilities";
+const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 const SERVER_INFO = { name: "fxmind", version: require("../package.json").version };
+const SERVER_CAPABILITIES = { tools: {} };
+// The tool list depends on env and installed version, so never let clients
+// cache results beyond a single read.
+const CACHE_HINTS = { ttlMs: 0, cacheScope: "private" };
 
 const SESSION_ID_PROP = {
   sessionId: {
@@ -1333,20 +1343,90 @@ function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+// Request ids in flight / cancelled by notifications/cancelled. JSON-encoded
+// so 1 and "1" stay distinct.
+const inFlightCalls = new Set();
+const cancelledCalls = new Set();
+
+function isModernRequest(msg) {
+  const meta = msg.params?._meta;
+  return msg.method === "server/discover" ||
+    Boolean(meta && typeof meta === "object" && Object.prototype.hasOwnProperty.call(meta, META_VERSION));
+}
+
+/** Validates the per-request _meta of a 2026-07-28 request; returns a JSON-RPC error or null. */
+function modernRequestError(msg) {
+  const meta = msg.params?._meta;
+  const version = meta?.[META_VERSION];
+  if (typeof version !== "string" || !version) {
+    return { code: -32602, message: `Invalid params: missing _meta["${META_VERSION}"]` };
+  }
+  if (version !== MODERN_PROTOCOL_VERSION) {
+    return {
+      code: -32022,
+      message: "Unsupported protocol version",
+      data: { supported: [MODERN_PROTOCOL_VERSION, ...LEGACY_PROTOCOL_VERSIONS], requested: version },
+    };
+  }
+  const caps = meta[META_CLIENT_CAPS];
+  if (!caps || typeof caps !== "object" || Array.isArray(caps)) {
+    return { code: -32602, message: `Invalid params: missing _meta["${META_CLIENT_CAPS}"]` };
+  }
+  return null;
+}
+
+/** Adds the 2026-07-28 result envelope (resultType + serverInfo) when the request was modern. */
+function shapeResult(result, modern) {
+  if (!modern) return result;
+  return {
+    resultType: "complete",
+    ...result,
+    _meta: { ...(result._meta || {}), [META_SERVER_INFO]: SERVER_INFO },
+  };
+}
+
 function handleMessage(msg) {
   if (!msg || msg.jsonrpc !== "2.0") {
     return;
   }
   const id = msg.id;
   const method = msg.method;
+  const modern = isModernRequest(msg);
+  const reply = (result) => send({ jsonrpc: "2.0", id, result: shapeResult(result, modern) });
+
+  if (method === "notifications/cancelled") {
+    // Unknown, finished or malformed cancellations are ignored (spec).
+    const key = JSON.stringify(msg.params?.requestId);
+    if (key !== undefined && inFlightCalls.has(key)) cancelledCalls.add(key);
+    return;
+  }
+
+  if (modern && id !== undefined) {
+    const error = modernRequestError(msg);
+    if (error) {
+      send({ jsonrpc: "2.0", id, error });
+      return;
+    }
+  }
+
+  if (method === "server/discover") {
+    reply({
+      supportedVersions: [MODERN_PROTOCOL_VERSION],
+      capabilities: SERVER_CAPABILITIES,
+      ...CACHE_HINTS,
+    });
+    return;
+  }
 
   if (method === "initialize") {
+    const requested = msg.params?.protocolVersion;
     send({
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: PROTOCOL_VERSION,
-        capabilities: { tools: {} },
+        // Echo a legacy version we speak; otherwise offer our newest legacy one.
+        protocolVersion: LEGACY_PROTOCOL_VERSIONS.includes(requested) ? requested : LEGACY_PROTOCOL_VERSIONS[0],
+        capabilities: SERVER_CAPABILITIES,
         serverInfo: SERVER_INFO,
       },
     });
@@ -1357,18 +1437,14 @@ function handleMessage(msg) {
     return;
   }
 
-  // MCP liveness check: the spec requires an empty result.
+  // Legacy liveness check: the spec requires an empty result.
   if (method === "ping") {
-    if (id !== undefined) send({ jsonrpc: "2.0", id, result: {} });
+    if (id !== undefined) reply({});
     return;
   }
 
   if (method === "tools/list") {
-    send({
-      jsonrpc: "2.0",
-      id,
-      result: { tools: listTools() },
-    });
+    reply(modern ? { tools: listTools(), ...CACHE_HINTS } : { tools: listTools() });
     return;
   }
 
@@ -1376,16 +1452,19 @@ function handleMessage(msg) {
     const toolName = msg.params?.name;
     const args = msg.params?.arguments || {};
     if (isReadonly() && !READONLY_TOOLS.has(String(toolName || ""))) {
-      send({
-        jsonrpc: "2.0",
-        id,
-        result: {
-          content: [{ type: "text", text: `${toolName} is disabled in read-only mode (FXMIND_MCP_READONLY).` }],
-          isError: true,
-        },
+      reply({
+        content: [{ type: "text", text: `${toolName} is disabled in read-only mode (FXMIND_MCP_READONLY).` }],
+        isError: true,
       });
       return;
     }
+    const callKey = JSON.stringify(id);
+    inFlightCalls.add(callKey);
+    // A cancelled request gets no response (spec); the tool itself still runs
+    // to completion because dispatchTool has no abort signal.
+    const replyUnlessCancelled = (result) => {
+      if (!cancelledCalls.has(callKey)) reply(result);
+    };
     const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
     const trackedThreadId = isPanelTool ? null : activeHostThreadId;
     pendingCalls += 1;
@@ -1404,32 +1483,26 @@ function handleMessage(msg) {
         }
         const status = result && result.ok === false ? "error" : "done";
         return reportHostMcp(trackedThreadId, toolName, args, status).then(() => {
-          send({
-            jsonrpc: "2.0",
-            id,
-            result: {
-              // Tools may return MCP content blocks (view_screen sends an image).
-              content: Array.isArray(result?.mcpContent)
-                ? result.mcpContent
-                : [{ type: "text", text: formatToolResult(toolName, result) }],
-              isError: result && result.ok === false,
-            },
+          replyUnlessCancelled({
+            // Tools may return MCP content blocks (view_screen sends an image).
+            content: Array.isArray(result?.mcpContent)
+              ? result.mcpContent
+              : [{ type: "text", text: formatToolResult(toolName, result) }],
+            isError: Boolean(result && result.ok === false),
           });
         });
       })
       .catch((error) => {
         return reportHostMcp(trackedThreadId, toolName, args, "error").then(() => {
-          send({
-            jsonrpc: "2.0",
-            id,
-            result: {
-              content: [{ type: "text", text: `Error: ${error.message}` }],
-              isError: true,
-            },
+          replyUnlessCancelled({
+            content: [{ type: "text", text: `Error: ${error.message}` }],
+            isError: true,
           });
         });
       })
       .finally(() => {
+        inFlightCalls.delete(callKey);
+        cancelledCalls.delete(callKey);
         pendingCalls -= 1;
         if (pendingCalls === 0 && inputClosed) exitAfterFlush();
       });
