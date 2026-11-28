@@ -38,6 +38,8 @@ const { routeTool } = require("./lib/tool-router");
 const { formatQueryResult } = require("./lib/memory-retrieval");
 const independentReview = require("./lib/independent-review");
 const desktopAgent = require("./desktop-agent");
+const mcpSkills = require("./lib/mcp-skills");
+const elicitation = require("./lib/mcp-elicitation");
 
 // Dual-era: the stateless 2026-07-28 revision (server/discover, per-request
 // _meta) and the legacy initialize handshake for older clients.
@@ -1379,6 +1381,17 @@ function runToolCall(toolName, args, ctx = {}) {
 // restart loses them (tasks/get then answers "Task not found", which the
 // spec allows). The orchestration broker keeps its own durable state.
 const TASKS_EXTENSION = "io.modelcontextprotocol/tasks";
+const SKILLS_EXTENSION = "io.modelcontextprotocol/skills";
+
+/** Whether fxmind_db_query would hit the destructive-SQL approval gate. */
+function needsSqlConfirmation(args) {
+  if (isReadonly() || args.environment === "production") return false;
+  try {
+    return fxmindMysql.classifySql(String(args.query || "")).destructive === true;
+  } catch {
+    return false;
+  }
+}
 const TASK_TOOLS = new Set(["fxmind_orchestrate", "fxmind_independent_review", "fxmind_subagent_run"]);
 const TASK_TTL_MS = 60 * 60 * 1000;
 const TASK_POLL_INTERVAL_MS = 2000;
@@ -1523,7 +1536,11 @@ function handleMessage(msg) {
   if (method === "server/discover") {
     reply({
       supportedVersions: [MODERN_PROTOCOL_VERSION],
-      capabilities: { ...SERVER_CAPABILITIES, extensions: { [TASKS_EXTENSION]: {} } },
+      capabilities: {
+        ...SERVER_CAPABILITIES,
+        resources: {},
+        extensions: { [TASKS_EXTENSION]: {}, [SKILLS_EXTENSION]: {} },
+      },
       ...CACHE_HINTS,
     });
     return;
@@ -1561,13 +1578,36 @@ function handleMessage(msg) {
 
   if (method === "tools/call") {
     const toolName = msg.params?.name;
-    const args = msg.params?.arguments || {};
+    let args = msg.params?.arguments || {};
     if (isReadonly() && !READONLY_TOOLS.has(String(toolName || ""))) {
       reply({
         content: [{ type: "text", text: `${toolName} is disabled in read-only mode (FXMIND_MCP_READONLY).` }],
         isError: true,
       });
       return;
+    }
+    // Destructive SQL: ask the user directly when the client can show a
+    // form, instead of trusting the model's approvedByUser flag.
+    if (modern && toolName === "fxmind_db_query" && needsSqlConfirmation(args) &&
+        elicitation.clientSupportsFormElicitation(msg.params?._meta?.[META_CLIENT_CAPS])) {
+      const guarded = { ...args };
+      delete guarded.approvedByUser;
+      const decision = elicitation.evaluateConfirmation(msg.params, toolName, guarded);
+      if (decision.kind === "ask") {
+        const sql = String(args.query || "");
+        const env = args.environment ? ` on ${args.environment}` : "";
+        reply(elicitation.confirmationRequest(toolName, guarded,
+          `fxmind wants to run destructive SQL${env}:\n\n${sql.length > 500 ? `${sql.slice(0, 500)}…` : sql}`));
+        return;
+      }
+      if (decision.kind === "declined") {
+        reply({
+          content: [{ type: "text", text: JSON.stringify({ ok: false, error: "user_declined", message: "The user did not approve this statement; it was not run." }) }],
+          isError: true,
+        });
+        return;
+      }
+      args = { ...guarded, approvedByUser: true };
     }
     // Long-running tools become MCP tasks for clients that declared the
     // extension; the call returns at once and the client polls tasks/get.
@@ -1591,6 +1631,43 @@ function handleMessage(msg) {
         pendingCalls -= 1;
         if (pendingCalls === 0 && inputClosed) exitAfterFlush();
       });
+    return;
+  }
+
+  if (method === "skills/list") {
+    reply({ skills: mcpSkills.listSkills(targetRoot()), ...CACHE_HINTS });
+    return;
+  }
+
+  if (method === "skills/get") {
+    const skill = mcpSkills.getSkill(targetRoot(), msg.params?.uri);
+    if (!skill) {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: `Unknown skill: ${msg.params?.uri}` } });
+      return;
+    }
+    reply({ skill, ...CACHE_HINTS });
+    return;
+  }
+
+  if (method === "resources/list") {
+    // Only skill entry points; every skill file stays readable by URI.
+    const resources = mcpSkills.listSkills(targetRoot()).map((skill) => ({
+      uri: skill.uri,
+      name: skill.frontmatter.name,
+      description: skill.frontmatter.description,
+      mimeType: "text/markdown",
+    }));
+    reply(modern ? { resources, ...CACHE_HINTS } : { resources });
+    return;
+  }
+
+  if (method === "resources/read") {
+    const contents = mcpSkills.readSkillResource(targetRoot(), msg.params?.uri);
+    if (!contents) {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: `Resource not found: ${msg.params?.uri}` } });
+      return;
+    }
+    reply(modern ? { contents: [contents], ...CACHE_HINTS } : { contents: [contents] });
     return;
   }
 

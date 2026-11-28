@@ -7,8 +7,7 @@ const readline = require("readline");
 const { spawn } = require("child_process");
 
 /** Starts the server, writes raw lines, returns every reply until stdout closes. */
-function exchange(rawLines, { closeInput = true, timeoutMs = 10000 } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmcp-proto-"));
+function exchange(rawLines, { closeInput = true, timeoutMs = 10000, root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmcp-proto-")) } = {}) {
   const child = spawn(process.execPath, [path.join(__dirname, "mcp-server.js")], {
     cwd: root, env: { ...process.env, NODE_ENV: "test", FXMIND_TARGET: root },
     stdio: ["pipe", "pipe", "pipe"], windowsHide: true,
@@ -155,7 +154,7 @@ const TASK_META = {
 
 it("server/discover advertises the tasks extension", async () => {
   const { replies } = await exchange([rpc(1, "server/discover", { _meta: MODERN_META })]);
-  assert.deepEqual(replies[0].result.capabilities.extensions, { "io.modelcontextprotocol/tasks": {} });
+  assert.deepEqual(replies[0].result.capabilities.extensions["io.modelcontextprotocol/tasks"], {});
 });
 
 it("runs a long tool as a task and returns its result through tasks/get", async () => {
@@ -238,4 +237,119 @@ it("answers task-eligible tools synchronously when the client lacks the extensio
   ]);
   assert.equal(replies[0].result.resultType, "complete");
   assert.ok(Array.isArray(replies[0].result.content));
+});
+
+function projectWithSkills() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "fxmcp-skills-"));
+  const dir = path.join(root, ".fxmind", "skills", "demo-skill");
+  fs.mkdirSync(path.join(dir, "refs"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "SKILL.md"), "---\nname: demo-skill\ndescription: >\n  Demo skill\n  for tests.\n---\n# Demo\nSee [api](refs/api.md).\n");
+  fs.writeFileSync(path.join(dir, "refs", "api.md"), "# API\n");
+  // Frontmatter name that does not match its folder is not served.
+  const bad = path.join(root, ".fxmind", "skills", "bad");
+  fs.mkdirSync(bad, { recursive: true });
+  fs.writeFileSync(path.join(bad, "SKILL.md"), "---\nname: other\ndescription: x\n---\n");
+  fs.writeFileSync(path.join(root, ".fxmind", "secret.txt"), "nope");
+  return root;
+}
+
+it("server/discover advertises resources and the skills extension", async () => {
+  const { replies } = await exchange([rpc(1, "server/discover", { _meta: MODERN_META })]);
+  const caps = replies[0].result.capabilities;
+  assert.ok(caps.resources);
+  assert.ok(caps.extensions["io.modelcontextprotocol/skills"]);
+});
+
+it("serves installed skills through skills/list, skills/get and resources/read", async () => {
+  const crypto = require("crypto");
+  const root = projectWithSkills();
+  const { replies } = await exchange([
+    rpc(1, "skills/list", { _meta: MODERN_META }),
+    rpc(2, "skills/get", { uri: "skill://fxmind/demo-skill/SKILL.md", _meta: MODERN_META }),
+    rpc(3, "resources/read", { uri: "skill://fxmind/demo-skill/refs/api.md", _meta: MODERN_META }),
+    rpc(4, "resources/list", { _meta: MODERN_META }),
+  ], { root });
+  const byId = Object.fromEntries(replies.map((r) => [r.id, r]));
+
+  const { skills } = byId[1].result;
+  assert.equal(byId[1].result.resultType, "complete");
+  assert.deepEqual(skills.map((s) => s.frontmatter.name), ["demo-skill"]);
+  assert.equal(skills[0].frontmatter.description, "Demo skill for tests.");
+  assert.deepEqual(skills[0].resources.map((r) => r.uri), [
+    "skill://fxmind/demo-skill/SKILL.md",
+    "skill://fxmind/demo-skill/refs/api.md",
+  ]);
+  const apiEntry = skills[0].resources[1];
+  assert.equal(apiEntry.size, 6);
+  assert.equal(apiEntry.digest, `sha256:${crypto.createHash("sha256").update("# API\n").digest("hex")}`);
+
+  assert.equal(byId[2].result.skill.uri, "skill://fxmind/demo-skill/SKILL.md");
+  assert.deepEqual(byId[3].result.contents, [
+    { uri: "skill://fxmind/demo-skill/refs/api.md", mimeType: "text/markdown", text: "# API\n" },
+  ]);
+  assert.equal(byId[4].result.resources[0].uri, "skill://fxmind/demo-skill/SKILL.md");
+});
+
+it("rejects unknown skills and paths outside a skill (-32602)", async () => {
+  const root = projectWithSkills();
+  const { replies } = await exchange([
+    rpc(1, "skills/get", { uri: "skill://fxmind/missing/SKILL.md", _meta: MODERN_META }),
+    rpc(2, "resources/read", { uri: "skill://fxmind/demo-skill/../../secret.txt", _meta: MODERN_META }),
+    rpc(3, "resources/read", { uri: "skill://fxmind/demo-skill/%2e%2e/%2e%2e/secret.txt", _meta: MODERN_META }),
+    rpc(4, "skills/get", { uri: "skill://fxmind/bad/SKILL.md", _meta: MODERN_META }),
+  ], { root });
+  assert.deepEqual(replies.map((r) => r.error?.code), [-32602, -32602, -32602, -32602]);
+});
+
+const ELICIT_META = {
+  ...MODERN_META,
+  "io.modelcontextprotocol/clientCapabilities": { elicitation: {} },
+};
+const DELETE_ARGS = { query: "DELETE FROM users WHERE id = 1", approvedByUser: true };
+
+it("asks the user before destructive SQL instead of trusting approvedByUser", async () => {
+  const { replies } = await exchange([
+    rpc(1, "tools/call", { name: "fxmind_db_query", arguments: DELETE_ARGS, _meta: ELICIT_META }),
+  ]);
+  const { result } = replies[0];
+  assert.equal(result.resultType, "input_required");
+  assert.equal(result.inputRequests.confirm.method, "elicitation/create");
+  assert.equal(result.inputRequests.confirm.params.mode, "form");
+  assert.match(result.inputRequests.confirm.params.message, /DELETE FROM users/);
+  assert.equal(typeof result.requestState, "string");
+});
+
+it("runs, refuses or re-asks according to the user's answer", async () => {
+  const client = startClient();
+  try {
+    const call = (extra) => client.call("tools/call", {
+      name: "fxmind_db_query", arguments: DELETE_ARGS, _meta: ELICIT_META, ...extra,
+    });
+    const asked = (await call({})).result;
+
+    const declined = (await call({ requestState: asked.requestState, inputResponses: { confirm: { action: "decline" } } })).result;
+    assert.equal(declined.isError, true);
+    assert.match(declined.content[0].text, /user_declined/);
+
+    const tampered = (await call({ requestState: `${asked.requestState}x`, inputResponses: { confirm: { action: "accept", content: { confirm: true } } } })).result;
+    assert.equal(tampered.resultType, "input_required");
+
+    const accepted = (await call({ requestState: asked.requestState, inputResponses: { confirm: { action: "accept", content: { confirm: true } } } })).result;
+    assert.equal(accepted.resultType, "complete");
+    // Past the approval gate: no database here, so it fails later, not with needsApproval.
+    assert.doesNotMatch(accepted.content[0].text, /needsApproval/);
+
+    const replayed = (await call({ requestState: asked.requestState, inputResponses: { confirm: { action: "accept", content: { confirm: true } } } })).result;
+    assert.equal(replayed.resultType, "input_required", "a requestState is single-use");
+  } finally {
+    await client.close();
+  }
+});
+
+it("keeps the approvedByUser flow for clients without elicitation", async () => {
+  const { replies } = await exchange([
+    rpc(1, "tools/call", { name: "fxmind_db_query", arguments: { query: "DELETE FROM users" }, _meta: MODERN_META }),
+  ]);
+  assert.equal(replies[0].result.resultType, "complete");
+  assert.match(replies[0].result.content[0].text, /needsApproval/);
 });
