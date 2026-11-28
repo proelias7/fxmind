@@ -38,9 +38,21 @@ const { routeTool } = require("./lib/tool-router");
 const { formatQueryResult } = require("./lib/memory-retrieval");
 const independentReview = require("./lib/independent-review");
 const desktopAgent = require("./desktop-agent");
+const mcpSkills = require("./lib/mcp-skills");
+const elicitation = require("./lib/mcp-elicitation");
 
-const PROTOCOL_VERSION = "2024-11-05";
+// Dual-era: the stateless 2026-07-28 revision (server/discover, per-request
+// _meta) and the legacy initialize handshake for older clients.
+const MODERN_PROTOCOL_VERSION = "2026-07-28";
+const LEGACY_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+const META_VERSION = "io.modelcontextprotocol/protocolVersion";
+const META_CLIENT_CAPS = "io.modelcontextprotocol/clientCapabilities";
+const META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 const SERVER_INFO = { name: "fxmind", version: require("../package.json").version };
+const SERVER_CAPABILITIES = { tools: {} };
+// The tool list depends on env and installed version, so never let clients
+// cache results beyond a single read.
+const CACHE_HINTS = { ttlMs: 0, cacheScope: "private" };
 
 const SESSION_ID_PROP = {
   sessionId: {
@@ -889,7 +901,7 @@ async function playbookTool(root, args = {}) {
   return { ok: false, error: `Unknown action: ${action}` };
 }
 
-async function dispatchTool(name, args) {
+async function dispatchTool(name, args, ctx = {}) {
   const root = targetRoot();
   const dbOptions = { root, environment: args.environment, readOnly: isReadonly() };
   if (desktopAgent.TOOL_NAMES.has(name)) {
@@ -1180,6 +1192,7 @@ async function dispatchTool(name, args) {
         plan: { task: args.task || "", strategy: args.strategy, subtasks: args.subtasks || [] },
         timeoutMs: args.timeoutMs,
       });
+      if (started.ok && started.orchestrationId) ctx.onOrchestrationStarted?.(started.orchestrationId);
       if (!started.ok || started.awaitingApproval || args.wait === false) return started;
       return brokerCall(root, "wait", {
         id: started.orchestrationId, timeoutMs: args.timeoutMs,
@@ -1333,20 +1346,215 @@ function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+/** Runs a tool with host reporting and returns a CallToolResult (never rejects). */
+function runToolCall(toolName, args, ctx = {}) {
+  const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
+  const trackedThreadId = isPanelTool ? null : activeHostThreadId;
+  return Promise.resolve()
+    .then(() => reportHostMcp(trackedThreadId, toolName, args, "running"))
+    .then(() => dispatchTool(toolName, args, ctx))
+    .then((result) => {
+      if (toolName === "fxmind_panel_wait" && result?.jobs?.length) {
+        activeHostThreadId = String(result.jobs[0].id || "");
+      }
+      if (toolName === "fxmind_panel_reply" || toolName === "fxmind_panel_fail") {
+        activeHostThreadId = null;
+      }
+      const status = result && result.ok === false ? "error" : "done";
+      return reportHostMcp(trackedThreadId, toolName, args, status).then(() => ({
+        // Tools may return MCP content blocks (view_screen sends an image).
+        content: Array.isArray(result?.mcpContent)
+          ? result.mcpContent
+          : [{ type: "text", text: formatToolResult(toolName, result) }],
+        isError: Boolean(result && result.ok === false),
+      }));
+    })
+    .catch((error) =>
+      reportHostMcp(trackedThreadId, toolName, args, "error").then(() => ({
+        content: [{ type: "text", text: `Error: ${error.message}` }],
+        isError: true,
+      })));
+}
+
+// ---- MCP tasks extension (io.modelcontextprotocol/tasks, 2026-07-28) ----
+// Tasks live in this process: the stdio client owns the process, so a
+// restart loses them (tasks/get then answers "Task not found", which the
+// spec allows). The orchestration broker keeps its own durable state.
+const TASKS_EXTENSION = "io.modelcontextprotocol/tasks";
+const SKILLS_EXTENSION = "io.modelcontextprotocol/skills";
+
+/** Whether fxmind_db_query would hit the destructive-SQL approval gate. */
+function needsSqlConfirmation(args) {
+  if (isReadonly() || args.environment === "production") return false;
+  try {
+    return fxmindMysql.classifySql(String(args.query || "")).destructive === true;
+  } catch {
+    return false;
+  }
+}
+const TASK_TOOLS = new Set(["fxmind_orchestrate", "fxmind_independent_review", "fxmind_subagent_run"]);
+const TASK_TTL_MS = 60 * 60 * 1000;
+const TASK_POLL_INTERVAL_MS = 2000;
+const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled"]);
+const tasksById = new Map();
+
+function clientSupportsTasks(msg) {
+  const extensions = msg.params?._meta?.[META_CLIENT_CAPS]?.extensions;
+  return Boolean(extensions && typeof extensions === "object" && extensions[TASKS_EXTENSION]);
+}
+
+function touchTask(task, status, fields = {}) {
+  Object.assign(task, fields, { status, lastUpdatedAt: new Date().toISOString() });
+}
+
+function createTask(toolName, args) {
+  const now = new Date().toISOString();
+  const task = {
+    taskId: require("crypto").randomUUID(),
+    toolName,
+    status: "working",
+    statusMessage: `${toolName} is running.`,
+    createdAt: now,
+    lastUpdatedAt: now,
+    createdAtMs: Date.now(),
+    result: null,
+    orchestrationId: null,
+  };
+  // Registered before the reply so a tasks/get for this id always resolves.
+  tasksById.set(task.taskId, task);
+  const ctx = { onOrchestrationStarted: (orchestrationId) => { task.orchestrationId = orchestrationId; } };
+  runToolCall(toolName, args, ctx).then((result) => {
+    if (TERMINAL_TASK_STATUSES.has(task.status)) return; // cancelled meanwhile
+    // A tool error (isError) is still a completed task per the extension spec.
+    touchTask(task, "completed", { result, statusMessage: `${toolName} finished.` });
+  });
+  return task;
+}
+
+function getTask(taskId) {
+  pruneExpiredTasks();
+  return typeof taskId === "string" ? tasksById.get(taskId) || null : null;
+}
+
+function pruneExpiredTasks(now = Date.now()) {
+  for (const [taskId, task] of tasksById) {
+    if (now - task.createdAtMs > TASK_TTL_MS) tasksById.delete(taskId);
+  }
+}
+
+function cancelTask(task) {
+  if (TERMINAL_TASK_STATUSES.has(task.status)) return;
+  touchTask(task, "cancelled", { statusMessage: "Cancelled by the client." });
+  // Cooperative: only orchestrations can actually be stopped; subagent and
+  // review runs finish in the background and their result is dropped.
+  if (task.orchestrationId) {
+    const { brokerCall } = require("./lib/orchestration-client");
+    Promise.resolve(brokerCall(targetRoot(), "cancel", { id: task.orchestrationId })).catch(() => {});
+  }
+}
+
+function taskView(task, { withOutcome = false } = {}) {
+  const view = {
+    taskId: task.taskId,
+    status: task.status,
+    statusMessage: task.statusMessage,
+    createdAt: task.createdAt,
+    lastUpdatedAt: task.lastUpdatedAt,
+    ttlMs: TASK_TTL_MS,
+  };
+  if (!TERMINAL_TASK_STATUSES.has(task.status)) view.pollIntervalMs = TASK_POLL_INTERVAL_MS;
+  if (withOutcome && task.status === "completed") view.result = task.result;
+  return view;
+}
+
+// Request ids in flight / cancelled by notifications/cancelled. JSON-encoded
+// so 1 and "1" stay distinct.
+const inFlightCalls = new Set();
+const cancelledCalls = new Set();
+
+function isModernRequest(msg) {
+  const meta = msg.params?._meta;
+  return msg.method === "server/discover" ||
+    Boolean(meta && typeof meta === "object" && Object.prototype.hasOwnProperty.call(meta, META_VERSION));
+}
+
+/** Validates the per-request _meta of a 2026-07-28 request; returns a JSON-RPC error or null. */
+function modernRequestError(msg) {
+  const meta = msg.params?._meta;
+  const version = meta?.[META_VERSION];
+  if (typeof version !== "string" || !version) {
+    return { code: -32602, message: `Invalid params: missing _meta["${META_VERSION}"]` };
+  }
+  if (version !== MODERN_PROTOCOL_VERSION) {
+    return {
+      code: -32022,
+      message: "Unsupported protocol version",
+      data: { supported: [MODERN_PROTOCOL_VERSION, ...LEGACY_PROTOCOL_VERSIONS], requested: version },
+    };
+  }
+  const caps = meta[META_CLIENT_CAPS];
+  if (!caps || typeof caps !== "object" || Array.isArray(caps)) {
+    return { code: -32602, message: `Invalid params: missing _meta["${META_CLIENT_CAPS}"]` };
+  }
+  return null;
+}
+
+/** Adds the 2026-07-28 result envelope (resultType + serverInfo) when the request was modern. */
+function shapeResult(result, modern) {
+  if (!modern) return result;
+  return {
+    resultType: "complete",
+    ...result,
+    _meta: { ...(result._meta || {}), [META_SERVER_INFO]: SERVER_INFO },
+  };
+}
+
 function handleMessage(msg) {
   if (!msg || msg.jsonrpc !== "2.0") {
     return;
   }
   const id = msg.id;
   const method = msg.method;
+  const modern = isModernRequest(msg);
+  const reply = (result) => send({ jsonrpc: "2.0", id, result: shapeResult(result, modern) });
+
+  if (method === "notifications/cancelled") {
+    // Unknown, finished or malformed cancellations are ignored (spec).
+    const key = JSON.stringify(msg.params?.requestId);
+    if (key !== undefined && inFlightCalls.has(key)) cancelledCalls.add(key);
+    return;
+  }
+
+  if (modern && id !== undefined) {
+    const error = modernRequestError(msg);
+    if (error) {
+      send({ jsonrpc: "2.0", id, error });
+      return;
+    }
+  }
+
+  if (method === "server/discover") {
+    reply({
+      supportedVersions: [MODERN_PROTOCOL_VERSION],
+      capabilities: {
+        ...SERVER_CAPABILITIES,
+        resources: {},
+        extensions: { [TASKS_EXTENSION]: {}, [SKILLS_EXTENSION]: {} },
+      },
+      ...CACHE_HINTS,
+    });
+    return;
+  }
 
   if (method === "initialize") {
+    const requested = msg.params?.protocolVersion;
     send({
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: PROTOCOL_VERSION,
-        capabilities: { tools: {} },
+        // Echo a legacy version we speak; otherwise offer our newest legacy one.
+        protocolVersion: LEGACY_PROTOCOL_VERSIONS.includes(requested) ? requested : LEGACY_PROTOCOL_VERSIONS[0],
+        capabilities: SERVER_CAPABILITIES,
         serverInfo: SERVER_INFO,
       },
     });
@@ -1357,82 +1565,139 @@ function handleMessage(msg) {
     return;
   }
 
-  // MCP liveness check: the spec requires an empty result.
+  // Legacy liveness check: the spec requires an empty result.
   if (method === "ping") {
-    if (id !== undefined) send({ jsonrpc: "2.0", id, result: {} });
+    if (id !== undefined) reply({});
     return;
   }
 
   if (method === "tools/list") {
-    send({
-      jsonrpc: "2.0",
-      id,
-      result: { tools: listTools() },
-    });
+    reply(modern ? { tools: listTools(), ...CACHE_HINTS } : { tools: listTools() });
     return;
   }
 
   if (method === "tools/call") {
     const toolName = msg.params?.name;
-    const args = msg.params?.arguments || {};
+    let args = msg.params?.arguments || {};
     if (isReadonly() && !READONLY_TOOLS.has(String(toolName || ""))) {
+      reply({
+        content: [{ type: "text", text: `${toolName} is disabled in read-only mode (FXMIND_MCP_READONLY).` }],
+        isError: true,
+      });
+      return;
+    }
+    // Destructive SQL: ask the user directly when the client can show a
+    // form, instead of trusting the model's approvedByUser flag.
+    if (modern && toolName === "fxmind_db_query" && needsSqlConfirmation(args) &&
+        elicitation.clientSupportsFormElicitation(msg.params?._meta?.[META_CLIENT_CAPS])) {
+      const guarded = { ...args };
+      delete guarded.approvedByUser;
+      const decision = elicitation.evaluateConfirmation(msg.params, toolName, guarded);
+      if (decision.kind === "ask") {
+        const sql = String(args.query || "");
+        const env = args.environment ? ` on ${args.environment}` : "";
+        reply(elicitation.confirmationRequest(toolName, guarded,
+          `fxmind wants to run destructive SQL${env}:\n\n${sql.length > 500 ? `${sql.slice(0, 500)}…` : sql}`));
+        return;
+      }
+      if (decision.kind === "declined") {
+        reply({
+          content: [{ type: "text", text: JSON.stringify({ ok: false, error: "user_declined", message: "The user did not approve this statement; it was not run." }) }],
+          isError: true,
+        });
+        return;
+      }
+      args = { ...guarded, approvedByUser: true };
+    }
+    // Long-running tools become MCP tasks for clients that declared the
+    // extension; the call returns at once and the client polls tasks/get.
+    if (modern && TASK_TOOLS.has(String(toolName)) && clientSupportsTasks(msg)) {
+      const task = createTask(toolName, args);
+      reply({ ...taskView(task), resultType: "task" });
+      return;
+    }
+    const callKey = JSON.stringify(id);
+    inFlightCalls.add(callKey);
+    pendingCalls += 1;
+    runToolCall(toolName, args)
+      .then((result) => {
+        // A cancelled request gets no response (spec); the tool itself still
+        // runs to completion because dispatchTool has no abort signal.
+        if (!cancelledCalls.has(callKey)) reply(result);
+      })
+      .finally(() => {
+        inFlightCalls.delete(callKey);
+        cancelledCalls.delete(callKey);
+        pendingCalls -= 1;
+        if (pendingCalls === 0 && inputClosed) exitAfterFlush();
+      });
+    return;
+  }
+
+  if (method === "skills/list") {
+    reply({ skills: mcpSkills.listSkills(targetRoot()), ...CACHE_HINTS });
+    return;
+  }
+
+  if (method === "skills/get") {
+    const skill = mcpSkills.getSkill(targetRoot(), msg.params?.uri);
+    if (!skill) {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: `Unknown skill: ${msg.params?.uri}` } });
+      return;
+    }
+    reply({ skill, ...CACHE_HINTS });
+    return;
+  }
+
+  if (method === "resources/list") {
+    // Only skill entry points; every skill file stays readable by URI.
+    const resources = mcpSkills.listSkills(targetRoot()).map((skill) => ({
+      uri: skill.uri,
+      name: skill.frontmatter.name,
+      description: skill.frontmatter.description,
+      mimeType: "text/markdown",
+    }));
+    reply(modern ? { resources, ...CACHE_HINTS } : { resources });
+    return;
+  }
+
+  if (method === "resources/read") {
+    const contents = mcpSkills.readSkillResource(targetRoot(), msg.params?.uri);
+    if (!contents) {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: `Resource not found: ${msg.params?.uri}` } });
+      return;
+    }
+    reply(modern ? { contents: [contents], ...CACHE_HINTS } : { contents: [contents] });
+    return;
+  }
+
+  if (method === "tasks/get" || method === "tasks/cancel" || method === "tasks/update") {
+    if (!modern || !clientSupportsTasks(msg)) {
       send({
         jsonrpc: "2.0",
         id,
-        result: {
-          content: [{ type: "text", text: `${toolName} is disabled in read-only mode (FXMIND_MCP_READONLY).` }],
-          isError: true,
+        error: {
+          code: -32021,
+          message: "Missing required client capability",
+          data: { requiredCapabilities: { extensions: { [TASKS_EXTENSION]: {} } } },
         },
       });
       return;
     }
-    const isPanelTool = String(toolName || "").startsWith("fxmind_panel_");
-    const trackedThreadId = isPanelTool ? null : activeHostThreadId;
-    pendingCalls += 1;
-    Promise.resolve()
-      .then(() => reportHostMcp(trackedThreadId, toolName, args, "running"))
-      .then(() => dispatchTool(toolName, args))
-      .then((result) => {
-        if (toolName === "fxmind_panel_wait" && result?.jobs?.length) {
-          activeHostThreadId = String(result.jobs[0].id || "");
-        }
-        if (
-          toolName === "fxmind_panel_reply" ||
-          toolName === "fxmind_panel_fail"
-        ) {
-          activeHostThreadId = null;
-        }
-        const status = result && result.ok === false ? "error" : "done";
-        return reportHostMcp(trackedThreadId, toolName, args, status).then(() => {
-          send({
-            jsonrpc: "2.0",
-            id,
-            result: {
-              // Tools may return MCP content blocks (view_screen sends an image).
-              content: Array.isArray(result?.mcpContent)
-                ? result.mcpContent
-                : [{ type: "text", text: formatToolResult(toolName, result) }],
-              isError: result && result.ok === false,
-            },
-          });
-        });
-      })
-      .catch((error) => {
-        return reportHostMcp(trackedThreadId, toolName, args, "error").then(() => {
-          send({
-            jsonrpc: "2.0",
-            id,
-            result: {
-              content: [{ type: "text", text: `Error: ${error.message}` }],
-              isError: true,
-            },
-          });
-        });
-      })
-      .finally(() => {
-        pendingCalls -= 1;
-        if (pendingCalls === 0 && inputClosed) exitAfterFlush();
-      });
+    const task = getTask(msg.params?.taskId);
+    if (!task) {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: "Failed to retrieve task: Task not found" } });
+      return;
+    }
+    if (method === "tasks/get") {
+      reply(taskView(task, { withOutcome: true }));
+    } else if (method === "tasks/cancel") {
+      cancelTask(task);
+      reply({});
+    } else {
+      // No fxmind task asks for input, so there is nothing to apply.
+      reply({});
+    }
     return;
   }
 
@@ -1491,4 +1756,6 @@ module.exports = {
   listTools,
   enabledToolGroups,
   formatToolResult,
+  // Exposed for tests only.
+  _tasks: { cancelTask, taskView },
 };

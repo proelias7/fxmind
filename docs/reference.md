@@ -469,6 +469,15 @@ The global binary avoids `npx.cmd` → `cmd.exe` on Windows, which breaks MCP sp
 | `fxmind_fivem_status` / `fxmind_fivem_cmd` / `fxmind_fivem_console_tail` | Local FXServer RCON + log tail (dev). **Status probes reachability** — use cmd/tail only when `available: true`; otherwise ask user to run console commands manually. |
 | `fxmind_fivem_nui_wire` / `fxmind_fivem_nui_dump` / `fxmind_fivem_nui_unwire` | Agent TEMP-wires a NUI resource, dumps structured state, then **must unwire**. Better than screenshots. |
 
+### MCP protocol support
+
+The server speaks MCP **2026-07-28** (stateless: `server/discover`, per-request `_meta`) and still answers the legacy `initialize` handshake (2025-11-25 down to 2024-11-05). Features below only apply to 2026-07-28 clients that declare them; other clients get the classic behaviour.
+
+- **Tasks** (`io.modelcontextprotocol/tasks`) — `fxmind_orchestrate`, `fxmind_independent_review` and `fxmind_subagent_run` return a task right away; poll `tasks/get`, stop with `tasks/cancel` (stops orchestrations in the broker; subagent/review runs finish and their result is dropped). Tasks live in the server process for 1 h.
+- **Skills** (`io.modelcontextprotocol/skills`) — the pack skills installed in `.fxmind/skills/` (or the global store) are served as `skill://fxmind/<skill>/<file>` via `skills/list`, `skills/get` and `resources/read`, including local corrections.
+- **Elicitation** — destructive `fxmind_db_query` statements (DELETE/DROP/TRUNCATE…) ask the user through a form (`resultType: "input_required"`) instead of trusting `approvedByUser`. The signed `requestState` is bound to the exact statement, expires in 5 min and works once.
+- **Cancellation** — `notifications/cancelled` drops the response of an in-flight call.
+
 Skip with `--no-mcp`. Refresh with `fxmind --update -y` (copies only files that differ from this CLI, then stamps `cliVersion` in `.fxmind/packs.json`) or `fxmind hooks install`. If everything already matches, it prints `Already up to date` and exits. Restart the MCP client after changes.
 
 ### Auto update check (Cursor)
